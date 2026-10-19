@@ -143,7 +143,7 @@ export class AuthController {
 
     try {
       const result = await this.db.query(
-        'SELECT driver_id, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type, email_verified FROM drivers WHERE email = $1 AND password_hash = $2',
+        'SELECT driver_id, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type, company_name, company_lat, company_lon, email_verified FROM drivers WHERE email = $1 AND password_hash = $2',
         [email, hash]
       );
       if (result.rows.length === 0) {
