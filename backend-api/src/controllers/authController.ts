@@ -42,7 +42,7 @@ export class AuthController {
     try {
       await this.db.query(
         'INSERT INTO drivers (driver_id, email, password_hash, name, truck_height, truck_weight, role, help_type, email_verified) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-        [id, email, hash, name || '', height || 4.40, weight || 45.00, safeRole, helpType || null, precisaVerificar ? FALSE : TRUE]
+        [id, email, hash, name || '', height || 4.40, weight || 45.00, safeRole, helpType || null, precisaVerificar ? false : true]
       );
       let emailSent = false;
       if (precisaVerificar) {

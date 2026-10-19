@@ -11,6 +11,7 @@ import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
+import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
@@ -1373,8 +1374,8 @@ class _MapScreenState extends State<MapScreen> {
   bool get _isPremium =>
       context.read<AuthProvider>().driver?.isPremium ?? false;
 
-  void _gatePremium(String feature, VoidCallback action) {
-    if (_isPremium) {
+  void _gatePremium(PremiumFeature feature, VoidCallback action) {
+    if (!PremiumPolicy.isLocked(feature, isPremium: _isPremium)) {
       action();
       return;
     }
@@ -1385,7 +1386,7 @@ class _MapScreenState extends State<MapScreen> {
         title: const Text('Recurso Premium',
             style: TextStyle(color: Colors.white)),
         content: Text(
-          '$feature está disponível apenas na versão Premium.\n\n'
+          '${feature.label} está disponível apenas na versão Premium.\n\n'
           'No plano Free você navega com o mapa e as rotas. '
           'Assine o Premium para liberar alertas, sinais, rádio, '
           'outros caminhoneiros, ruas 3D e histórico.',
