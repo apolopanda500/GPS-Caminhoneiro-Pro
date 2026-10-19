@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 
 class SpeedHUD extends StatelessWidget {
@@ -22,7 +22,7 @@ class SpeedHUD extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xCC000000),
+        color: overlaySurface(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: _overLimit ? const Color(0xFFFF5252) : kEmergencyRed,

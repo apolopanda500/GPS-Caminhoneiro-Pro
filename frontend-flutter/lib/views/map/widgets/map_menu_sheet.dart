@@ -10,6 +10,8 @@ class MapMenuSheet extends StatelessWidget {
   final VoidCallback onPremium;
   final VoidCallback onClearSignals;
   final VoidCallback onLogout;
+  final VoidCallback onStreetView;
+  final VoidCallback onCompany;
 
   const MapMenuSheet({
     super.key,
@@ -22,6 +24,8 @@ class MapMenuSheet extends StatelessWidget {
     required this.onPremium,
     required this.onClearSignals,
     required this.onLogout,
+    required this.onStreetView,
+    required this.onCompany,
   });
 
   static Future<void> show(
@@ -35,6 +39,8 @@ class MapMenuSheet extends StatelessWidget {
     required VoidCallback onPremium,
     required VoidCallback onClearSignals,
     required VoidCallback onLogout,
+    required VoidCallback onStreetView,
+    required VoidCallback onCompany,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -53,6 +59,8 @@ class MapMenuSheet extends StatelessWidget {
         onPremium: onPremium,
         onClearSignals: onClearSignals,
         onLogout: onLogout,
+        onStreetView: onStreetView,
+        onCompany: onCompany,
       ),
     );
   }
@@ -88,6 +96,16 @@ class MapMenuSheet extends StatelessWidget {
                 icon: Icons.people,
                 title: 'Contatos de estrada',
                 onTap: onContacts),
+            _tile(context,
+                icon: Icons.streetview,
+                title: 'Ver a rua',
+                subtitle: 'Imagens da rua no ponto atual',
+                onTap: onStreetView),
+            _tile(context,
+                icon: Icons.factory,
+                title: 'Empresa',
+                subtitle: 'Marcar o local exato da empresa',
+                onTap: onCompany),
             const Divider(color: Colors.white12),
             _tile(context,
                 icon: Icons.settings,

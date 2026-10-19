@@ -13,6 +13,29 @@ const Color kAppBarLight = Color(0xFFFFFFFF);
 const Color kDividerDark = Color(0x33FFFFFF);
 const Color kDividerLight = Color(0x1F000000);
 
+/// Superfícies flutuantes sobre o mapa (barra lateral, cartões, HUD).
+/// No tema claro ficam brancas e translúcidas para o mapa aparecer atrás.
+Color overlaySurface(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xE6101418)
+        : const Color(0xF2FFFFFF);
+
+Color overlayBorder(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? kEmergencyRed
+        : const Color(0x33000000);
+
+Color overlayAccent(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? kEmergencyRed
+        : const Color(0xFFD32F2F);
+
+Color overlayText(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark ? Colors.white : kLightInk;
+
+Color overlayTextMuted(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark ? Colors.white70 : kLightInk;
+
 final ThemeData appTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.dark,

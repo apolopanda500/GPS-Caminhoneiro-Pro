@@ -25,16 +25,22 @@
     return AlertModel(
       id: json['id'] ?? '',
       driverId: json['driverId'] ?? json['driver_id'] ?? '',
-      type: json['type'] ?? 'texto_livre',
+      type: json['type'] ?? json['alert_type'] ?? 'texto_livre',
       message: json['message'],
-      maxHeight: json['maxHeight'] != null ? (json['maxHeight'] as num).toDouble() : null,
-      maxWeight: json['maxWeight'] != null ? (json['maxWeight'] as num).toDouble() : null,
-      latitude: (json['latitude'] ?? json['lat'] ?? 0).toDouble(),
-      longitude: (json['longitude'] ?? json['lon'] ?? 0).toDouble(),
+      maxHeight: _toDouble(json['maxHeight'] ?? json['max_height_allowed']),
+      maxWeight: _toDouble(json['maxWeight'] ?? json['max_weight_allowed']),
+      latitude: _toDouble(json['latitude'] ?? json['lat']) ?? 0,
+      longitude: _toDouble(json['longitude'] ?? json['lon']) ?? 0,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
         json['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       ),
     );
+  }
+
+  static double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   Map<String, dynamic> toJson() => {

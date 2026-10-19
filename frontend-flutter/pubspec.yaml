@@ -1,4 +1,4 @@
-﻿name: gps_camioneiro_pro
+name: gps_camioneiro_pro
 description: GPS Robusto para Caminhoneiros - Rede Veicular V2X, Chat e Alertas em Tempo Real
 publish_to: 'none'
 version: 1.0.0+1
@@ -20,6 +20,7 @@ dependencies:
   provider: ^6.1.1
   latlong2: ^0.9.1
   maplibre_gl: ^0.27.1
+  connectivity_plus: ^7.3.2
 
 flutter:
   uses-material-design: true

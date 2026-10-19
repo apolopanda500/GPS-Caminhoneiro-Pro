@@ -15,6 +15,8 @@ import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
+import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
+import 'package:gps_camioneiro_pro/core/network/network_status_service.dart';
 import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
 import 'package:gps_camioneiro_pro/data/models/map_marker_model.dart';
 import 'package:gps_camioneiro_pro/data/models/trip_model.dart';
@@ -38,6 +40,7 @@ import 'package:gps_camioneiro_pro/views/map/widgets/street_search_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/chat_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/peer_profile_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_planner_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
@@ -75,6 +78,10 @@ class _MapScreenState extends State<MapScreen> {
   LatLng _center = _fallbackCenter;
   LatLng? _currentPosition;
   double _zoom = 14;
+  double _bearing = 0;
+  Timer? _styleFallbackTimer;
+  final NetworkStatusService _network = NetworkStatusService();
+  StreamSubscription<NetKind>? _networkSub;
   double _speedKmh = 0;
 
   bool _is3d = false;
@@ -455,8 +462,27 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Ajusta o mapa e o consumo de dados conforme a conexao.
+  /// Em 4G/5G o app continua com o mapa completo (3D e tudo mais);
+  /// a rede apenas informa o usuario e garante reconexao rapida.
+  void _iniciarMonitorDeRede() {
+    _network.start();
+    _networkSub = _network.onChange.listen((kind) {
+      if (!mounted) return;
+      if (kind == NetKind.none) {
+        _showSnackBar('📡 Sem conexão. Tentando reconectar...');
+        return;
+      }
+      if (kind == NetKind.mobile) {
+        _showSnackBar('📶 Dados móveis (4G/5G): mapa 3D completo ativo.');
+      }
+      _renderMarkers();
+    });
+  }
+
   Future<void> _onStyleLoaded() async {
     _styleLoaded = true;
+    _styleFallbackTimer?.cancel();
     _imagesAdded.clear();
     await _ensureBuildings3d();
     await _renderMarkers();
@@ -464,6 +490,19 @@ class _MapScreenState extends State<MapScreen> {
       final target = _currentPosition ?? _center;
       _moverCamera(target, zoom: _zoom, bearing: 25, tilt: 50);
     }
+  }
+
+  /// Se o estilo vetorial (CDN) demorar ou falhar, cai no raster local
+  /// para nunca deixar o mapa em branco.
+  void _agendarFallbackDeEstilo() {
+    _styleFallbackTimer?.cancel();
+    if (!_isDetailed) return;
+    _styleFallbackTimer = Timer(const Duration(seconds: 8), () {
+      if (!mounted || _styleLoaded) return;
+      setState(() => _layerMode = MapLayerMode.streets);
+      final style = _styleAtual;
+      if (style.isNotEmpty) _mapController?.setStyle(style);
+    });
   }
 
   Future<void> _ensureBuildings3d() async {
@@ -758,17 +797,18 @@ class _MapScreenState extends State<MapScreen> {
         'route_area',
         'area_fill',
         const ml.FillLayerProperties(
-          fillColor: '#FF1744',
-          fillOpacity: 0.16,
+          fillColor: '#00B0FF',
+          fillOpacity: 0.07,
         ),
       );
       await c.addLineLayer(
         'route_area',
         'area_line',
         const ml.LineLayerProperties(
-          lineColor: '#FF5252',
-          lineWidth: 2.5,
-          lineOpacity: 0.9,
+          lineColor: '#FFB300',
+          lineWidth: 3.5,
+          lineOpacity: 0.95,
+          lineBlur: 0.4,
         ),
       );
     } catch (_) {}
@@ -839,7 +879,7 @@ class _MapScreenState extends State<MapScreen> {
   void _openChatPanel({String? peerName, String? peerDriverId}) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xEE101418),
+      backgroundColor: overlaySurface(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -866,7 +906,7 @@ class _MapScreenState extends State<MapScreen> {
   void _openPeerProfile(Map<String, dynamic> peer) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xEE101418),
+      backgroundColor: overlaySurface(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -963,6 +1003,113 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Unico comando de sinalizacao: emoji, aviso na estrada ou endereco.
+  void _abrirSinalizacoes() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: overlaySurface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.emoji_emotions, color: Colors.redAccent),
+              title: const Text('Sinal com emoji'),
+              subtitle: const Text('Marcar um ponto no mapa (12h)'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _sinalizarNoCentro();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_road, color: Colors.redAccent),
+              title: const Text('Avisar a comunidade'),
+              subtitle: const Text('Radar, ponte baixa, balança, pedágio...'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showWriteReportDialog();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.pin_drop, color: Colors.redAccent),
+              title: const Text('Marcar endereço / rua'),
+              subtitle: const Text('Salvar um ponto para quem estiver perto'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _marcarEndereco();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Salva um endereco/ponto exato e compartilha com a rede.
+  Future<void> _marcarEndereco() async {
+    final controller = TextEditingController();
+    final resultado = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Marcar endereço'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Nome do local',
+            hintText: 'Ex.: Galpão do motorista, Posto BR',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('SALVAR'),
+          ),
+        ],
+      ),
+    );
+    if (resultado == null || resultado.isEmpty) return;
+    if (!mounted) return;
+    final lat = _center.latitude;
+    final lon = _center.longitude;
+    context.read<MarkerProvider>().addMarker(
+          MapMarkerModel(
+            id: 'end_${DateTime.now().millisecondsSinceEpoch}',
+            emoji: '📍',
+            type: 'endereco',
+            label: resultado,
+            latitude: lat,
+            longitude: lon,
+          ),
+        );
+    _socket.sharePlace(
+      fromDriverId: widget.driverId,
+      fromName: widget.driverName,
+      label: resultado,
+      lat: lat,
+      lon: lon,
+    );
+    _showSnackBar('📍 "$resultado" marcado e compartilhado com a rede.');
+    _renderMarkers();
+  }
+
   void _verRua() {
     final target = _currentPosition ?? _center;
     StreetViewScreen.show(
@@ -977,49 +1124,120 @@ class _MapScreenState extends State<MapScreen> {
     final controller = TextEditingController(
       text: context.read<AuthProvider>().driver?.companyName ?? '',
     );
-    final nome = await showDialog<String>(
+    final buscaController = TextEditingController();
+    GeoResult? encontrado;
+    final GeocodingService geocoding = GeocodingService();
+
+    final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Empresa'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Nome da empresa',
-                hintText: 'Ex.: Transportadora Silva',
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Empresa'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome da empresa',
+                    hintText: 'Ex.: Transportadora Silva',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: buscaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Endereço exato',
+                    hintText: 'Rua, número, bairro',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final resultados = await geocoding
+                              .search(buscaController.text, limit: 1);
+                          if (resultados.isEmpty) return;
+                          setState(() => encontrado = resultados.first);
+                        },
+                        icon: const Icon(Icons.search, size: 16),
+                        label: const Text('Buscar'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx, {
+                            'name': controller.text.trim(),
+                            'lat': _center.latitude,
+                            'lon': _center.longitude,
+                            'fromMap': true,
+                          });
+                        },
+                        icon: const Icon(Icons.map, size: 16),
+                        label: const Text('Centro do mapa'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (encontrado != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Encontrado: ${encontrado!.displayName}',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'A empresa será marcada no centro do mapa atual e usada como '
-              'última parada da rota.',
-              style: TextStyle(fontSize: 12),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (encontrado != null) {
+                  Navigator.pop(ctx, {
+                    'name': controller.text.trim(),
+                    'lat': encontrado!.latitude,
+                    'lon': encontrado!.longitude,
+                  });
+                } else {
+                  Navigator.pop(ctx, {
+                    'name': controller.text.trim(),
+                    'lat': _center.latitude,
+                    'lon': _center.longitude,
+                  });
+                }
+              },
+              child: const Text('SALVAR'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('SALVAR'),
-          ),
-        ],
       ),
     );
-    if (nome == null || nome.isEmpty) return;
+
+    if (resultado == null) return;
+    final nome = (resultado['name'] ?? '').toString();
+    final lat = (resultado['lat'] as num?)?.toDouble() ?? _center.latitude;
+    final lon = (resultado['lon'] as num?)?.toDouble() ?? _center.longitude;
     if (!mounted) return;
     final provider = context.read<AuthProvider>();
     await provider.updateProfile(
-      companyName: nome,
-      companyLat: _center.latitude,
-      companyLon: _center.longitude,
+      companyName: nome.isEmpty ? 'Empresa' : nome,
+      companyLat: lat,
+      companyLon: lon,
     );
-    _showSnackBar('🏭 Empresa "$nome" marcada no mapa.');
+    setState(() => _center = LatLng(lat, lon));
+    _moverCamera(LatLng(lat, lon), zoom: 16);
+    _showSnackBar('🏭 Empresa "${nome.isEmpty ? 'Empresa' : nome}" marcada no mapa.');
   }
 
   void _recentralizarNoCaminhao() {
@@ -1292,6 +1510,7 @@ class _MapScreenState extends State<MapScreen> {
       _settingsProvider!.addListener(_onDataChanged);
 
       _carregarAlertsOffline();
+      _iniciarMonitorDeRede();
       _settingsApplied = true;
     }
   }
@@ -1460,14 +1679,16 @@ class _MapScreenState extends State<MapScreen> {
       isPremium: context.read<AuthProvider>().driver?.isPremium ?? false,
       onProfile: _abrirPerfil,
       onTrips: () =>
-          _gatePremium('Histórico de viagens', _abrirHistoricoViagens),
+          _gatePremium(PremiumFeature.tripHistory, _abrirHistoricoViagens),
       onEndTrip: _finalizarViagem,
       onContacts: () =>
-          _gatePremium('Contatos de estrada', _abrirContatosEstrada),
+          _gatePremium(PremiumFeature.roadContacts, _abrirContatosEstrada),
       onSettings: _abrirConfiguracoes,
       onPremium: _abrirPaymentGate,
       onClearSignals: _limparSinaisDoMapa,
       onLogout: _sairDaConta,
+      onStreetView: _verRua,
+      onCompany: _marcarEmpresa,
     );
   }
 
@@ -1485,28 +1706,30 @@ class _MapScreenState extends State<MapScreen> {
     _markerProvider?.removeListener(_onDataChanged);
     _routeProvider?.removeListener(_onDataChanged);
     _settingsProvider?.removeListener(_onDataChanged);
+    _networkSub?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasRoute = context.watch<RouteProvider>().hasRoute;
     final ui = _uiExpanded;
 
     return Scaffold(
       body: Stack(
         children: [
           _buildMapView(),
-          if (ui && hasRoute)
-            Positioned(
-                top: 96,
-                left: _contentLeft,
-                right: 16,
-                child: _buildRouteSummary()),
+          if (ui)
+            RouteTablePanel(
+              onShowRoute: _mostrarRota,
+              onShare: _compartilharRota,
+              onStart: _iniciarRota,
+              onConfirmNext: _confirmarEntregaAtual,
+              onClose: () => context.read<RouteProvider>().clearRoute(),
+            ),
           if (ui && _activeAlerts.isNotEmpty)
             Positioned(
-              top: hasRoute ? 184 : 96,
+              top: 96,
               left: _contentLeft,
               right: 16,
               child: _buildAlertsCard(),
@@ -1537,9 +1760,41 @@ class _MapScreenState extends State<MapScreen> {
           Positioned(
             top: 44,
             right: 16,
-            child: _buildUiToggle(),
+            child: Column(
+              children: [
+                _buildUiToggle(),
+                const SizedBox(height: 10),
+                _buildCompass(),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Bussola propria: fica logo abaixo do botao de modo e volta ao norte.
+  Widget _buildCompass() {
+    return Material(
+      color: overlaySurface(context),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          final target = _currentPosition ?? _center;
+          _moverCamera(target, zoom: _zoom, bearing: 0, tilt: _is3d ? 50 : 0);
+        },
+        child: Tooltip(
+          message: 'Voltar ao norte',
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Transform.rotate(
+              angle: -_bearing * 3.1415926535 / 180,
+              child:
+                  const Icon(Icons.navigation, color: Colors.white70, size: 20),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1550,7 +1805,7 @@ class _MapScreenState extends State<MapScreen> {
         ? 'Ocultar interações e conversas'
         : 'Mostrar interações e conversas';
     return Material(
-      color: const Color(0xEE101418),
+      color: overlaySurface(context),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -1566,151 +1821,11 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildRouteSummary() {
-    final provider = context.watch<RouteProvider>();
-    final route = provider.result!;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xEE101418),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kEmergencyRed, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.alt_route, color: Colors.redAccent),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${route.distanceKm.toStringAsFixed(1)} km • ${route.etaText}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15),
-                    ),
-                    Text(
-                      provider.totalStops == 0
-                          ? 'Sem paradas cadastradas'
-                          : 'Próxima: ${provider.nextStopLabel}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                    Text(
-                      route.heavyVehicle
-                          ? '${route.trafficText} • rota para caminhão'
-                          : route.trafficText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: route.hasTrafficDelay
-                            ? Colors.orangeAccent
-                            : Colors.greenAccent,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Mostrar rota',
-                icon: const Icon(Icons.center_focus_strong,
-                    color: Colors.white70),
-                onPressed: _mostrarRota,
-              ),
-              IconButton(
-                tooltip: 'Compartilhar rota',
-                icon: const Icon(Icons.share_location, color: Colors.white70),
-                onPressed: _compartilharRota,
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white54),
-                onPressed: () => context.read<RouteProvider>().clearRoute(),
-              ),
-            ],
-          ),
-          if (provider.totalStops > 0) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: provider.progress,
-                      minHeight: 6,
-                      backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                          Colors.greenAccent),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${provider.deliveredCount}/${provider.totalStops}',
-                  style:
-                      const TextStyle(color: Colors.greenAccent, fontSize: 12),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                if (!provider.started)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _iniciarRota,
-                      icon: const Icon(Icons.play_arrow, size: 18),
-                      label: const Text('INICIAR ROTA',
-                          style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        '🟢 ROTA EM ANDAMENTO',
-                        style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (!provider.allDelivered)
-                  TextButton.icon(
-                    onPressed: _confirmarEntregaAtual,
-                    icon: const Icon(Icons.check_circle_outline,
-                        size: 18, color: Colors.greenAccent),
-                    label: const Text('Confirmar',
-                        style:
-                            TextStyle(color: Colors.greenAccent, fontSize: 12)),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildAlertsCard() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xCC1C0303),
+        color: overlaySurface(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: kEmergencyRed, width: 1.5),
       ),
@@ -1764,7 +1879,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildSideRail() {
     if (_railHidden) {
       return Material(
-        color: const Color(0xEE101418),
+        color: overlaySurface(context),
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -1801,7 +1916,7 @@ class _MapScreenState extends State<MapScreen> {
         duration: const Duration(milliseconds: 180),
         width: _sideRailOpen ? 168 : 56,
         decoration: BoxDecoration(
-          color: const Color(0xEE101418),
+          color: overlaySurface(context),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: kEmergencyRed, width: 1.2),
         ),
@@ -1838,21 +1953,14 @@ class _MapScreenState extends State<MapScreen> {
               ),
               const Divider(color: Colors.white12, height: 1),
               _railAction(Icons.settings, 'Tudo', _abrirMenu),
-              _railAction(Icons.search, 'Buscar',
-                  () => _gatePremium('Buscar ruas', _buscarRua)),
               _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
-              _railAction(
-                  Icons.edit,
-                  'Avisar',
-                  () => _gatePremium(
-                      'Avisar a comunidade', _showWriteReportDialog)),
-              _railAction(Icons.emoji_emotions, 'Sinal',
-                  () => _gatePremium('Sinalizar no mapa', _sinalizarNoCentro)),
+              _railAction(Icons.add_location_alt, 'Sinalizar',
+                  _abrirSinalizacoes),
               _railAction(Icons.radio, 'Rádio',
-                  () => _gatePremium('Rádio da estrada', _openChatPanel)),
+                  () => _gatePremium(PremiumFeature.radio, _openChatPanel)),
+              _railAction(Icons.search, 'Buscar',
+                  () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
               _railAction(Icons.gps_fixed, 'Aqui', _recentralizarNoCaminhao),
-              _railAction(Icons.streetview, 'Ver rua', _verRua),
-              _railAction(Icons.factory, 'Empresa', _marcarEmpresa),
             ],
           ),
         ),
@@ -1871,7 +1979,7 @@ class _MapScreenState extends State<MapScreen> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xEE101418),
+              color: overlaySurface(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: kEmergencyRed),
             ),
@@ -1916,7 +2024,7 @@ class _MapScreenState extends State<MapScreen> {
         FloatingActionButton(
           heroTag: 'fab_peers',
           mini: true,
-          backgroundColor: const Color(0xEE101418),
+          backgroundColor: overlaySurface(context),
           onPressed: () => setState(() => _peerBubbleOpen = !_peerBubbleOpen),
           child: Badge(
             label: Text('${_peerTrucks.length}'),
@@ -1949,6 +2057,7 @@ class _MapScreenState extends State<MapScreen> {
         zoom: _zoom,
       ),
       onMapCreated: (controller) {
+        _agendarFallbackDeEstilo();
         _mapController = controller;
         controller.onSymbolTapped.add(_onSymbolTapped);
       },
@@ -1957,6 +2066,9 @@ class _MapScreenState extends State<MapScreen> {
           _onMapLongPress(LatLng(latLng.latitude, latLng.longitude)),
       onCameraMove: (camera) {
         _zoom = camera.zoom;
+        if ((camera.bearing - _bearing).abs() > 0.5) {
+          setState(() => _bearing = camera.bearing);
+        }
       },
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
         Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
@@ -1968,7 +2080,7 @@ class _MapScreenState extends State<MapScreen> {
       doubleClickZoomEnabled: true,
       dragEnabled: true,
       minMaxZoomPreference: ml.MinMaxZoomPreference.unbounded,
-      compassEnabled: true,
+      compassEnabled: false,
       myLocationEnabled: false,
       trackCameraPosition: true,
       logoEnabled: false,

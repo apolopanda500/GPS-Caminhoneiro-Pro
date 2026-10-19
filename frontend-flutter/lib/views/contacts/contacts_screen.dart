@@ -17,7 +17,7 @@ class ContactsScreen extends StatelessWidget {
           'Contatos de Estrada',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFF1C0303),
+        backgroundColor: Theme.of(context).colorScheme.surface,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: peers.isEmpty
@@ -60,7 +60,7 @@ class ContactsScreen extends StatelessWidget {
     final cargo = (peer['cargoType'] ?? 'Carga geral').toString();
 
     return Card(
-      color: const Color(0xFF121212),
+      color: Theme.of(context).colorScheme.surface,
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -69,7 +69,7 @@ class ContactsScreen extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFF1C0303),
+          backgroundColor: Theme.of(context).colorScheme.surface,
           child: Icon(Icons.local_shipping, color: hasLocation ? Colors.redAccent : Colors.grey),
         ),
         title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -82,7 +82,7 @@ class ContactsScreen extends StatelessWidget {
             Text('Carga: $cargo', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 4),
             Text(
-              hasLocation ? '🟢 Online - ${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)}' : '🔴 Sem posição',
+              hasLocation ? '�??� Online - ${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)}' : '�??� Sem posição',
               style: TextStyle(
                 color: hasLocation ? Colors.green : Colors.grey,
                 fontSize: 12,

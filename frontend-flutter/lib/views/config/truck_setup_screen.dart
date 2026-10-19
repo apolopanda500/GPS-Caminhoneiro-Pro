@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/data/models/truck_config.dart';
 import 'package:gps_camioneiro_pro/data/models/driver_model.dart';
@@ -30,10 +30,10 @@ class _TruckSetupScreenState extends State<TruckSetupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configurar Caminhão'),
-        backgroundColor: kDarkRedTransition,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: kDarkBlack,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: ListView(

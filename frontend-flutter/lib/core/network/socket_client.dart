@@ -17,7 +17,8 @@ class SocketClient {
     socket = sio.io(
       AppConstants.socketUrl,
       sio.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(['websocket', 'polling'])
+          .enableForceNew()
           .disableAutoConnect()
           .enableReconnection()
           .build(),

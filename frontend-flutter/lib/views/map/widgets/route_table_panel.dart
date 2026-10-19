@@ -1,0 +1,333 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/providers/route_provider.dart';
+
+/// Painel "Tabela de rotas": lista as paradas com status, permite arrastar,
+/// redimensionar e minimizar sem cobrir o mapa.
+class RouteTablePanel extends StatefulWidget {
+  final VoidCallback onShowRoute;
+  final VoidCallback onShare;
+  final VoidCallback onStart;
+  final VoidCallback onConfirmNext;
+  final VoidCallback onClose;
+
+  const RouteTablePanel({
+    super.key,
+    required this.onShowRoute,
+    required this.onShare,
+    required this.onStart,
+    required this.onConfirmNext,
+    required this.onClose,
+  });
+
+  @override
+  State<RouteTablePanel> createState() => _RouteTablePanelState();
+}
+
+class _RouteTablePanelState extends State<RouteTablePanel> {
+  Offset _offset = const Offset(12, 96);
+  double _width = 320;
+  double _height = 220;
+  bool _minimized = false;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<RouteProvider>();
+    final route = provider.result;
+    final stops = provider.stops;
+
+    return Positioned(
+      left: _offset.dx,
+      top: _offset.dy,
+      width: _width,
+      child: GestureDetector(
+        onPanUpdate: _dragging
+            ? null
+            : (details) {
+                setState(() {
+                  _offset = Offset(
+                    _offset.dx + details.delta.dx,
+                    (_offset.dy + details.delta.dy).clamp(8.0, 420.0),
+                  );
+                });
+              },
+        onPanStart: (_) => _dragging = true,
+        onPanEnd: (_) => _dragging = false,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: BoxConstraints(maxHeight: _height),
+            decoration: BoxDecoration(
+              color: overlaySurface(context),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: overlayBorder(context), width: 1.4),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _cabecalho(provider, route),
+                if (!_minimized) ...[
+                  Flexible(child: _tabela(provider, stops)),
+                  _rodape(provider),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cabecalho(RouteProvider provider, dynamic route) {
+    final total = provider.totalStops;
+    final entregues = provider.deliveredCount;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+      decoration: const BoxDecoration(
+        color: Color(0x33000000),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.table_rows, color: Colors.redAccent, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tabela de rotas',
+                  style: TextStyle(
+                    color: overlayText(context),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  total == 0
+                      ? 'Sem paradas'
+                      : '$entregues de $total concluídas${route != null ? ' • ${route.distanceKm.toStringAsFixed(1)} km' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Mostrar rota',
+            iconSize: 18,
+            icon: const Icon(Icons.center_focus_strong, color: Colors.white70),
+            onPressed: widget.onShowRoute,
+          ),
+          IconButton(
+            tooltip: 'Compartilhar rota',
+            iconSize: 18,
+            icon: const Icon(Icons.share_location, color: Colors.white70),
+            onPressed: widget.onShare,
+          ),
+          IconButton(
+            tooltip: _minimized ? 'Expandir' : 'Minimizar',
+            iconSize: 18,
+            icon: Icon(
+              _minimized ? Icons.expand_less : Icons.expand_more,
+              color: Colors.white70,
+            ),
+            onPressed: () => setState(() => _minimized = !_minimized),
+          ),
+          IconButton(
+            tooltip: 'Fechar',
+            iconSize: 18,
+            icon: const Icon(Icons.close, color: Colors.white54),
+            onPressed: widget.onClose,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabela(RouteProvider provider, List<RouteStopEntry> stops) {
+    if (stops.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(18),
+        child: Text(
+          'Monte a rota no botão "Rota" para ver a tabela de clientes aqui.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 26,
+                child: Text('#',
+                    style: TextStyle(color: Colors.white54, fontSize: 10)),
+              ),
+              Expanded(
+                child: Text('CLIENTE',
+                    style: TextStyle(color: Colors.white54, fontSize: 10)),
+              ),
+              SizedBox(
+                width: 74,
+                child: Text('STATUS',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Colors.white54, fontSize: 10)),
+              ),
+            ],
+          ),
+        ),
+        const Divider(color: Colors.white12, height: 1),
+        Flexible(
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            itemCount: stops.length,
+            itemBuilder: (context, index) {
+              final stop = stops[index];
+              final status = provider.statusOf(index);
+              final isProximo = provider.nextStopIndex == index;
+              final cor = provider.isCompanyStop(index)
+                  ? const Color(0xFF9C27B0)
+                  : status == StopStatus.delivered
+                      ? const Color(0xFF4CAF50)
+                      : status == StopStatus.arrived
+                          ? const Color(0xFF2196F3)
+                          : const Color(0xFFFF9800);
+              final rotulo = status == StopStatus.delivered
+                  ? 'ENTREGUE'
+                  : status == StopStatus.arrived
+                      ? 'NO LOCAL'
+                      : isProximo
+                          ? 'PRÓXIMA'
+                          : 'PENDENTE';
+              return InkWell(
+                onTap: () => context
+                    .read<RouteProvider>()
+                    .confirmDelivery(index),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isProximo
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 26,
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: cor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              stop.customer.isNotEmpty
+                                  ? stop.customer
+                                  : stop.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 12),
+                            ),
+                            if (stop.neighborhood.isNotEmpty)
+                              Text(
+                                stop.neighborhood,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white54, fontSize: 10),
+                              ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 74,
+                        child: Text(
+                          rotulo,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            color: cor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _rodape(RouteProvider provider) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: provider.progress,
+                minHeight: 6,
+                backgroundColor: Colors.white12,
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Colors.greenAccent),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (!provider.started)
+            ElevatedButton(
+              onPressed: widget.onStart,
+              style: ElevatedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                minimumSize: const Size(0, 32),
+              ),
+              child: const Text('INICIAR ROTA', style: TextStyle(fontSize: 11)),
+            )
+          else
+            TextButton.icon(
+              onPressed: widget.onConfirmNext,
+              icon: const Icon(Icons.check_circle_outline,
+                  size: 16, color: Colors.greenAccent),
+              label: const Text('Confirmar',
+                  style: TextStyle(color: Colors.greenAccent, fontSize: 11)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Ajusta o tamanho do painel (usado pelo gesto de redimensionar).
+  void resize(double deltaWidth, double deltaHeight) {
+    setState(() {
+      _width = (_width + deltaWidth).clamp(240.0, 420.0);
+      _height = (_height + deltaHeight).clamp(150.0, 420.0);
+    });
+  }
+}
