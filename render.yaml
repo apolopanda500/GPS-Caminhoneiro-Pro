@@ -1,0 +1,46 @@
+# ================================================================================
+# RENDER.YAML - Deploy Automatico do GPS Caminhoneiro Pro (backend + Postgres)
+# Uso: Render Dashboard > New > Blueprint > apontar para este repositorio > Apply
+# Cria e conecta o banco Postgres (PostGIS) ao backend automaticamente.
+# ================================================================================
+
+databases:
+  - name: gps-truck-postgis
+    databaseName: gps_truck_pro
+    user: postgres
+    plan: free
+    postgresVersion: "16"
+    ipAllowList: []
+
+services:
+  - type: web
+    name: gps-truck-backend
+    runtime: node
+    plan: free
+    rootDir: backend-api
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /status
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gps-truck-postgis
+          property: connectionString
+      - key: PORT
+        value: 3000
+      - key: FRONTEND_URL
+        value: "*"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_VERSION
+        value: "20"
+
+# Passos manuais obrigatorios (2 no total):
+# 1) Habilitar PostGIS no banco: Render > gps-truck-postgis > Shell > rode:
+#      CREATE EXTENSION IF NOT EXISTS postgis;
+#    (ou aguarde o log do deploy, que tenta isso automaticamente e avisa no log)
+# 2) Atualizar o app: frontend-flutter/keys.json com
+#      API_URL = https://gps-truck-backend.onrender.com
+#      SOCKET_URL = https://gps-truck-backend.onrender.com
+#    e rebuildar o APK.

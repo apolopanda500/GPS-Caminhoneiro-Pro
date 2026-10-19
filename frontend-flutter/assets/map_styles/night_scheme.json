@@ -1,0 +1,12 @@
+﻿{
+  "name": "Noite Caminhoneiro",
+  "style": {
+    "background": "#0A0A0A",
+    "water": "#1A1A1A",
+    "land": "#121212",
+    "road": "#2A2A2A",
+    "roadLabel": "#E5E5E5",
+    "poi": "#4A4A4A",
+    "alertMarker": "#8B0000"
+  }
+}

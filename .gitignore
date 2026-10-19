@@ -1,0 +1,28 @@
+﻿.env
+node_modules/
+dist/
+build/
+backups/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+*.local
+.DS_Store
+
+# Segredos / credenciais
+frontend-flutter/keys.json
+frontend-flutter/android/key.properties
+frontend-flutter/android/app/upload-keystore.jks
+*.jks
+*.keystore
+
+# IDE
+.idea/
+.vscode/
+
+# Artefatos de build
+*.apk
+*.aab
+hs_err_pid*.log
+.kotlin/
