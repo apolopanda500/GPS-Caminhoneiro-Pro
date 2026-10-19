@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/navigation_provider.dart';
@@ -13,6 +14,7 @@ import 'package:provider/provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(
     MultiProvider(
       providers: [
