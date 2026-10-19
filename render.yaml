@@ -1,15 +1,9 @@
 # ================================================================================
-# RENDER.YAML - Deploy Automatico do GPS Caminhoneiro Pro (backend + Postgres)
-# Uso: Render Dashboard > New > Blueprint > apontar para este repositorio > Apply
-# Cria e conecta o banco Postgres (PostGIS) ao backend automaticamente.
+# RENDER.YAML - Deploy Automatico do GPS Caminhoneiro Pro (backend)
+# O banco (gps-truck-postgis) JA foi criado manualmente no painel do Render.
+# Este blueprint cria apenas o web service e conecta no banco existente.
+# Crie o banco em: https://dashboard.render.com/new/database
 # ================================================================================
-
-databases:
-  - name: gps-truck-postgis
-    databaseName: gps_truck_pro
-    plan: free
-    postgresVersion: "16"
-    ipAllowList: []
 
 services:
   - type: web
