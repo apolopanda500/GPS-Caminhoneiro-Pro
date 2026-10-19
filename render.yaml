@@ -7,7 +7,6 @@
 databases:
   - name: gps-truck-postgis
     databaseName: gps_truck_pro
-    user: postgres
     plan: free
     postgresVersion: "16"
     ipAllowList: []
