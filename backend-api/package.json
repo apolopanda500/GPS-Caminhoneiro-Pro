@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "gps-truck-backend",
   "version": "1.0.0",
   "description": "Servidor 24/7 em Tempo Real para o GPS Caminhoneiro Pro (Rede Veicular V2X)",
@@ -14,10 +14,10 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "nodemailer": "^6.9.13",
+    "nodemailer": "^10.0.9",
     "pg": "^8.11.5",
     "socket.io": "^4.7.5",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
