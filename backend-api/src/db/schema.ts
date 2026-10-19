@@ -18,8 +18,19 @@ CREATE TABLE IF NOT EXISTS drivers (
     truck_photo_url TEXT DEFAULT 'https://placehold.co/300x200',
     truck_model VARCHAR(50) DEFAULT 'Não Informado',
     cargo_type VARCHAR(100) DEFAULT 'Carga Geral',
+    role VARCHAR(20) DEFAULT 'motorista',
+    help_type VARCHAR(40),
+    company_name VARCHAR(150),
+    company_lat NUMERIC(10,7),
+    company_lon NUMERIC(10,7),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'motorista';
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS help_type VARCHAR(40);
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS company_name VARCHAR(150);
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS company_lat NUMERIC(10,7);
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS company_lon NUMERIC(10,7);
 
 CREATE TABLE IF NOT EXISTS road_alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,6 +81,20 @@ CREATE TABLE IF NOT EXISTS payments (
     paid_at TIMESTAMP WITH TIME ZONE
 );
 
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE;
+
+CREATE TABLE IF NOT EXISTS verification_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(100) NOT NULL,
+    code VARCHAR(6) NOT NULL,
+    purpose VARCHAR(20) NOT NULL DEFAULT 'signup',
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
 CREATE INDEX IF NOT EXISTS idx_road_alerts_geom ON road_alerts USING gist(geom);
 CREATE INDEX IF NOT EXISTS idx_road_alerts_type ON road_alerts(alert_type);
 CREATE INDEX IF NOT EXISTS idx_truck_alerts_expires ON road_alerts(expires_at);

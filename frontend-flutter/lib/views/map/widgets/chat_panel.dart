@@ -23,7 +23,11 @@ class ChatPanel extends StatefulWidget {
 }
 
 class _ChatPanelState extends State<ChatPanel> {
-  static const List<String> _quickEmojis = ['👍', '🚨', '🐂', '😂', '⛽', '🛑', '🤝', '🔥'];
+  static const List<String> _quickEmojis = [
+    '🚨', '📷', '👍', '🙏', '🤝', '😂', '🤣', '❤️',
+    '🔥', '💯', '👀', '😎', '🎉', '🫶', '✅', '⭐',
+    '😡', '🐂', '⛽', '🛑',
+  ];
 
   final _msgController = TextEditingController();
   final _scrollController = ScrollController();

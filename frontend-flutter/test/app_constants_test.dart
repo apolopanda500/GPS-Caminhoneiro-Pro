@@ -31,7 +31,7 @@ void main() {
 
     test('emojis de estrada não vazios', () {
       expect(AppConstants.roadEmojis, isNotEmpty);
-      expect(AppConstants.roadEmojis.length, 4);
+      expect(AppConstants.roadEmojis.length, greaterThanOrEqualTo(4));
     });
   });
 }

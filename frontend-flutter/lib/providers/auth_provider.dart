@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -13,11 +13,15 @@ class AuthProvider extends ChangeNotifier {
   DriverModel? _driver;
   bool _isLoading = false;
   String? _error;
+  String? _pendingEmail;
+  bool _requiresVerification = false;
 
   DriverModel? get driver => _driver;
   bool get isAuthenticated => _driver != null;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  String? get pendingEmail => _pendingEmail;
+  bool get requiresVerification => _requiresVerification;
 
   Future<void> loadSession() async {
     try {
@@ -74,7 +78,8 @@ class AuthProvider extends ChangeNotifier {
             .timeout(const Duration(seconds: 8));
 
         if (resp.statusCode == 200) {
-          _driver = DriverModel.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+          _driver = DriverModel.fromJson(
+              jsonDecode(resp.body) as Map<String, dynamic>);
           _isLoading = false;
           _connectSocket();
           await _persist();
@@ -87,11 +92,21 @@ class AuthProvider extends ChangeNotifier {
           notifyListeners();
           return false;
         }
+        if (resp.statusCode == 403) {
+          _pendingEmail = email;
+          _requiresVerification = true;
+          _error = 'Confirme sua conta com o código enviado por e-mail.';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
       } catch (_) {
         // Sem conexão: segue para sessão local.
       }
     }
 
+    _requiresVerification = false;
+    _pendingEmail = null;
     _driver = DriverModel(
       driverId: 'drv_${DateTime.now().millisecondsSinceEpoch}',
       email: email,
@@ -109,6 +124,9 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     String? name,
+    String role = 'motorista',
+    String? helpType,
+    String? truckIcon,
   }) async {
     _isLoading = true;
     _error = null;
@@ -120,17 +138,35 @@ class AuthProvider extends ChangeNotifier {
             .post(
               Uri.parse('${AppConstants.baseUrl}/api/auth/register'),
               headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'email': email, 'password': password, 'name': name}),
+              body: jsonEncode({
+                'email': email,
+                'password': password,
+                'name': name,
+                'role': role,
+                'helpType': helpType,
+              }),
             )
             .timeout(const Duration(seconds: 8));
 
         if (resp.statusCode == 201) {
           final body = jsonDecode(resp.body) as Map<String, dynamic>;
+          if (body['requiresVerification'] == true) {
+            _pendingEmail = email;
+            _requiresVerification = true;
+            _error = null;
+            _isLoading = false;
+            notifyListeners();
+            return true;
+          }
           _driver = DriverModel(
-            driverId: body['driverId'] ?? 'drv_${DateTime.now().millisecondsSinceEpoch}',
+            driverId: body['driverId'] ??
+                'drv_${DateTime.now().millisecondsSinceEpoch}',
             email: email,
             name: name ?? body['name'],
             isPremium: false,
+            role: (body['role'] ?? role).toString(),
+            helpType: body['helpType'] ?? helpType,
+            truckIcon: truckIcon ?? '🚚',
           );
           _isLoading = false;
           _connectSocket();
@@ -149,6 +185,8 @@ class AuthProvider extends ChangeNotifier {
       }
     }
 
+    _requiresVerification = false;
+    _pendingEmail = null;
     _driver = DriverModel(
       driverId: 'drv_${DateTime.now().millisecondsSinceEpoch}',
       email: email,
@@ -156,12 +194,151 @@ class AuthProvider extends ChangeNotifier {
           ? name
           : (email.isNotEmpty ? email.split('@').first : 'Motorista'),
       isPremium: false,
+      role: role,
+      helpType: helpType,
+      truckIcon: truckIcon ?? '🚚',
     );
     _isLoading = false;
     _connectSocket();
     await _persist();
     notifyListeners();
     return true;
+  }
+
+  Future<bool> verifyCode({required String email, required String code}) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    if (!AppConstants.serverConfigured) {
+      _error = 'Servidor não configurado para validar o código.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/auth/verify'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email, 'code': code}),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        _driver = DriverModel.fromJson({...body, 'email': email});
+        _requiresVerification = false;
+        _pendingEmail = null;
+        _isLoading = false;
+        _connectSocket();
+        await _persist();
+        notifyListeners();
+        return true;
+      }
+      _error = (jsonDecode(resp.body) as Map<String, dynamic>)['error'] ??
+          'Código inválido ou expirado.';
+    } catch (_) {
+      _error = 'Sem conexão para validar o código.';
+    }
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  Future<bool> resendCode(String email) async {
+    if (!AppConstants.serverConfigured) return false;
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/auth/resend'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return resp.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Atualiza o perfil no servidor (empresa, modelo, foto, etc).
+  Future<bool> updateProfile({
+    String? name,
+    String? truckModel,
+    String? cargoType,
+    String? companyName,
+    double? companyLat,
+    double? companyLon,
+  }) async {
+    final d = _driver;
+    if (d == null) return false;
+    if (!AppConstants.serverConfigured) {
+      _driver = DriverModel(
+        driverId: d.driverId,
+        email: d.email,
+        name: name ?? d.name,
+        isPremium: d.isPremium,
+        truckHeight: d.truckHeight,
+        truckWeight: d.truckWeight,
+        axleCount: d.axleCount,
+        hazmat: d.hazmat,
+        avatarUrl: d.avatarUrl,
+        truckPhotoUrl: d.truckPhotoUrl,
+        truckModel: truckModel ?? d.truckModel,
+        cargoType: cargoType ?? d.cargoType,
+        truckIcon: d.truckIcon,
+        role: d.role,
+        helpType: d.helpType,
+        companyName: companyName ?? d.companyName,
+        companyLat: companyLat ?? d.companyLat,
+        companyLon: companyLon ?? d.companyLon,
+      );
+      await _persist();
+      notifyListeners();
+      return true;
+    }
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/auth/profile'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'driverId': d.driverId,
+              'name': name,
+              'truckModel': truckModel,
+              'cargoType': cargoType,
+              'companyName': companyName,
+              'companyLat': companyLat,
+              'companyLon': companyLon,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) return false;
+      _driver = DriverModel(
+        driverId: d.driverId,
+        email: d.email,
+        name: name ?? d.name,
+        isPremium: d.isPremium,
+        truckHeight: d.truckHeight,
+        truckWeight: d.truckWeight,
+        axleCount: d.axleCount,
+        hazmat: d.hazmat,
+        avatarUrl: d.avatarUrl,
+        truckPhotoUrl: d.truckPhotoUrl,
+        truckModel: truckModel ?? d.truckModel,
+        cargoType: cargoType ?? d.cargoType,
+        truckIcon: d.truckIcon,
+        role: d.role,
+        helpType: d.helpType,
+        companyName: companyName ?? d.companyName,
+        companyLat: companyLat ?? d.companyLat,
+        companyLon: companyLon ?? d.companyLon,
+      );
+      await _persist();
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   void setDriver(DriverModel driver) {

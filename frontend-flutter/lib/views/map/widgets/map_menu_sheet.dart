@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 
 class MapMenuSheet extends StatelessWidget {
-  final bool isSatellite;
-  final bool is3d;
   final bool isPremium;
   final VoidCallback onProfile;
-  final VoidCallback onToggleLayer;
-  final VoidCallback onToggle3d;
   final VoidCallback onTrips;
   final VoidCallback onEndTrip;
   final VoidCallback onContacts;
@@ -17,12 +13,8 @@ class MapMenuSheet extends StatelessWidget {
 
   const MapMenuSheet({
     super.key,
-    required this.isSatellite,
-    required this.is3d,
     required this.isPremium,
     required this.onProfile,
-    required this.onToggleLayer,
-    required this.onToggle3d,
     required this.onTrips,
     required this.onEndTrip,
     required this.onContacts,
@@ -34,12 +26,8 @@ class MapMenuSheet extends StatelessWidget {
 
   static Future<void> show(
     BuildContext context, {
-    required bool isSatellite,
-    required bool is3d,
     required bool isPremium,
     required VoidCallback onProfile,
-    required VoidCallback onToggleLayer,
-    required VoidCallback onToggle3d,
     required VoidCallback onTrips,
     required VoidCallback onEndTrip,
     required VoidCallback onContacts,
@@ -50,18 +38,14 @@ class MapMenuSheet extends StatelessWidget {
   }) {
     return showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xF20A0A0A),
+      backgroundColor: const Color(0xF20E1216),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => MapMenuSheet(
-        isSatellite: isSatellite,
-        is3d: is3d,
         isPremium: isPremium,
         onProfile: onProfile,
-        onToggleLayer: onToggleLayer,
-        onToggle3d: onToggle3d,
         onTrips: onTrips,
         onEndTrip: onEndTrip,
         onContacts: onContacts,
@@ -82,29 +66,34 @@ class MapMenuSheet extends StatelessWidget {
           children: [
             const SizedBox(height: 12),
             const Text('Menu do mapa',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            _tile(context, icon: Icons.person, title: 'Meu perfil e ícone', onTap: onProfile),
-            _tile(
-              context,
-              icon: isSatellite ? Icons.satellite : Icons.map,
-              title: 'Camada do mapa',
-              subtitle: isSatellite ? 'Satélite' : 'Ruas',
-              onTap: onToggleLayer,
-            ),
-            _tile(
-              context,
-              icon: Icons.threed_rotation,
-              title: 'Visão 3D',
-              subtitle: is3d ? 'Inclinada (ligada)' : 'De cima (desligada)',
-              onTap: onToggle3d,
-            ),
+            _tile(context,
+                icon: Icons.person,
+                title: 'Meu perfil e ícone',
+                onTap: onProfile),
             const Divider(color: Colors.white12),
-            _tile(context, icon: Icons.history, title: 'Histórico de viagens', onTap: onTrips),
-            _tile(context, icon: Icons.flag, title: 'Encerrar viagem atual', onTap: onEndTrip),
-            _tile(context, icon: Icons.people, title: 'Contatos de estrada', onTap: onContacts),
+            _tile(context,
+                icon: Icons.history,
+                title: 'Histórico de viagens',
+                onTap: onTrips),
+            _tile(context,
+                icon: Icons.flag,
+                title: 'Encerrar viagem atual',
+                onTap: onEndTrip),
+            _tile(context,
+                icon: Icons.people,
+                title: 'Contatos de estrada',
+                onTap: onContacts),
             const Divider(color: Colors.white12),
-            _tile(context, icon: Icons.settings, title: 'Configurações', onTap: onSettings),
+            _tile(context,
+                icon: Icons.settings,
+                title: 'Configurações',
+                subtitle: 'Camada do mapa e visão 3D',
+                onTap: onSettings),
             _tile(
               context,
               icon: Icons.cleaning_services,
@@ -148,7 +137,8 @@ class MapMenuSheet extends StatelessWidget {
       title: Text(title, style: TextStyle(color: c)),
       subtitle: subtitle == null
           ? null
-          : Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          : Text(subtitle,
+              style: const TextStyle(color: Colors.grey, fontSize: 12)),
       onTap: () {
         Navigator.pop(context);
         onTap();

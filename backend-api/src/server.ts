@@ -57,6 +57,8 @@ interface ActiveTruck {
   name: string;
   lat: number;
   lon: number;
+  speedKmh?: number;
+  role?: string;
   avatarUrl?: string;
   truckPhotoUrl?: string;
   truckModel?: string;
@@ -69,28 +71,33 @@ const activeTrucksNetwork = new Map<string, ActiveTruck>();
 io.on('connection', (socket: Socket) => {
   console.log(`🚚 Caminhão conectado via Socket.io: ${socket.id}`);
 
-  socket.on('join_truck_network', (data: { driverId: string; name: string; truckIcon?: string }) => {
+  socket.on('join_truck_network', (data: { driverId: string; name: string; truckIcon?: string; role?: string }) => {
     activeTrucksNetwork.set(socket.id, {
       socketId: socket.id,
       driverId: data.driverId,
       name: data.name,
       lat: 0,
       lon: 0,
+      role: data.role || 'motorista',
       truckIcon: data.truckIcon || '🚚',
     });
     console.log(`📡 ${data.name} entrou na rede V2X.`);
   });
 
-  socket.on('register_driver', (data: { driverId: string; isPremium?: boolean }) => {
+  socket.on('register_driver', (data: { driverId: string; isPremium?: boolean; role?: string }) => {
     const truck = activeTrucksNetwork.get(socket.id);
-    if (truck) truck.driverId = data.driverId;
+    if (truck) {
+      truck.driverId = data.driverId;
+      if (data.role) truck.role = data.role;
+    }
   });
 
-  socket.on('update_position', async (coords: { lat: number; lon: number; driverId: string }) => {
+  socket.on('update_position', async (coords: { lat: number; lon: number; driverId: string; speedKmh?: number }) => {
     const truck = activeTrucksNetwork.get(socket.id);
     if (truck) {
       truck.lat = coords.lat;
       truck.lon = coords.lon;
+      if (typeof coords.speedKmh === 'number') truck.speedKmh = coords.speedKmh;
     }
 
     try {
@@ -102,7 +109,7 @@ io.on('connection', (socket: Socket) => {
 
     try {
       const profile = await db.query(
-        'SELECT name, avatar_url, truck_photo_url, truck_model, cargo_type FROM drivers WHERE driver_id = $1',
+        'SELECT name, avatar_url, truck_photo_url, truck_model, cargo_type, role FROM drivers WHERE driver_id = $1',
         [coords.driverId]
       );
       const p = profile.rows[0] || {};
@@ -112,6 +119,7 @@ io.on('connection', (socket: Socket) => {
         truck.truckPhotoUrl = p.truck_photo_url;
         truck.truckModel = p.truck_model;
         truck.cargoType = p.cargo_type;
+        if (p.role) truck.role = p.role;
       }
 
       const allTrucks = Array.from(activeTrucksNetwork.values()).map(t => ({
@@ -119,6 +127,8 @@ io.on('connection', (socket: Socket) => {
         name: t.name,
         lat: t.lat,
         lon: t.lon,
+        speedKmh: t.speedKmh ?? 0,
+        role: t.role || 'motorista',
         avatarUrl: t.avatarUrl || p.avatar_url || null,
         truckPhotoUrl: t.truckPhotoUrl || p.truck_photo_url || null,
         truckModel: t.truckModel || p.truck_model || null,
@@ -160,9 +170,27 @@ io.on('connection', (socket: Socket) => {
     fromName: string;
     routeJson: string;
     targetDriverId?: string;
+    speedKmh?: number;
+    role?: string;
   }) => {
     if (!data?.routeJson) return;
     io.emit('receive_shared_route', {
+      ...data,
+      timestamp: Date.now(),
+    });
+  });
+
+  socket.on('share_place', (data: {
+    fromDriverId: string;
+    fromName: string;
+    label: string;
+    type?: string;
+    lat: number;
+    lon: number;
+    targetDriverId?: string;
+  }) => {
+    if (!data?.label || data.lat == null || data.lon == null) return;
+    io.emit('receive_shared_place', {
       ...data,
       timestamp: Date.now(),
     });

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Camadas de mapa suportadas.
-enum MapLayerMode { satellite, streets }
+enum MapLayerMode { satellite, streets, detailed }
 
 /// Perfis de desempenho gráfico (GPU/CPU).
 enum RenderQuality { economy, balanced, ultra }

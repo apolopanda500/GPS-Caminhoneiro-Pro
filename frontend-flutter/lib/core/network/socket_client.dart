@@ -9,6 +9,7 @@ class SocketClient {
   String _name = '';
   String _truckIcon = '🚚';
   bool _isPremium = false;
+  String _role = 'motorista';
 
   factory SocketClient() => _instance;
 
@@ -26,12 +27,14 @@ class SocketClient {
       socket.emit('register_driver', {
         'driverId': _driverId,
         'isPremium': _isPremium,
+        'role': _role,
       });
       if (_name.isNotEmpty) {
         socket.emit('join_truck_network', {
           'driverId': _driverId,
           'name': _name,
           'truckIcon': _truckIcon,
+          'role': _role,
         });
       }
     });
@@ -56,15 +59,18 @@ class SocketClient {
     required String driverId,
     required String name,
     String truckIcon = '🚚',
+    String role = 'motorista',
   }) {
     _driverId = driverId;
     _name = name;
     _truckIcon = truckIcon;
+    _role = role;
     if (socket.connected) {
       socket.emit('join_truck_network', {
         'driverId': driverId,
         'name': name,
         'truckIcon': truckIcon,
+        'role': role,
       });
     }
   }
@@ -75,10 +81,45 @@ class SocketClient {
   }
 
 
-  void sendLocationUpdate({required double lat, required double lon, required String driverId}) {
+  void sendLocationUpdate({
+    required double lat,
+    required double lon,
+    required String driverId,
+    double speedKmh = 0,
+  }) {
     if (socket.connected) {
-      socket.emit('update_position', { 'lat': lat, 'lon': lon, 'driverId': driverId });
+      socket.emit('update_position', {
+        'lat': lat,
+        'lon': lon,
+        'driverId': driverId,
+        'speedKmh': speedKmh,
+      });
     }
+  }
+
+  void sharePlace({
+    required String fromDriverId,
+    required String fromName,
+    required String label,
+    required double lat,
+    required double lon,
+    String type = 'endereco',
+    String? targetDriverId,
+  }) {
+    if (!socket.connected) return;
+    socket.emit('share_place', {
+      'fromDriverId': fromDriverId,
+      'fromName': fromName,
+      'label': label,
+      'type': type,
+      'lat': lat,
+      'lon': lon,
+      if (targetDriverId != null) 'targetDriverId': targetDriverId,
+    });
+  }
+
+  void onReceiveSharedPlace(void Function(dynamic data) callback) {
+    socket.on('receive_shared_place', (data) => callback(data));
   }
 
   void sendRoadAlert({

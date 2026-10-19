@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:gps_camioneiro_pro/core/network/directions_service.dart';
 
@@ -71,6 +72,104 @@ class RouteStopEntry {
   }
 }
 
+/// Modelo de rota salvo para reuso (mesmos clientes/bairros).
+class RouteTemplate {
+  final String name;
+  final List<RouteStopEntry> stops;
+  final DateTime createdAt;
+
+  const RouteTemplate({
+    required this.name,
+    required this.stops,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'createdAt': createdAt.toIso8601String(),
+        'stops': stops.map((s) => s.toJson()).toList(),
+      };
+
+  factory RouteTemplate.fromJson(Map<String, dynamic> j) => RouteTemplate(
+        name: (j['name'] ?? '').toString(),
+        createdAt: DateTime.tryParse((j['createdAt'] ?? '').toString()) ??
+            DateTime.now(),
+        stops: ((j['stops'] as List<dynamic>?) ?? [])
+            .whereType<Map>()
+            .map((e) => RouteStopEntry.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
+      );
+}
+
+/// Cliente salvo (cadastro de quem recebe carga).
+class ClientEntry {
+  final String name;
+  final String address;
+  final String neighborhood;
+  final double lat;
+  final double lon;
+  final String note;
+
+  const ClientEntry({
+    required this.name,
+    required this.address,
+    this.neighborhood = '',
+    required this.lat,
+    required this.lon,
+    this.note = '',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'address': address,
+        'neighborhood': neighborhood,
+        'lat': lat,
+        'lon': lon,
+        'note': note,
+      };
+
+  factory ClientEntry.fromJson(Map<String, dynamic> j) => ClientEntry(
+        name: (j['name'] ?? '').toString(),
+        address: (j['address'] ?? '').toString(),
+        neighborhood: (j['neighborhood'] ?? '').toString(),
+        lat: (j['lat'] as num?)?.toDouble() ?? 0,
+        lon: (j['lon'] as num?)?.toDouble() ?? 0,
+        note: (j['note'] ?? '').toString(),
+      );
+}
+
+/// Rota agendada para outro dia (data e hora pre-definidas).
+class ScheduledRoute {
+  final String id;
+  final String name;
+  final DateTime when;
+  final List<RouteStopEntry> stops;
+
+  const ScheduledRoute({
+    required this.id,
+    required this.name,
+    required this.when,
+    required this.stops,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'when': when.toIso8601String(),
+        'stops': stops.map((s) => s.toJson()).toList(),
+      };
+
+  factory ScheduledRoute.fromJson(Map<String, dynamic> j) => ScheduledRoute(
+        id: (j['id'] ?? '').toString(),
+        name: (j['name'] ?? '').toString(),
+        when: DateTime.tryParse((j['when'] ?? '').toString()) ?? DateTime.now(),
+        stops: ((j['stops'] as List<dynamic>?) ?? [])
+            .whereType<Map>()
+            .map((e) => RouteStopEntry.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
+      );
+}
+
 /// Planejamento e validação de entregas por parada (clientes numerados).
 class RouteProvider extends ChangeNotifier {
   static const Distance _distance = Distance();
@@ -86,9 +185,204 @@ class RouteProvider extends ChangeNotifier {
   int _lastCompletedCount = 0;
   List<List<double>>? _area;
   String? _areaLabel;
+  bool _started = false;
+  DateTime? _startedAt;
+  int? _companyStopIndex;
+  bool _routeFinishedNotified = false;
+  bool _companyReachedNotified = false;
+  List<RouteTemplate> _templates = [];
+  List<ClientEntry> _clients = [];
+  List<ScheduledRoute> _scheduled = [];
+
+  static const _kTemplates = 'route.templates';
+  static const _kClients = 'route.clients';
+  static const _kScheduled = 'route.scheduled';
 
   RouteProvider({DirectionsService? service})
-      : _service = service ?? DirectionsService();
+      : _service = service ?? DirectionsService() {
+    _load();
+  }
+
+  List<ScheduledRoute> get scheduled => List.unmodifiable(_scheduled);
+
+  /// Agenda a rota atual para uma data/hora futura.
+  void scheduleRoute(String name, DateTime when) {
+    final trimmed = name.trim();
+    if (_stops.isEmpty) return;
+    _scheduled.insert(
+      0,
+      ScheduledRoute(
+        id: 'sch_${DateTime.now().millisecondsSinceEpoch}',
+        name: trimmed.isEmpty ? 'Rota agendada' : trimmed,
+        when: when,
+        stops: List<RouteStopEntry>.from(_stops),
+      ),
+    );
+    _persist();
+    notifyListeners();
+  }
+
+  void removeScheduled(String id) {
+    _scheduled.removeWhere((s) => s.id == id);
+    _persist();
+    notifyListeners();
+  }
+
+  void applyScheduled(ScheduledRoute scheduled) {
+    setStops(scheduled.stops);
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final templates = prefs.getString(_kTemplates);
+      if (templates != null) {
+        _templates = (jsonDecode(templates) as List<dynamic>)
+            .whereType<Map>()
+            .map((e) => RouteTemplate.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+      final clients = prefs.getString(_kClients);
+      if (clients != null) {
+        _clients = (jsonDecode(clients) as List<dynamic>)
+            .whereType<Map>()
+            .map((e) => ClientEntry.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+      final scheduled = prefs.getString(_kScheduled);
+      if (scheduled != null) {
+        _scheduled = (jsonDecode(scheduled) as List<dynamic>)
+            .whereType<Map>()
+            .map((e) => ScheduledRoute.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _persist() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _kTemplates,
+        jsonEncode(_templates.map((t) => t.toJson()).toList()),
+      );
+      await prefs.setString(
+        _kClients,
+        jsonEncode(_clients.map((c) => c.toJson()).toList()),
+      );
+      await prefs.setString(
+        _kScheduled,
+        jsonEncode(_scheduled.map((s) => s.toJson()).toList()),
+      );
+    } catch (_) {}
+  }
+
+  bool get started => _started;
+  DateTime? get startedAt => _startedAt;
+  int? get companyStopIndex => _companyStopIndex;
+  bool isCompanyStop(int index) => index == _companyStopIndex;
+  List<RouteTemplate> get templates => List.unmodifiable(_templates);
+  List<ClientEntry> get clients => List.unmodifiable(_clients);
+  bool get allStopsValidated =>
+      _stops.isNotEmpty &&
+      List.generate(_stops.length, (i) => i)
+          .every((i) => statusOf(i) == StopStatus.delivered);
+
+  void startRoute() {
+    _started = true;
+    _startedAt = DateTime.now();
+    _routeFinishedNotified = false;
+    _companyReachedNotified = false;
+    notifyListeners();
+  }
+
+  void stopRoute() {
+    _started = false;
+    notifyListeners();
+  }
+
+  /// Marca a empresa como ultima parada da rota.
+  void setCompanyStop({required String name, required LatLng point}) {
+    if (_companyStopIndex != null && _companyStopIndex! < _stops.length) {
+      _stops[_companyStopIndex!] =
+          _stops[_companyStopIndex!].copyWith(label: name, point: point);
+      notifyListeners();
+      return;
+    }
+    final withOrder = RouteStopEntry(
+      label: name,
+      point: point,
+      neighborhood: 'Empresa',
+      customer: name,
+      note: 'Retorno à empresa',
+      radiusMeters: 150,
+      orderLabel: '${_stops.length + 1}',
+    );
+    _stops.add(withOrder);
+    _status[_stops.length - 1] = StopStatus.pending;
+    _companyStopIndex = _stops.length - 1;
+    notifyListeners();
+  }
+
+  void removeCompanyStop() {
+    final index = _companyStopIndex;
+    if (index == null || index >= _stops.length) return;
+    _stops.removeAt(index);
+    _companyStopIndex = null;
+    _renumberAndReset();
+    notifyListeners();
+  }
+
+  /// Salva a rota atual como modelo reutilizavel.
+  void saveTemplate(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || _stops.isEmpty) return;
+    _templates.removeWhere((t) => t.name.toLowerCase() == trimmed.toLowerCase());
+    _templates.insert(
+      0,
+      RouteTemplate(
+        name: trimmed,
+        stops: List<RouteStopEntry>.from(_stops),
+        createdAt: DateTime.now(),
+      ),
+    );
+    notifyListeners();
+  }
+
+  void loadTemplate(RouteTemplate template) {
+    setStops(template.stops);
+  }
+
+  void deleteTemplate(String name) {
+    _templates.removeWhere((t) => t.name == name);
+    notifyListeners();
+  }
+
+  void saveClient(ClientEntry client) {
+    _clients.removeWhere((c) =>
+        c.name.toLowerCase() == client.name.toLowerCase() &&
+        (c.lat - client.lat).abs() < 0.0005);
+    _clients.insert(0, client);
+    notifyListeners();
+  }
+
+  void deleteClient(String name) {
+    _clients.removeWhere((c) => c.name == name);
+    notifyListeners();
+  }
+
+  void loadStopsFromClients(List<ClientEntry> selected) {
+    setStops(selected
+        .map((c) => RouteStopEntry(
+              label: c.name,
+              point: LatLng(c.lat, c.lon),
+              neighborhood: c.neighborhood,
+              customer: c.name,
+              note: c.note,
+            ))
+        .toList());
+  }
 
   List<RouteStopEntry> get stops => List.unmodifiable(_stops);
   RouteResult? get result => _result;
@@ -256,6 +550,31 @@ class RouteProvider extends ChangeNotifier {
     if (!allDelivered) return false;
     if (_lastCompletedCount == deliveredCount) return false;
     _lastCompletedCount = deliveredCount;
+    return true;
+  }
+
+  /// True uma unica vez quando todas as paradas de cliente foram validadas.
+  bool consumeRouteFinishedEvent() {
+    if (!_started) return false;
+    if (_routeFinishedNotified) return false;
+    final clients = List.generate(_stops.length, (i) => i)
+        .where((i) => i != _companyStopIndex)
+        .toList();
+    if (clients.isEmpty) return false;
+    final done = clients.every((i) => statusOf(i) == StopStatus.delivered);
+    if (!done) return false;
+    _routeFinishedNotified = true;
+    return true;
+  }
+
+  /// True uma unica vez quando o caminhão chega na empresa.
+  bool consumeCompanyReachedEvent() {
+    if (!_started) return false;
+    if (_companyReachedNotified) return false;
+    final index = _companyStopIndex;
+    if (index == null) return false;
+    if (statusOf(index) != StopStatus.delivered) return false;
+    _companyReachedNotified = true;
     return true;
   }
 

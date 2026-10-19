@@ -13,6 +13,17 @@
   final String? cargoType;
   final String truckIcon;
 
+  /// 'motorista' ou 'ajudante'.
+  final String role;
+
+  /// Tipo de ajuda do ajudante (mecanica, carga, rota, etc).
+  final String? helpType;
+
+  /// Empresa do motorista (endereco base).
+  final String? companyName;
+  final double? companyLat;
+  final double? companyLon;
+
   DriverModel({
     required this.driverId,
     required this.email,
@@ -27,7 +38,14 @@
     this.truckModel,
     this.cargoType,
     this.truckIcon = '🚚',
+    this.role = 'motorista',
+    this.helpType,
+    this.companyName,
+    this.companyLat,
+    this.companyLon,
   });
+
+  bool get isHelper => role == 'ajudante';
 
   factory DriverModel.fromJson(Map<String, dynamic> json) => DriverModel(
         driverId: json['driverId'] ?? json['driver_id'] ?? '',
@@ -43,7 +61,18 @@
         truckModel: json['truckModel'] ?? json['truck_model'],
         cargoType: json['cargoType'] ?? json['cargo_type'],
         truckIcon: (json['truckIcon'] ?? json['truck_icon'] ?? '🚚').toString(),
+        role: (json['role'] ?? 'motorista').toString(),
+        helpType: json['helpType'] ?? json['help_type'],
+        companyName: json['companyName'] ?? json['company_name'],
+        companyLat: _toDouble(json['companyLat'] ?? json['company_lat']),
+        companyLon: _toDouble(json['companyLon'] ?? json['company_lon']),
       );
+
+  static double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
 
   Map<String, dynamic> toJson() => {
         'driverId': driverId,
@@ -59,5 +88,10 @@
         'truckModel': truckModel,
         'cargoType': cargoType,
         'truckIcon': truckIcon,
+        'role': role,
+        'helpType': helpType,
+        'companyName': companyName,
+        'companyLat': companyLat,
+        'companyLon': companyLon,
       };
 }

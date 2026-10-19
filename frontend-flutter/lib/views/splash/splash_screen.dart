@@ -1,6 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/data/models/driver_model.dart';
+import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
+import 'package:gps_camioneiro_pro/views/map/map_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,10 +20,22 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      DriverModel? driver;
+      try {
+        driver = context.read<AuthProvider>().driver;
+      } catch (_) {
+        driver = null;
+      }
+      final currentDriver = driver;
+      final route = currentDriver == null
+          ? MaterialPageRoute<void>(builder: (_) => const LoginScreen())
+          : MaterialPageRoute<void>(
+              builder: (_) => MapScreen(
+                driverId: currentDriver.driverId,
+                driverName: currentDriver.name ?? 'Motorista',
+              ),
+            );
+      Navigator.pushReplacement(context, route);
     });
   }
 

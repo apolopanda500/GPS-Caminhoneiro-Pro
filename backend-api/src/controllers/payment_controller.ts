@@ -1,39 +1,67 @@
 import { Request, Response } from 'express';
 import { Client } from 'pg';
+import { buildPixPayload } from '../utils/pix';
+import { env } from '../config/env';
 
 export class PaymentController {
   constructor(private db: Client) {}
 
-  // Cria a intenção de compra do plano Premium Pro (PIX Mercado Pago / Stripe)
+  // Gera o BR Code (PIX estatico) do plano Premium apontando para a conta
+  // do desenvolvedor configurada em PIX_KEY.
   async createPixPayment(req: Request, res: Response): Promise<void> {
-    const { driverId, email } = req.body;
+    const { driverId } = req.body;
+    if (!driverId) {
+      res.status(400).json({ error: 'driverId obrigatorio.' });
+      return;
+    }
+    if (!env.pixKey) {
+      res.status(503).json({
+        error: 'PIX nao configurado no servidor (defina PIX_KEY).',
+      });
+      return;
+    }
     try {
-      // Simulação da chamada da API do Mercado Pago / Stripe de 2026
-      const paymentGatewayId = 'pay_' + Math.random().toString(36).substring(2, 9);
-      const qrCodePixBase64 =
-        '00020101021226830014br.gov.bcb.pix2561seu-qrcode-pix-aqui...';
+      const paymentGatewayId = 'pay_' + Math.random().toString(36).substring(2, 11);
+      const copyAndPaste = buildPixPayload({
+        key: env.pixKey,
+        name: env.pixName,
+        city: env.pixCity,
+        amount: env.pixAmount,
+        txid: paymentGatewayId,
+        description: env.pixDescription,
+      });
 
-      // Salva no banco que o motorista iniciou uma tentativa de compra
       await this.db.query(
         'INSERT INTO payments (driver_id, gateway_id, amount, status) VALUES ($1, $2, $3, $4)',
-        [driverId, paymentGatewayId, 29.90, 'pending']
+        [driverId, paymentGatewayId, env.pixAmount, 'pending']
       );
 
       res.json({
         success: true,
         paymentId: paymentGatewayId,
-        pixQrCode: qrCodePixBase64,
-        copyAndPastePix: '00020101021226830014br.gov.bcb.pix...',
-        value: 29.90,
+        copyAndPastePix: copyAndPaste,
+        value: env.pixAmount,
+        receiver: env.pixName,
       });
-    } catch (err) {
-      res.status(500).json({ error: 'Falha ao gerar o gateway de pagamento.' });
+    } catch {
+      res.status(500).json({ error: 'Falha ao gerar o pagamento PIX.' });
     }
   }
 
-  // Confirma pagamento e libera recursos Premium no banco
+  // Confirma o pagamento (manual/administrativo) e libera o Premium.
   async confirmPremium(req: Request, res: Response): Promise<void> {
     const { driverId, paymentId } = req.body;
+    const token = req.header('x-admin-token') || '';
+    if (!env.adminToken || token !== env.adminToken) {
+      res.status(403).json({
+        error: 'Confirmacao manual exige o token administrativo.',
+      });
+      return;
+    }
+    if (!driverId) {
+      res.status(400).json({ error: 'driverId obrigatorio.' });
+      return;
+    }
     try {
       await this.db.query(
         'UPDATE drivers SET is_premium = TRUE WHERE driver_id = $1',

@@ -24,17 +24,44 @@
       String.fromEnvironment('ORS_KEY', defaultValue: '');
   static const bool orsConfigured = openRouteServiceApiKey != '';
 
+  // Mapillary: imagens de rua (Street View aberto). Token gratuito.
+  // https://www.mapillary.com/dashboard/developers
+  static const String mapillaryToken =
+      String.fromEnvironment('MAPILLARY_TOKEN', defaultValue: '');
+  static const bool streetViewConfigured = mapillaryToken != '';
+
+  // Tipos de ajuda do perfil "ajudante".
+  static const List<String> helperTypes = [
+    'Ajuda com carga',
+    'Mecânica / pneus',
+    'Direção na rota',
+    'Abastecimento',
+    'Alimentação e descanso',
+    'Borracharia',
+    'Guincho / socorro',
+  ];
+
+  // Ícones de pessoa para o perfil "ajudante".
+  static const List<String> helperIcons = [
+    '🧑‍🔧', '🧑‍🚒', '🧑‍✈️', '👷', '🙋', '🧑‍🏭', '🛠️', '🤝',
+  ];
+
   // Estilos MapLibre (camera 3D: rotacao e inclinacao).
   static const String styleSatellite = 'assets/map_styles/style_satellite.json';
-  // Estilo vetorial da OpenFreeMap (gratuito, sem chave, atualizado semanalmente).
+  // Estilos raster locais (funcionam offline do CDN de estilo e nunca ficam brancos).
+  static const String styleStreetsLight = 'assets/map_styles/style_streets_light.json';
+  static const String styleStreetsDark = 'assets/map_styles/style_streets_dark.json';
+  // Estilo vetorial da OpenFreeMap (detalhado, com predios 3D).
   static const String styleStreetsUrl = 'https://tiles.openfreemap.org/styles/dark';
   static const String styleStreetsLightUrl = 'https://tiles.openfreemap.org/styles/bright';
 
   // Icones de caminhao que cada motorista escolhe para si.
   static const List<String> truckIcons = [
-    '🚚', '🚛', '🚜', '🛻', '🚐', '🚌',
-    '🐂', '🐎', '🦅', '🐺', '🦁', '🐉',
-    '⭐', '🔥', '⚡', '🛡️', '💀', '👑',
+    '🚚', '🚛', '🚜', '🛻', '🚐', '🚙', '🚕', '🚌',
+    '🚎', '🚔', '🚑', '🚒', '🛵', '🏍️', '🚲', '🛴',
+    '🚂', '🚆', '✈️', '🚁', '🛺', '🐂', '🐎', '🦅',
+    '🐺', '🦁', '🐉', '⭐', '🔥', '⚡', '🛡️', '💀',
+    '👑', '😎', '🫡',
   ];
 
   static const int alertRadiusMeters = 2000;
@@ -47,9 +74,49 @@
     'policia',
     'balanca',
     'perigo',
+    'pedagio',
+    'acidente',
+    'obstrucao',
+    'zmrc',
+    'descanso',
+    'estacionamento',
+    'combustivel',
+    'restaurante',
+    'borracharia',
+    'ponto_apoio',
+    'serra',
+    'curva',
+    'fiscalizacao',
   ];
 
-  static const List<String> roadEmojis = ["👋", "👍", "☕", "⚠️"];
+  // Emoji oficial de cada tipo de aviso/ponto (usado no mapa e nas listas).
+  static const Map<String, String> alertTypeEmoji = {
+    'texto_livre': '💬',
+    'radar': '📷',
+    'ponte_baixa': '🌉',
+    'policia': '🚓',
+    'balanca': '⚖️',
+    'perigo': '⚠️',
+    'pedagio': '🧾',
+    'acidente': '🚨',
+    'obstrucao': '🚧',
+    'zmrc': '🚫',
+    'descanso': '🛏️',
+    'estacionamento': '🅿️',
+    'combustivel': '⛽',
+    'restaurante': '🍽️',
+    'borracharia': '🛞',
+    'ponto_apoio': '🏕️',
+    'serra': '⛰️',
+    'curva': '↩️',
+    'fiscalizacao': '👮',
+  };
+
+  static String emojiForType(String type) => alertTypeEmoji[type] ?? '⚠️';
+
+  static const List<String> roadEmojis = [
+    '👋', '👍', '☕', '⚠️', '🚧', '🚦', '🚸', '🛑', '⛔', '🅿️', '⛽', '📍', '🚜',
+  ];
 
   // Sinais/emojis no mapa são TEMPORÁRIOS: expiram e o mapa é limpo sozinho.
   static const Duration markerTtl = Duration(hours: 12);

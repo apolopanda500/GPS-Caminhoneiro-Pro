@@ -26,7 +26,9 @@ class MarkerDialog extends StatefulWidget {
 
 class _MarkerDialogState extends State<MarkerDialog> {
   static const List<String> _emojis = [
-    '👋', '👍', '☕', '⚠️', '🚧', '🚓', '📡', '⛽', '🛑', '🅿️', '🐄', '💧', '🌧️', '🔥', '🚚', '🍔', '🛠️', '⛔',
+    '👋', '👍', '☕', '⚠️', '🚧', '🚓', '📡', '⛽', '🛑', '🅿️', '🐄', '💧', '🌧️', '🔥',
+    '🚚', '🍔', '🛠️', '⛔', '🚦', '🚸', '🛣️', '🔀', '🏗️', '🌫️', '❄️', '🌊', '🪵',
+    '🧱', '⛽', '🍽️', '🏨', '🛞', '🧯', '🚜', '🪣', '🌾', '📍',
   ];
   static const Map<String, String> _types = {
     'sinal': 'Sinal',
@@ -36,6 +38,17 @@ class _MarkerDialogState extends State<MarkerDialog> {
     'ponto_apoio': 'Ponto de apoio',
     'pedagio': 'Pedágio',
     'obra': 'Obra',
+    'ponte_baixa': 'Ponte baixa',
+    'balanca': 'Balança',
+    'zmrc': 'Zona restrita',
+    'descanso': 'Descanso',
+    'estacionamento': 'Estacionamento',
+    'combustivel': 'Combustível',
+    'restaurante': 'Restaurante',
+    'borracharia': 'Borracharia',
+    'serra': 'Serra / descida',
+    'curva': 'Curva perigosa',
+    'fiscalizacao': 'Fiscalização',
   };
 
   String _emoji = '👋';

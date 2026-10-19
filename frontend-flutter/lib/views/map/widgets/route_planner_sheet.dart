@@ -16,7 +16,7 @@ class RoutePlannerSheet extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xF20A0A0A),
+      backgroundColor: const Color(0xF20E1216),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),

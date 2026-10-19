@@ -8,6 +8,7 @@ import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -75,10 +76,12 @@ class SettingsScreen extends StatelessWidget {
           const _Section('GPS E LOCALIZAÇÃO'),
           _Switch(
             title: 'Expediente e GPS',
-            subtitle: s.dayStartedLabel,
+            subtitle: s.trackingEnabled
+                ? 'Ligado • ${s.dayStartedLabel}'
+                : 'Desligado • GPS pausado',
             icon: Icons.power_settings_new,
             value: s.trackingEnabled,
-            onChanged: (on) => on ? s.startDay() : s.endDay(),
+            onChanged: (on) => _toggleExpediente(context, s, on),
           ),
           _Switch(
             title: 'Alta precisão',
@@ -123,27 +126,61 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const _Section('MAPA E VISUALIZAÇÃO'),
-          _Switch(
-            title: 'Abrir em satélite',
-            subtitle: 'Desligado abre no mapa de ruas',
-            icon: Icons.satellite,
-            value: s.layer == MapLayerMode.satellite,
-            onChanged: (v) =>
-                s.setLayer(v ? MapLayerMode.satellite : MapLayerMode.streets),
+          ListTile(
+            leading: const Icon(Icons.layers, color: Colors.redAccent),
+            title: Text('Camada do mapa', style: TextStyle(color: ink)),
+            subtitle: Text(
+              switch (s.layer) {
+                MapLayerMode.satellite => 'Satélite (imagem real)',
+                MapLayerMode.streets => 'Ruas (leve e legível)',
+                MapLayerMode.detailed => 'Ruas 3D (detalhado)',
+              },
+              style: TextStyle(color: muted),
+            ),
+            trailing: SegmentedButton<MapLayerMode>(
+              segments: const [
+                ButtonSegment(
+                    value: MapLayerMode.satellite, label: Text('Sat.')),
+                ButtonSegment(value: MapLayerMode.streets, label: Text('Ruas')),
+                ButtonSegment(value: MapLayerMode.detailed, label: Text('3D')),
+              ],
+              selected: {s.layer},
+              onSelectionChanged: (v) {
+                if (v.first == MapLayerMode.detailed && !premium) {
+                  _premiumLock(context, 'Ruas 3D (detalhado)');
+                  return;
+                }
+                s.setLayer(v.first);
+              },
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            ),
           ),
           _Switch(
             title: 'Prédios em 3D',
-            subtitle: 'Relevo urbano ao inclinar o mapa',
+            subtitle: 'Relevo urbano ao inclinar o mapa (camada 3D)',
             icon: Icons.apartment,
             value: s.buildings3d,
-            onChanged: s.setBuildings3d,
+            onChanged: (on) {
+              if (on && !premium) {
+                _premiumLock(context, 'Prédios em 3D');
+                return;
+              }
+              s.setBuildings3d(on);
+            },
           ),
           _Switch(
             title: 'Mostrar outros caminhões',
             subtitle: 'Exibe motoristas próximos no mapa',
             icon: Icons.local_shipping,
             value: s.showTrucks,
-            onChanged: s.setShowTrucks,
+            onChanged: (on) {
+              if (on && !premium) {
+                _premiumLock(context, 'Comunidade de caminhoneiros');
+                return;
+              }
+              s.setShowTrucks(on);
+            },
           ),
           _Switch(
             title: 'Modo noturno',
@@ -225,6 +262,14 @@ class SettingsScreen extends StatelessWidget {
             value: s.showFps,
             onChanged: s.setShowFps,
           ),
+          if (s.showFps)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FpsOverlay(targetFps: s.targetFps),
+              ),
+            ),
           ListTile(
             leading: const Icon(Icons.memory, color: Colors.redAccent),
             title: Text('FPS alvo', style: TextStyle(color: ink)),
@@ -299,6 +344,79 @@ class SettingsScreen extends StatelessWidget {
       messenger.showSnackBar(
           const SnackBar(content: Text('Não foi possível limpar o cache.')));
     }
+  }
+
+  Future<void> _toggleExpediente(
+      BuildContext context, SettingsProvider s, bool on) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (on) {
+      await s.startDay();
+      messenger.showSnackBar(
+        const SnackBar(
+            content: Text('Bom trabalho! GPS e expediente iniciados.')),
+      );
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Encerrar o dia?'),
+        content: const Text(
+          'O GPS e o compartilhamento de posição serão pausados. A rota e os alertas continuam salvos para o próximo expediente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Continuar rodando'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: kEmergencyRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Encerrar dia'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await s.endDay();
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Expediente encerrado. GPS pausado.')),
+    );
+  }
+
+  void _premiumLock(BuildContext context, String feature) {
+    final auth = context.read<AuthProvider>();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Recurso Premium'),
+        content: Text(
+          '$feature está disponível apenas no Premium.\n\n'
+          'No Free você navega com o mapa e as rotas. '
+          'Assine para liberar alertas, sinais, rádio, comunidade, ruas 3D e histórico.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Agora não'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: kEmergencyRed),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PaymentGateScreen(driverId: auth.driver?.driverId ?? ''),
+                ),
+              );
+            },
+            child: const Text('Ver Premium'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

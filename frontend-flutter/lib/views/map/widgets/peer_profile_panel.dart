@@ -23,7 +23,10 @@ class PeerProfilePanel extends StatelessWidget {
     required this.onCall,
   });
 
-  static const List<String> _emojis = ['👋', '👍', '🚨', '🐂', '😂', '⛽', '🤝', '🔥'];
+  static const List<String> _emojis = [
+    '👋', '👍', '🤝', '😄', '😂', '🙏', '❤️', '🔥', '😎', '🫡', '💯', '🎉', '🫶', '🚨',
+    '🐂', '⛽', '✅', '👀',
+  ];
 
   @override
   Widget build(BuildContext context) {
