@@ -42,21 +42,25 @@ if (Test-Path $keystore) {
 }
 
 Write-Host ""
-Write-Host "=== 2/5  Nova senha do keystore ===" -ForegroundColor Cyan
-Write-Host "Escolha uma senha forte e GUARDE-A (gerenciador de senhas)." -ForegroundColor Yellow
-$senha = Read-Host "Senha nova (minimo 6 caracteres)" -AsSecureString
-$senhaTexto = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-  [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($senha))
-if ($senhaTexto.Length -lt 6) { Falha "senha muito curta" }
+Write-Host "=== 2/5  Senha do keystore (gerada automaticamente) ===" -ForegroundColor Cyan
+# Senha forte gerada aqui: voce nao precisa digitar nada, so precisa ANOTAR.
+$alfabeto = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#%*'
+$rnd = [System.Random]::new()
+$senhaTexto = -join (1..24 | ForEach-Object { $alfabeto[$rnd.Next(0, $alfabeto.Length)] })
 
-$confirm = Read-Host "Repita a senha" -AsSecureString
-$confirmTexto = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-  [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirm))
-if ($senhaTexto -ne $confirmTexto) { Falha "as senhas nao conferem" }
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Black
+Write-Host "   SENHA DO KEYSTORE (anote em um gerenciador de senhas!)" -ForegroundColor Yellow
+Write-Host "   $senhaTexto" -ForegroundColor White
+Write-Host "  ============================================================" -ForegroundColor Black
+Write-Host ""
+Write-Host "  Sem essa senha o app nao pode mais ser atualizado na Play Store." -ForegroundColor DarkGray
+Write-Host "  Aperte ENTER para continuar (ou Ctrl+C para cancelar)." -ForegroundColor DarkGray
+$null = Read-Host
 
 Write-Host ""
 Write-Host "=== 3/5  Criando o keystore de release ===" -ForegroundColor Cyan
-$args = @(
+$argumentos = @(
   "-genkeypair", "-v",
   "-keystore", $keystore,
   "-keyalg", "RSA", "-keysize", "2048",
@@ -66,16 +70,21 @@ $args = @(
   "-keypass", $senhaTexto,
   "-dname", "CN=GPS Caminhoneiro Pro, OU=GPS Caminhoneiro Pro, O=GPS Caminhoneiro Pro, L=Rio de Janeiro, ST=RJ, C=BR"
 )
-$out = & keytool @args 2>&1
-if ($LASTEXITCODE -ne 0) {
-  Write-Host $out -ForegroundColor DarkGray
-  Falha "nao foi possivel criar o keystore"
-}
+& keytool @argumentos 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { Falha "nao foi possivel criar o keystore" }
 Write-Host "    keystore criado: $keystore" -ForegroundColor Green
 
 $saida = & keytool -list -v -keystore $keystore -storepass $senhaTexto 2>&1
 $sha1 = ($saida | Select-String "SHA1:").ToString() -replace ".*SHA1: ", ""
-$sha256 = ($saida | Select-String "SHA256:" | Select-Object -Skip 1) -replace ".*SHA256: ", ""
+# SHA-256: o keytool desta versao do JDK nao imprime a impressao digital,
+# entao exportamos o certificado e calculamos o hash do DER.
+$certDer = Join-Path $env:TEMP "gps-upload-cert.der"
+& keytool -exportcert -keystore $keystore -storepass $senhaTexto -alias upload -file $certDer 2>&1 | Out-Null
+$sha256 = ""
+if (Test-Path $certDer) {
+  $sha256 = (Get-FileHash -Path $certDer -Algorithm SHA256).Hash
+  Remove-Item $certDer -Force -ErrorAction SilentlyContinue
+}
 Write-Host "    SHA-1  : $sha1" -ForegroundColor Yellow
 Write-Host "    SHA-256: $sha256" -ForegroundColor Yellow
 
@@ -86,7 +95,7 @@ keyAlias=upload
 keyPassword=$senhaTexto
 "@ | Set-Content -Path $keyProps -Encoding utf8
 Write-Host "    key.properties criado" -ForegroundColor Green
-$senhaTexto = $null; $confirmTexto = $null
+$senhaTexto = $null
 
 Write-Host ""
 Write-Host "=== 4/5  Build do APK release (com as chaves) ===" -ForegroundColor Cyan
