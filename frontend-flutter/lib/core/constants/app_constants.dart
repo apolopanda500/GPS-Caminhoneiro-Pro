@@ -46,6 +46,14 @@
       String.fromEnvironment('TOMTOM_TRAFFIC_KEY', defaultValue: '');
   static const bool trafficConfigured = tomTomTrafficApiKey != '';
 
+  // IA real do Assistente da Estrada (Google Gemini, nivel gratuito).
+  // Chave: https://aistudio.google.com/apikey  ->  keys.json: GEMINI_API_KEY
+  static const String geminiApiKey =
+      String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  static const String geminiModel =
+      String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-2.0-flash');
+  static const bool iaConfigured = geminiApiKey != '';
+
   // Tipos de ajuda do perfil "ajudante".
   static const List<String> helperTypes = [
     'Ajuda com carga',

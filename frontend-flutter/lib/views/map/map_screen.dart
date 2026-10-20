@@ -30,6 +30,7 @@ import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/providers/marker_provider.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
+import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
 import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
@@ -96,6 +97,8 @@ class _MapScreenState extends State<MapScreen> {
   double _speedKmh = 0;
 
   bool _is3d = false;
+  bool _modoEscolherEmpresa = false;
+  String _nomeEmpresaPendente = '';
   bool _uiExpanded = true;
   bool _alertsPanelClosed = false;
   bool _routePanelClosed = false;
@@ -1463,6 +1466,76 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Novo toque curto no mapa: usado pelo modo "escolher empresa".
+  void _onMapClickCurto(LatLng point) {
+    if (!_modoEscolherEmpresa) return;
+    _modoEscolherEmpresa = false;
+    _concluirEscolhaEmpresa(point);
+  }
+
+  Future<void> _concluirEscolhaEmpresa(LatLng point) async {
+    final controller = TextEditingController(
+      text: _nomeEmpresaPendente.isNotEmpty
+          ? _nomeEmpresaPendente
+          : (context.read<AuthProvider>().driver?.companyName ?? ''),
+    );
+    final resultado = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nova empresa neste ponto'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Local: ${point.latitude.toStringAsFixed(5)}, '
+                '${point.longitude.toStringAsFixed(5)}'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nome da empresa',
+                hintText: 'Ex.: Transportadora Silva',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, {
+              'name': controller.text.trim(),
+            }),
+            child: const Text('ADICIONAR'),
+          ),
+        ],
+      ),
+    );
+    if (resultado == null || !mounted) return;
+    final nome = (resultado['name'] ?? '').toString();
+    await _salvarEmpresa(point, nome);
+  }
+
+  /// Salva a empresa na conta e a sincroniza como ponto final da rota.
+  Future<void> _salvarEmpresa(LatLng point, String nome) async {
+    final nomeFinal = nome.isEmpty ? 'Empresa' : nome;
+    final provider = context.read<AuthProvider>();
+    await provider.updateProfile(
+      companyName: nomeFinal,
+      companyLat: point.latitude,
+      companyLon: point.longitude,
+    );
+    if (!mounted) return;
+    final route = context.read<RouteProvider>();
+    route.setCompanyStop(name: nomeFinal, point: point);
+    setState(() => _center = point);
+    _moverCamera(point, zoom: 16);
+    setState(() {});
+    _showSnackBar('🏭 Empresa "$nomeFinal" marcada e sincronizada com a rota.');
+  }
+
   Future<void> _marcarEmpresa() async {
     final controller = TextEditingController(
       text: context.read<AuthProvider>().driver?.companyName ?? '',
@@ -1514,15 +1587,16 @@ class _MapScreenState extends State<MapScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          Navigator.pop(ctx, {
-                            'name': controller.text.trim(),
-                            'lat': _center.latitude,
-                            'lon': _center.longitude,
-                            'fromMap': true,
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _nomeEmpresaPendente = controller.text.trim();
+                            _modoEscolherEmpresa = true;
                           });
+                          _showSnackBar(
+                              '🏭 Toque no mapa para posicionar a empresa.');
                         },
-                        icon: const Icon(Icons.map, size: 16),
-                        label: const Text('Centro do mapa'),
+                        icon: const Icon(Icons.touch_app, size: 16),
+                        label: const Text('Escolher'),
                       ),
                     ),
                   ],
@@ -2563,7 +2637,39 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Abre o assistente (IA que le rota, alertas, limite e clima).
   void _abrirAssistente() {
-    AssistantSheet.show(context);
+    unawaited(_abrirAssistenteComContexto());
+  }
+
+  Future<void> _abrirAssistenteComContexto() async {
+    final pos = _currentPosition;
+    if (pos != null) {
+      await context.read<WeatherProvider>().refresh(lat: pos.latitude, lon: pos.longitude);
+    }
+    if (!mounted) return;
+    AssistantSheet.show(
+      context,
+      snapshotAoVivo: () => {
+        'velocidade': '${_speedKmh.toStringAsFixed(0)} km/h agora'
+            '${_speedLimitKmh != null ? ' (limite $_speedLimitKmh km/h'
+                '${_speedKmh > _speedLimitKmh! + 8 ? ', excesso!' : ''})' : ''}',
+        'clima': _resumoClimaIA(),
+        'rua': _streetName ?? 'logradouro não identificado',
+      },
+    );
+  }
+
+  String _resumoClimaIA() {
+    try {
+      final clima = context.read<WeatherProvider>();
+      final n = clima.now;
+      final dicas = clima.dicasIA();
+      if (n == null) return 'sem informação de clima (sem rede/GPS)';
+      return '${clima.emojiForCode(n.code)} ${n.tempC.toStringAsFixed(0)}°C, '
+          'vento ${n.windKmh.toStringAsFixed(0)} km/h'
+          '${dicas.isNotEmpty ? ' | ${dicas.join(' | ')}' : ''}';
+    } catch (_) {
+      return 'clima indisponível';
+    }
   }
 
   Widget _buildUiToggle() {
@@ -2781,6 +2887,8 @@ class _MapScreenState extends State<MapScreen> {
       onStyleLoadedCallback: _onStyleLoaded,
       onMapLongClick: (point, latLng) =>
           _onMapLongPress(LatLng(latLng.latitude, latLng.longitude)),
+      onMapClick: (point, latLng) =>
+          _onMapClickCurto(LatLng(latLng.latitude, latLng.longitude)),
       onCameraMove: (camera) {
         _zoom = camera.zoom;
         if ((camera.bearing - _bearing).abs() > 0.5) {

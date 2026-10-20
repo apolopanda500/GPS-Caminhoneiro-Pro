@@ -10,6 +10,7 @@ import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
 import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/group_provider.dart';
+import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
 import 'package:gps_camioneiro_pro/views/splash/splash_screen.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +30,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => TripProvider()..load()),
         ChangeNotifierProvider(create: (_) => RouteProvider()),
         ChangeNotifierProvider(create: (_) => GroupProvider()),
+        ChangeNotifierProvider(create: (_) => WeatherProvider()),
         ChangeNotifierProvider(create: (_) => AudioProvider()..carregarPreferencias()),
       ],
       child: const GpsCamioneiroProApp(),

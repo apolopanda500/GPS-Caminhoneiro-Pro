@@ -207,6 +207,23 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 03:25 A: TUDO plugado — WeatherProvider registrado no main.dart e ligado ao
+  Assistente: _abrirAssistente atualiza o clima na posicao real (Open-Meteo) e abre
+  a sheet com snapshotAoVivo (velocidade GPS _speedKmh, limite _speedLimitKmh com
+  excesso, nome da rua via SpeedLimitService, resumo do clima com dicasIA). Agentes
+  da IA (Rota/Sinais/Velocidade/Clima/Rua/Perfil) agora recebem dados de verdade em
+  tempo real. analyze: No issues; testes 120/120; APK release reinstalado (Success).
+
+- 03:05 A: IA real no Assistente da Estrada — AssistantEngine.perguntarLLM chama Gemini
+  (gemini-2.0-flash, nivel gratuito) com equipe de agentes (Rota/Sinais/Velocidade/
+  Clima/Rede/Perfil) alimentada por contexto ao vivo (rota do RouteProvider, alertas
+  do AlertProvider, historico da conversa); cadeia IA → backend /api/assistant → local;
+  AppConstants.geminiApiKey/iaConfigured (GEMINI_API_KEY via dart-define), keys.json e
+  keys.example.json preparados. Empresa: toque no mapa (modo escolher) + dialog de nome;
+  _salvarEmpresa sincroniza updateProfile + RouteProvider.setCompanyStop (ponto final);
+  dialog antigo ganhou "Escolher". analyze: No issues; testes 120/120; APK release
+  reinstalado (Success).
+
 - 02:50 B: FloatingPanel (arrastar/minimizar nos dois lados/ocultar/persistir) em todos os
   paineis; tabela de rotas e barra de ferramentas reconstruidas; chat deixa de ser modal e
   o crash do reaction corrigido; rotas com ORS correto + fallback OSRM; assistente (IA) no

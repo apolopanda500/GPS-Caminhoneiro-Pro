@@ -8,6 +8,7 @@ import 'package:gps_camioneiro_pro/core/ai/assistant_engine.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
@@ -15,14 +16,19 @@ import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 /// Assistente da estrada: conversa com o motorista usando o estado real do
 /// app (rota, paradas, sinais, limite de velocidade e clima).
 class AssistantSheet extends StatefulWidget {
-  const AssistantSheet({super.key});
+  final Map<String, String> Function()? snapshotAoVivo;
 
-  static Future<void> show(BuildContext context) {
+  const AssistantSheet({super.key, this.snapshotAoVivo});
+
+  static Future<void> show(
+    BuildContext context, {
+    Map<String, String> Function()? snapshotAoVivo,
+  }) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const AssistantSheet(),
+      builder: (_) => AssistantSheet(snapshotAoVivo: snapshotAoVivo),
     );
   }
 
@@ -69,28 +75,38 @@ class _AssistantSheetState extends State<AssistantSheet> {
     VoiceService.instance.falar(resposta);
   }
 
-  /// Tenta o backend (que pode usar LLM); se falhar, responde localmente.
+  /// IA real primeiro (Gemini com agentes + contexto ao vivo); depois o
+  /// backend; por fim o motor local offline.
   Future<String> _responder(String pergunta, RouteProvider route) async {
+    final contextos = _juntarContexto(route);
+    final auth = context.read<AuthProvider>();
+    final viaLLM = await AssistantEngine.perguntarLLM(
+      pergunta: pergunta,
+      contexto: contextos,
+      historico: _historico
+          .map((h) => (papel: 'Motorista', papelConteudo: h.pergunta))
+          .followedBy(_historico
+              .map((h) => (papel: 'Assistente', papelConteudo: h.resposta)))
+          .toList(),
+    );
+    if (viaLLM != null && viaLLM.trim().isNotEmpty) return viaLLM;
+
     final local = AssistantEngine.responder(
       pergunta: pergunta,
       totalParadas: route.totalStops,
       entregasFeitas: route.deliveredCount,
-      alertas: const [],
+      alertas: _alertasAtivos(),
       sugestoes: _atalhos,
     );
     if (!AppConstants.serverConfigured) return local;
     try {
-      final auth = context.read<AuthProvider>();
       final resp = await http
           .post(
             Uri.parse('${AppConstants.baseUrl}/api/assistant/ask'),
             headers: auth.authHeaders,
             body: jsonEncode({
               'pergunta': pergunta,
-              'contexto': {
-                'totalParadas': route.totalStops,
-                'entregasFeitas': route.deliveredCount,
-              },
+              'contexto': contextos,
             }),
           )
           .timeout(const Duration(seconds: 6));
@@ -103,6 +119,42 @@ class _AssistantSheetState extends State<AssistantSheet> {
       // Sem rede: segue com a resposta local.
     }
     return local;
+  }
+
+  /// Contexto em tempo real entregue aos agentes da IA.
+  Map<String, dynamic> _juntarContexto(RouteProvider route) {
+    final auth = context.read<AuthProvider>();
+    final driver = auth.driver;
+    final rota = route.totalStops == 0
+        ? 'sem rota montada'
+        : '${route.totalStops} paradas, ${route.deliveredCount} entregas, '
+            'proxima parada: ${route.nextStopLabel}';
+
+    final sinais = _alertasAtivos();
+
+    return {
+      'rota': rota,
+      'sinais': sinais.isEmpty ? 'nenhum sinal ativo' : sinais.join('; '),
+      'rede': 'camioes proximos via socket (nao disponivel nesta sheet)',
+      'perfil': driver == null
+          ? 'sem sessao'
+          : '${driver.name}, ${driver.isPremium ? 'premium' : 'free'}, '
+              'caminhao ${driver.truckModel ?? '-'}',
+      ...?widget.snapshotAoVivo?.call(),
+    };
+  }
+
+  List<String> _alertasAtivos() {
+    try {
+      final alerts = context.read<AlertProvider>().alerts;
+      return alerts
+          .take(6)
+          .map((a) => '${a.type}@${a.latitude.toStringAsFixed(2)},'
+              '${a.longitude.toStringAsFixed(2)}')
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   @override

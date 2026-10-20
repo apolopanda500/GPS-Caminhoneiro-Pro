@@ -1,9 +1,113 @@
-/// Motor de respostas do "Assistente da Estrada".
-///
-/// Funciona 100% offline com base no estado real do app (rota, alertas,
-/// limites de velocidade, clima) e pode serniaenciado por um LLM no backend
-/// (POST /api/assistant) quando houver chave configurada la.
+// Motor de respostas do "Assistente da Estrada".
+//
+// Camada real de IA: modelo Gemini com uma equipe de agentes (Rota, Sinais,
+// Velocidade, Clima, Socorro) alimentada por contexto em tempo real do app.
+// Sem chave/sem rede, cai para o motor local baseado em estado.
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
+
 class AssistantEngine {
+  static String? _erroLLM;
+
+  /// Consulta o LLM real (Gemini) com a equipe de agentes e o estado atual.
+  /// Retorna null quando IA nao esta configurada/falhou (caller faz fallback).
+  static Future<String?> perguntarLLM({
+    required String pergunta,
+    required Map<String, dynamic> contexto,
+    List<({String papel, String papelConteudo})> historico = const [],
+  }) async {
+    if (!AppConstants.iaConfigured) {
+      _erroLLM = 'Sem chave GEMINI_API_KEY no keys.json.';
+      return null;
+    }
+    final uri = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/'
+        '${AppConstants.geminiModel}:generateContent?key=${AppConstants.geminiApiKey}');
+
+    final agentes = StringBuffer()
+      ..writeln('AGENTE ROTA: ${contexto['rota'] ?? 'sem rota montada.'}')
+      ..writeln('AGENTE SINAIS: ${contexto['sinais'] ?? 'nenhum sinal ativo.'}')
+      ..writeln('AGENTE VELOCIDADE: ${contexto['velocidade'] ?? 'sem leitura de GPS.'}')
+      ..writeln('AGENTE CLIMA: ${contexto['clima'] ?? 'sem dado de clima.'}')
+      ..writeln('AGENTE FLOTA/REDE: ${contexto['rede'] ?? 'sem peers por perto.'}')
+      ..writeln('AGENTE PERFIL: ${contexto['perfil'] ?? 'sem perfil carregado.'}');
+
+    final instr = StringBuffer()
+      ..writeln('Voce e a IA de bordo de um app para caminhoneiros '
+          '(GPS Caminhoneiro Pro). Voce comanda equipes de agentes e cada '
+          'agente entrega dados em tempo real a seguir.')
+      ..writeln(agentes.toString())
+      ..writeln('Regras: responda curto e direto (ate 3 frases), em '
+          'portugues do Brasil, com base APENAS nos dados dos agentes '
+          'acima e no bom senso; nunca invente dados que os agentes nao '
+          'trouxeram; se faltar dado, diga o que esta disponivel e '
+          'recomende a acao no app (ex.: "toque em Rota"). Quando houver '
+          'perigo real, avise com urgencia.');
+
+    for (final h in historico.take(6)) {
+      instr.writeln('${h.papel}: ${h.papelConteudo}');
+    }
+
+    final corpo = jsonEncode({
+      'system_instruction': {
+        'parts': [
+          {'text': instr.toString()},
+        ],
+      },
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': pergunta},
+          ],
+        },
+      ],
+      'generationConfig': {
+        'temperature': 0.4,
+        'maxOutputTokens': 300,
+      },
+    });
+
+    try {
+      final resp = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
+            body: corpo,
+          )
+          .timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) {
+        _erroLLM = 'HTTP ${resp.statusCode}';
+        return null;
+      }
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final candidatos = data['candidates'] as List<dynamic>? ?? const [];
+      if (candidatos.isEmpty) return null;
+      final conteudo = (candidatos.first as Map<String, dynamic>)['content']
+          as Map<String, dynamic>?;
+      final parts = conteudo?['parts'] as List<dynamic>? ?? const [];
+      final texto = parts
+          .map((p) => (p as Map<String, dynamic>)['text']?.toString() ?? '')
+          .join(' ')
+          .trim();
+      if (texto.isEmpty) return null;
+      _erroLLM = null;
+      return texto;
+    } catch (_) {
+      _erroLLM = 'sem rede';
+      return null;
+    }
+  }
+
+  static String get ultimoErroIA => _erroLLM ?? '';
+
+  static bool get iaAtiva => AppConstants.iaConfigured;
+
+  /// Respostas prontas: cada uma reconhece palavras-chave e devolve a
+  /// resposta com os dados reais do app.
   /// Respostas prontas: cada uma reconhece palavras-chave e devolve a
   /// resposta com os dados reais do app.
   static String responder({
