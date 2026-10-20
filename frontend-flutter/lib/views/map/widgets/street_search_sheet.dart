@@ -87,7 +87,9 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
       setState(() {
         _results = r;
         _loading = false;
-        _error = r.isEmpty ? 'Nenhum resultado encontrado.' : null;
+        _error = r.isEmpty
+            ? 'Nenhum resultado em $_regiao. Troque a regiao ou tente outro termo.'
+            : null;
       });
     } catch (_) {
       if (!mounted) return;

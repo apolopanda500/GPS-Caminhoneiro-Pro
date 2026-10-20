@@ -17,12 +17,16 @@ class GeoResult {
   /// Bairro / cidade / estado, quando o servico informar.
   final String? region;
 
+  /// Estado (sigla ou nome) devolvido pelo servico, quando houver.
+  final String? state;
+
   GeoResult(
       {required this.displayName,
       required this.latitude,
       required this.longitude,
       this.distanceKm,
-      this.region});
+      this.region,
+      this.state});
 
   factory GeoResult.fromJson(Map<String, dynamic> json) => GeoResult(
         displayName: json['display_name'] ?? '',
@@ -30,6 +34,74 @@ class GeoResult {
         longitude: double.parse(json['lon'].toString()),
       );
 }
+
+/// Siglas dos estados brasileiros e o nome completo usado pelos geocoders.
+const Map<String, String> kEstadosBrasil = {
+  'AC': 'Acre',
+  'AL': 'Alagoas',
+  'AP': 'Amapá',
+  'AM': 'Amazonas',
+  'BA': 'Bahia',
+  'CE': 'Ceará',
+  'DF': 'Distrito Federal',
+  'ES': 'Espírito Santo',
+  'GO': 'Goiás',
+  'MA': 'Maranhão',
+  'MT': 'Mato Grosso',
+  'MS': 'Mato Grosso do Sul',
+  'MG': 'Minas Gerais',
+  'PA': 'Pará',
+  'PB': 'Paraíba',
+  'PR': 'Paraná',
+  'PE': 'Pernambuco',
+  'PI': 'Piauí',
+  'RJ': 'Rio de Janeiro',
+  'RN': 'Rio Grande do Norte',
+  'RS': 'Rio Grande do Sul',
+  'RO': 'Rondônia',
+  'RR': 'Roraima',
+  'SC': 'Santa Catarina',
+  'SP': 'São Paulo',
+  'SE': 'Sergipe',
+  'TO': 'Tocantins',
+};
+
+/// Texto sem acentos e em minusculas, para comparar nomes de estado.
+String _semAcento(String texto) {
+  const mapa = {
+    'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+    'ó': 'o', 'ò': 'o', 'õ': 'o', 'ô': 'o', 'ö': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+    'ç': 'c', 'ñ': 'n',
+  };
+  final base = texto.toLowerCase();
+  final buffer = StringBuffer();
+  for (final r in base.runes) {
+    final c = String.fromCharCode(r);
+    buffer.write(mapa[c] ?? c);
+  }
+  return buffer.toString();
+}
+
+/// Descobre o estado a partir da sigla (RJ) ou do nome completo.
+String? _estadoDoTexto(String? texto) {
+  if (texto == null || texto.trim().isEmpty) return null;
+  final limpo = texto.trim();
+  final porSigla = kEstadosBrasil[limpo.toUpperCase()];
+  if (porSigla != null) return porSigla;
+  final alvo = _semAcento(limpo);
+  for (final entrada in kEstadosBrasil.entries) {
+    if (_semAcento(entrada.value) == alvo) return entrada.value;
+  }
+  return limpo;
+}
+
+/// Nome completo do estado usado na consulta (evita que o geocoder interprete
+/// a sigla como outra coisa).
+String _nomeDoEstado(String? texto) => _estadoDoTexto(texto) ?? '';
+
 
 /// Busca de enderecos/ruas: prioriza o que esta perto de voce.
 ///
@@ -75,6 +147,7 @@ class GeocodingService {
               distanceKm: _distanciaKm(
                   referencia, LatLng(r.latitude, r.longitude)),
               region: r.region,
+              state: r.state,
             ))
         .toList()
       ..sort((a, b) => (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
@@ -97,18 +170,23 @@ class GeocodingService {
     final q = query.trim();
     if (q.isEmpty) return [];
 
+    // Cada motor ganha uma cota igual: assim os 4 contribuem com a lista
+    // (sem isso o primeiro ja estoura o limite e os outros nem rodam).
+    final cotaPorMotor = (limit / 2).ceil().clamp(4, limit);
+
     final engines = <Future<List<GeoResult>> Function()>[
       () => _searchTomTom(q,
-          limit: limit, near: near, cityName: cityName, stateName: stateName),
-      () => _searchPhoton(q, limit: limit, near: near, stateName: stateName),
-      () => _searchArcGis(q, limit: limit, near: near, stateName: stateName),
+          limit: cotaPorMotor, near: near, cityName: cityName, stateName: stateName),
+      () => _searchPhoton(q,
+          limit: cotaPorMotor, near: near, stateName: stateName),
+      () => _searchArcGis(q,
+          limit: cotaPorMotor, near: near, stateName: stateName),
       () => _searchNominatim(q,
-          limit: limit, near: near, cityName: cityName, stateName: stateName),
+          limit: cotaPorMotor, near: near, cityName: cityName, stateName: stateName),
     ];
 
     var lista = <GeoResult>[];
     for (final engine in engines) {
-      if (lista.length >= limit) break;
       try {
         final parte = await engine();
         if (parte.isNotEmpty) {
@@ -119,11 +197,35 @@ class GeocodingService {
       }
     }
 
-    final priorizados = _priorizar(lista, near, raioKm);
+    final semDuplicado = _removerDuplicados(lista);
+    final priorizados = _priorizar(semDuplicado, near, raioKm);
     return _filtrarPorEstado(priorizados, stateName, limit);
   }
 
-  /// Mantem primeiro os resultados do estado escolhido (ex.: RJ).
+  /// Tira resultados repetidos (mesmo lugar devolvido por motores diferentes).
+  List<GeoResult> _removerDuplicados(List<GeoResult> resultados) {
+    final vistos = <String>{};
+    final saida = <GeoResult>[];
+    for (final r in resultados) {
+      final chave =
+          '${r.displayName.toLowerCase()}|${r.latitude.toStringAsFixed(4)}|'
+          '${r.longitude.toStringAsFixed(4)}';
+      final chavePonto =
+          '${r.latitude.toStringAsFixed(4)}|${r.longitude.toStringAsFixed(4)}';
+      if (vistos.contains(chave) || vistos.contains(chavePonto)) continue;
+      vistos.add(chave);
+      vistos.add(chavePonto);
+      saida.add(r);
+    }
+    return saida;
+  }
+
+  /// Mantem **so** os resultados do estado escolhido (ex.: RJ).
+  ///
+  /// Os geocoders devolvem o nome completo do estado ("Rio de Janeiro"), e a
+  /// regiao escolhida no app costuma ser a sigla ("RJ"): por isso a
+  /// comparacao aceita as duas formas. Resultado de outro estado e
+  /// descartado - nao ha mistura de estados na lista.
   List<GeoResult> _filtrarPorEstado(
     List<GeoResult> resultados,
     String? stateName,
@@ -132,14 +234,32 @@ class GeocodingService {
     if (stateName == null || stateName.trim().isEmpty) {
       return resultados.take(limit).toList();
     }
-    final estado = stateName.trim().toLowerCase();
-    final doEstado = resultados
-        .where((r) => (r.region ?? '').toLowerCase().contains(estado))
-        .toList();
-    if (doEstado.isEmpty) return resultados.take(limit).toList();
-    final outros =
-        resultados.where((r) => !doEstado.contains(r)).toList();
-    return [...doEstado, ...outros].take(limit).toList();
+    final estado = _estadoDoTexto(stateName);
+    if (estado == null) return resultados.take(limit).toList();
+
+    final alvo = _semAcento(estado);
+    String? sigla;
+    for (final entrada in kEstadosBrasil.entries) {
+      if (_semAcento(entrada.value) == alvo) {
+        sigla = entrada.key;
+        break;
+      }
+    }
+
+    bool pertence(GeoResult r) {
+      final alvos = <String>[alvo];
+      if (sigla != null) alvos.add(_semAcento(sigla));
+      for (final parte in [r.state, r.region]) {
+        if (parte == null || parte.isEmpty) continue;
+        final normal = _semAcento(parte);
+        for (final a in alvos) {
+          if (normal.contains(a)) return true;
+        }
+      }
+      return false;
+    }
+
+    return resultados.where(pertence).take(limit).toList();
   }
 
   /// Photon (Komoot): busca rapida e sem chave, otima para ruas.
@@ -150,19 +270,23 @@ class GeocodingService {
     String? stateName,
   }) async {
     try {
+      final estado = _nomeDoEstado(stateName);
       final termos = <String>[
         query,
-        if (stateName != null && stateName.isNotEmpty) stateName,
+        if (estado.isNotEmpty) estado,
       ].join(', ');
+      // O Photon rejeita parametros desconhecidos (HTTP 400); os aceitos sao
+      // q, limit, lang, lat, lon, bbox, countrycode, entre outros.
       final params = <String, String>{
         'q': termos,
         'limit': '$limit',
         'lang': 'default',
-        'addressdetails': '1',
+        'countrycode': 'BR',
       };
       if (near != null) {
         params['lat'] = '${near.latitude}';
         params['lon'] = '${near.longitude}';
+        params['location_bias_scale'] = '0.5';
       }
       final uri = Uri.https('photon.komoot.io', '/api', params);
       final resp = await http.get(uri).timeout(const Duration(seconds: 8));
@@ -178,22 +302,23 @@ class GeocodingService {
             props['county']?.toString() ??
             props['state_district']?.toString() ??
             '';
-        final estado = props['state']?.toString() ?? '';
+        final estadoResultado = props['state']?.toString() ?? '';
         final nome = [
           props['name'],
           props['street'],
           bairro,
           cidade,
-          estado,
+          estadoResultado,
         ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
         return GeoResult(
           displayName: nome.isEmpty ? query : nome,
           latitude: coords.length >= 2 ? (coords[1] as num).toDouble() : 0,
           longitude: coords.isNotEmpty ? (coords[0] as num).toDouble() : 0,
-          region: [bairro, cidade, estado]
+          region: [bairro, cidade, estadoResultado]
               .whereType<String>()
               .where((s) => s.isNotEmpty)
               .join(' - '),
+          state: estadoResultado.isEmpty ? null : estadoResultado,
         );
       }).toList(growable: false);
     } catch (_) {
@@ -209,22 +334,29 @@ class GeocodingService {
     String? stateName,
   }) async {
     try {
+      final estado = _nomeDoEstado(stateName);
       final termos = <String>[
         query,
-        if (stateName != null && stateName.isNotEmpty) stateName,
+        if (estado.isNotEmpty) estado,
       ].join(', ');
       final params = <String, String>{
         'f': 'json',
         'singleLine': termos,
         'maxLocations': '$limit',
-        'outFields': 'Match_addr,Addr_type,City,Region,Neighborhood,Postal',
+        'outFields':
+            'Match_addr,Addr_type,City,Region,RegionAbbr,Neighborhood,Postal',
         'countryCode': 'BRA',
       };
       if (near != null) {
         params['location'] = '${near.longitude},${near.latitude}';
         params['distance'] = '100';
       }
-      final uri = Uri.https('geocode-api.arcgis.com', '/arcgis/rest/services/World/GeocodeServer/findAddressCandidates', params);
+      // O host geocode-api exige token; o geocode.arcgis.com aceita anonimo.
+      final uri = Uri.https(
+        'geocode.arcgis.com',
+        '/arcgis/rest/services/World/GeocodeServer/findAddressCandidates',
+        params,
+      );
       final resp = await http.get(uri).timeout(const Duration(seconds: 8));
       if (resp.statusCode != 200) return [];
       final data =
@@ -234,15 +366,19 @@ class GeocodingService {
         final loc = (c['location'] as Map?)?.cast<String, dynamic>() ?? {};
         final attrs = (c['attributes'] as Map?)?.cast<String, dynamic>() ?? {};
         final cidade = attrs['City']?.toString() ?? '';
-        final estado = attrs['Region']?.toString() ?? '';
+        final estadoResultado = attrs['Region']?.toString() ?? '';
+        final sigla = attrs['RegionAbbr']?.toString() ?? '';
         return GeoResult(
           displayName: attrs['Match_addr']?.toString() ?? query,
           latitude: (loc['y'] as num?)?.toDouble() ?? 0,
           longitude: (loc['x'] as num?)?.toDouble() ?? 0,
-          region: [cidade, estado]
+          region: [cidade, estadoResultado]
               .whereType<String>()
               .where((s) => s.isNotEmpty)
               .join(' - '),
+          state: estadoResultado.isEmpty
+              ? (sigla.isEmpty ? null : sigla)
+              : estadoResultado,
         );
       }).toList(growable: false);
     } catch (_) {
@@ -261,10 +397,11 @@ class GeocodingService {
     try {
       // Reforca a consulta com a cidade/estado para o servico nao trazer
       // homonimos de outros estados.
+      final estado = _nomeDoEstado(stateName);
       final termos = <String>[
         query,
         if (cityName != null && cityName.isNotEmpty) cityName,
-        if (stateName != null && stateName.isNotEmpty) stateName,
+        if (estado.isNotEmpty) estado,
         'Brasil',
       ].join(', ');
       final uri = Uri.https(
@@ -309,6 +446,7 @@ class GeocodingService {
               .whereType<String>()
               .where((s) => s.isNotEmpty)
               .join(' - '),
+          state: estado.isEmpty ? null : estado,
         );
       }).toList(growable: false);
     } catch (_) {
@@ -325,10 +463,11 @@ class GeocodingService {
     String? stateName,
   }) async {
     try {
+      final estado = _nomeDoEstado(stateName);
       final termos = <String>[
         query,
         if (cityName != null && cityName.isNotEmpty) cityName,
-        if (stateName != null && stateName.isNotEmpty) stateName,
+        if (estado.isNotEmpty) estado,
       ].join(', ');
 
       final params = <String, String>{
@@ -372,6 +511,7 @@ class GeocodingService {
               .whereType<String>()
               .where((s) => s.isNotEmpty)
               .join(' - '),
+          state: estado.isEmpty ? null : estado,
         );
       }).toList(growable: false);
     } catch (_) {
