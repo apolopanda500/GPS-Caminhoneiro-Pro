@@ -1,4 +1,4 @@
-﻿.env
+.env
 node_modules/
 dist/
 build/
@@ -18,6 +18,8 @@ frontend-flutter/android/app/upload-keystore.jks
 *.keystore
 backend-api/test-conn.js
 backend-api/_*.js
+frontend-flutter/_*.js
+frontend-flutter/_*.dart
 
 # IDE
 .idea/
