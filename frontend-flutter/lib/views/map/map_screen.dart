@@ -11,6 +11,8 @@ import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
+import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
@@ -102,6 +104,7 @@ class _MapScreenState extends State<MapScreen> {
 
   double get _contentLeft => _railHidden ? 16 : 12 + _railWidth + 10;
   bool _settingsApplied = false;
+  MapLayerMode? _appliedLayer;
   bool _peerBubbleOpen = false;
 
   MarkerProvider? _markerProvider;
@@ -1282,6 +1285,13 @@ class _MapScreenState extends State<MapScreen> {
       HapticFeedback.mediumImpact();
       _showSnackBar('Entrega validada: ${route.nextStopLabel}');
       _renderMarkers();
+      final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
+      unawaited(context.read<AudioProvider>().tocarChegada());
+      unawaited(VoiceService.instance
+          .chegadaNaParada(route.deliveredCount, total,
+              proxima: route.nextStopLabel.isEmpty
+                  ? null
+                  : 'A próxima parada é: ${route.nextStopLabel}.'));
     }
     if (route.allDelivered && route.consumeCompletionEvent()) {
       _mostrarViagemConcluida(route.deliveredCount);
@@ -1384,12 +1394,16 @@ class _MapScreenState extends State<MapScreen> {
   void _avisarRotaFinalizada() {
     HapticFeedback.heavyImpact();
     SystemSound.play(SystemSoundType.alert);
+    unawaited(context.read<AudioProvider>().tocarChegada());
+    unawaited(VoiceService.instance.falar('Rota concluida. Volte para a empresa.'));
     _showSnackBar('🏁 ROTA FINALIZADA — todos os clientes visitados.');
   }
 
   void _avisarViagemConcluida() {
     HapticFeedback.heavyImpact();
     SystemSound.play(SystemSoundType.alert);
+    unawaited(context.read<AudioProvider>().tocarChegada());
+    unawaited(VoiceService.instance.viagemConcluida());
     _showSnackBar('✅ VIAGEM CONCLUÍDA COM SUCESSO.');
   }
 
@@ -1505,6 +1519,7 @@ class _MapScreenState extends State<MapScreen> {
       _routeProvider = context.read<RouteProvider>();
       _tripProvider = context.read<TripProvider>();
       _layerMode = _settingsProvider!.layer;
+      _appliedLayer = _layerMode;
 
       _markerProvider!.purgeExpired();
       _markerProvider!.addListener(_onDataChanged);
@@ -1519,6 +1534,13 @@ class _MapScreenState extends State<MapScreen> {
 
   void _onDataChanged() {
     if (!mounted) return;
+    final camada = _settingsProvider?.layer;
+    if (camada != null && camada != _appliedLayer) {
+      _appliedLayer = camada;
+      setState(() => _layerMode = camada);
+      final style = _styleAtual;
+      if (style.isNotEmpty) _mapController?.setStyle(style);
+    }
     final quality = _settingsProvider?.renderQuality;
     if (quality != null && quality != _appliedQuality) {
       _appliedQuality = quality;
@@ -1767,6 +1789,8 @@ class _MapScreenState extends State<MapScreen> {
                 _buildUiToggle(),
                 const SizedBox(height: 10),
                 _buildCompass(),
+                const SizedBox(height: 10),
+                _buildLayerToggle(),
               ],
             ),
           ),
@@ -1799,6 +1823,47 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
+  }
+
+  /// Botao de camada: alterna entre Satelite (imagem real) e mapa leve de ruas.
+  Widget _buildLayerToggle() {
+    final isSat = _isSatellite;
+    final icone = isSat ? Icons.layers_outlined : Icons.satellite_alt_outlined;
+    final tooltip =
+        isSat ? 'Usar mapa leve (ruas)' : 'Usar imagem de satelite';
+    return Material(
+      color: overlaySurface(context),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _alternarCamada,
+        child: Tooltip(
+          message: tooltip,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icone, color: Colors.white, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Troca a camada do mapa entre satelite e ruas, mantendo a preferencia salva.
+  Future<void> _alternarCamada() async {
+    final novo =
+        _isSatellite ? MapLayerMode.streets : MapLayerMode.satellite;
+    setState(() {
+      _layerMode = novo;
+      _appliedLayer = novo;
+    });
+    await _settingsProvider?.setLayer(novo);
+    final style = _styleAtual;
+    if (style.isNotEmpty) {
+      _mapController?.setStyle(style);
+    }
+    _showSnackBar(novo == MapLayerMode.satellite
+        ? 'Imagem de satelite ativada.'
+        : 'Mapa leve de ruas ativado.');
   }
 
   Widget _buildUiToggle() {

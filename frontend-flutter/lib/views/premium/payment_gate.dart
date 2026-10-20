@@ -16,6 +16,8 @@ class PaymentGateScreen extends StatefulWidget {
 
 class _PaymentGateScreenState extends State<PaymentGateScreen> {
   bool _loading = false;
+  String _plano = 'mensal';
+  double _valor = 4.99;
 
   Future<void> _ativarAssinatura() async {
     if (!AppConstants.serverConfigured) {
@@ -27,7 +29,11 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
       final resp = await http.post(
         Uri.parse('${AppConstants.baseUrl}/api/payment/pix'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'driverId': widget.driverId, 'email': ''}),
+        body: jsonEncode({
+          'driverId': widget.driverId,
+          'plan': _plano,
+          'amount': _valor,
+        }),
       );
       if (!mounted) return;
       if (resp.statusCode == 200) {
@@ -55,7 +61,7 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF121212),
+        backgroundColor: const Color(0xFF1C0303),
         title: const Text('Pagamento via PIX',
             style: TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
@@ -148,10 +154,17 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'No Free você navega com mapa e rotas.\n'
-              'No Premium tudo é liberado por R\$ 29,90/mês.',
+              'Preço popular: R\$ 4,99/mês.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 14),
+              style: TextStyle(
+                  color: Colors.amber,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              'Promoção: Premium liberado para todos até 29/11/2026.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 32),
             _buildBenefitRow(Icons.campaign, 'Alertas e sinais da comunidade'),
@@ -163,35 +176,31 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
                 Icons.layers, 'Ruas 3D detalhadas e prédios em 3D'),
             _buildBenefitRow(Icons.history, 'Histórico de viagens'),
             _buildBenefitRow(Icons.search, 'Busca de ruas e endereços'),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF121212),
+                color: const Color(0xFF1C0303),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.amber, width: 1.5),
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Text('Plano Mensal Logística',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
-                      SizedBox(height: 4),
-                      Text('Cancele quando quiser',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      _planCard('Mensal', 'R\$ 4,99', 'mensal', 4.99),
+                      _planCard(
+                          'Anual', 'R\$ 29,99', 'anual', 29.99,
+                          badge: 'economize 50%'),
                     ],
                   ),
-                  Text('R\$ 29,90',
-                      style: TextStyle(
-                          color: Colors.amber,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Escolha o plano e gere o PIX abaixo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -213,14 +222,61 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text(
-                        'GERAR PIX DO PREMIUM',
-                        style: TextStyle(
+                    : Text(
+                        'GERAR PIX ${_plano.toUpperCase()} ${_valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                        style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold),
                       ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _planCard(String nome, String preco, String plano, double valor,
+      {String? badge}) {
+    final ativo = _plano == plano;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _plano = plano;
+        _valor = valor;
+      }),
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: ativo ? const Color(0xFF2A0505) : const Color(0xFF1C0303),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: ativo ? Colors.red : Colors.white12,
+            width: ativo ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              nome,
+              style: TextStyle(
+                color: ativo ? Colors.red : Colors.white70,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (badge != null)
+              Text(
+                badge,
+                style: const TextStyle(
+                    color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            const SizedBox(height: 6),
+            Text(
+              preco,
+              style: const TextStyle(
+                  color: Colors.amber, fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ],
         ),

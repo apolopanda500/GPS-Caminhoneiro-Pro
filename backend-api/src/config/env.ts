@@ -16,7 +16,7 @@ export const env = {
   pixKey: process.env.PIX_KEY || '',
   pixName: process.env.PIX_NAME || 'HENRIQUE DE CARVALHO',
   pixCity: process.env.PIX_CITY || 'RIO DE JANEIRO',
-  pixAmount: parseFloat(process.env.PIX_AMOUNT || '29.90'),
+  pixAmount: parseFloat(process.env.PIX_AMOUNT || '4.99'),
   pixDescription: process.env.PIX_DESCRIPTION || 'Assinatura Premium GPS Caminhoneiro Pro',
 
   // E-mail (codigos de verificacao de conta).

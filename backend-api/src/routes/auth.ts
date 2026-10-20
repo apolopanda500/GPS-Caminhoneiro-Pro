@@ -10,5 +10,7 @@ router.post('/verify', authController.verifyCode.bind(authController));
 router.post('/resend', authController.resendCode.bind(authController));
 router.post('/login', authController.login.bind(authController));
 router.post('/profile', authController.updateProfile.bind(authController));
+router.post('/photo', authController.updatePhoto.bind(authController));
+router.get('/photo/:driverId', authController.getPhoto.bind(authController));
 
 export default router;

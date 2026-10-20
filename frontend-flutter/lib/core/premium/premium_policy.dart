@@ -19,14 +19,38 @@ class PremiumPolicy {
   static const bool freeHasMap = true;
   static const bool freeHasRoutes = true;
 
-  static bool canUse(PremiumFeature feature, {required bool isPremium}) =>
-      isPremium;
+  static const double priceBrl = 4.99;
 
-  static bool isLocked(PremiumFeature feature, {required bool isPremium}) =>
-      !isPremium;
+  static final DateTime promoUntil = DateTime(2026, 11, 29, 23, 59, 59);
+
+  static bool promoActive([DateTime? now]) =>
+      (now ?? DateTime.now()).isBefore(promoUntil);
+
+  static bool hasPremiumAccess({
+    required bool isPremium,
+    DateTime? now,
+  }) =>
+      isPremium || promoActive(now);
+
+  static bool canUse(
+    PremiumFeature feature, {
+    required bool isPremium,
+    DateTime? now,
+  }) =>
+      hasPremiumAccess(isPremium: isPremium, now: now);
+
+  static bool isLocked(
+    PremiumFeature feature, {
+    required bool isPremium,
+    DateTime? now,
+  }) =>
+      !hasPremiumAccess(isPremium: isPremium, now: now);
 
   static List<PremiumFeature> get features => PremiumFeature.values;
 
-  static List<PremiumFeature> lockedFor({required bool isPremium}) =>
-      isPremium ? const <PremiumFeature>[] : PremiumFeature.values;
+  static List<PremiumFeature> lockedFor(
+          {required bool isPremium, DateTime? now}) =>
+      hasPremiumAccess(isPremium: isPremium, now: now)
+          ? const <PremiumFeature>[]
+          : PremiumFeature.values;
 }

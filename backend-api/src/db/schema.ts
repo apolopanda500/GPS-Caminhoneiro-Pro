@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
     gateway_id VARCHAR(100) UNIQUE NOT NULL,
-    amount NUMERIC(10,2) NOT NULL DEFAULT 29.90,
+    amount NUMERIC(10,2) NOT NULL DEFAULT 4.99,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     paid_at TIMESTAMP WITH TIME ZONE
@@ -95,6 +95,35 @@ CREATE TABLE IF NOT EXISTS verification_codes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
+
+CREATE TABLE IF NOT EXISTS convoy_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(80) NOT NULL,
+    owner_driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    is_public BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS convoy_members (
+    group_id UUID REFERENCES convoy_groups(id) ON DELETE CASCADE,
+    driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL DEFAULT 'motorista',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id, driver_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_shared_routes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID REFERENCES convoy_groups(id) ON DELETE CASCADE,
+    driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    driver_name VARCHAR(100) NOT NULL DEFAULT '',
+    payload JSONB NOT NULL,
+    is_public BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_convoy_members_driver_id ON convoy_members(driver_id);
+CREATE INDEX IF NOT EXISTS idx_group_routes_group_id ON group_shared_routes(group_id);
 CREATE INDEX IF NOT EXISTS idx_road_alerts_geom ON road_alerts USING gist(geom);
 CREATE INDEX IF NOT EXISTS idx_road_alerts_type ON road_alerts(alert_type);
 CREATE INDEX IF NOT EXISTS idx_truck_alerts_expires ON road_alerts(expires_at);

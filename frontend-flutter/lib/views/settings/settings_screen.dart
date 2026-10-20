@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
+import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/database/local_cache.dart';
+import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
@@ -17,7 +20,9 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<SettingsProvider>();
     final auth = context.watch<AuthProvider>();
-    final premium = auth.driver?.isPremium ?? false;
+    final premium = PremiumPolicy.hasPremiumAccess(
+        isPremium: auth.driver?.isPremium ?? false,
+        now: DateTime.now());
     final theme = Theme.of(context);
     final ink = theme.colorScheme.onSurface;
     final muted = theme.colorScheme.onSurface.withValues(alpha: 0.55);
@@ -206,6 +211,10 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           const _Section('SONS E NOTIFICAÇÕES'),
+          const _AudioSwitchMusica(),
+          const _AudioSwitchEstacao(),
+          const _AudioSwitchVoz(),
+          const _RadioTile(),
           _Switch(
             title: 'Sons do app',
             subtitle: 'Desliga todos os avisos sonoros',
@@ -423,7 +432,6 @@ class SettingsScreen extends StatelessWidget {
 class _PlanBadge extends StatelessWidget {
   final bool premium;
   const _PlanBadge({required this.premium});
-
   @override
   Widget build(BuildContext context) {
     final badgeColor =
@@ -498,6 +506,217 @@ class _Section extends StatelessWidget {
           fontSize: 12,
           letterSpacing: 1.2,
         ),
+      ),
+    );
+  }
+}
+class _AudioSwitchMusica extends StatelessWidget {
+  const _AudioSwitchMusica();
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = context.watch<AudioProvider>();
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    return SwitchListTile(
+      secondary: Icon(Icons.music_note, color: ink.withValues(alpha: 0.7)),
+      title: Text('Música de fundo', style: TextStyle(color: ink)),
+      subtitle: Text(
+        'Toca desde o início do app (usa assets/audio/musica_custom.mp3 se existir)',
+        style: TextStyle(color: ink.withValues(alpha: 0.55), fontSize: 12),
+      ),
+      value: audio.musicaLigada,
+      onChanged: audio.alternarMusica,
+      activeThumbColor: kEmergencyRed,
+      activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
+    );
+  }
+}
+
+class _AudioSwitchEstacao extends StatelessWidget {
+  const _AudioSwitchEstacao();
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = context.watch<AudioProvider>();
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    return SwitchListTile(
+      secondary: Icon(Icons.terminal_sharp, color: ink.withValues(alpha: 0.7)),
+      title: Text('Sino de estação na parada', style: TextStyle(color: ink)),
+      subtitle: Text(
+        'Toca um sininho de estação de trem em cada entrega concluída',
+        style: TextStyle(color: ink.withValues(alpha: 0.55), fontSize: 12),
+      ),
+      value: audio.estacaoLigada,
+      onChanged: audio.alternarEstacao,
+      activeThumbColor: kEmergencyRed,
+      activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
+    );
+  }
+}
+
+class _RadioTile extends StatelessWidget {
+  const _RadioTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = context.watch<AudioProvider>();
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    final muted = ink.withValues(alpha: 0.55);
+    return ListTile(
+      leading: Icon(
+        audio.radioTocando ? Icons.radio : Icons.radio_outlined,
+        color: audio.radioTocando ? kEmergencyRed : muted,
+      ),
+      title: Text(
+        audio.radioTocando
+            ? 'Rádio FM: ${audio.radioEstacao}'
+            : 'Rádio FM ao vivo',
+        style: TextStyle(color: ink),
+      ),
+      subtitle: Text(
+        audio.radioTocando ? 'Tocando agora • toque para parar' : 'Buscar e ouvir estações reais do Brasil',
+        style: TextStyle(color: muted, fontSize: 12),
+      ),
+      trailing: Icon(
+        audio.radioTocando ? Icons.stop : Icons.chevron_right,
+        color: muted,
+      ),
+      onTap: () => audio.radioTocando
+          ? audio.pararRadio()
+          : _abrirRadio(context, audio),
+    );
+  }
+
+  void _abrirRadio(BuildContext context, AudioProvider audio) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      isScrollControlled: true,
+      builder: (sheetContext) => const _RadioSheet(),
+    );
+  }
+}
+
+class _RadioSheet extends StatefulWidget {
+  const _RadioSheet();
+
+  @override
+  State<_RadioSheet> createState() => _RadioSheetState();
+}
+
+class _RadioSheetState extends State<_RadioSheet> {
+  final TextEditingController _busca = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AudioProvider>().buscarEstacoes();
+    });
+  }
+
+  @override
+  void dispose() {
+    _busca.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = context.watch<AudioProvider>();
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    final muted = ink.withValues(alpha: 0.55);
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.75,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _busca,
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar estação',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onSubmitted: (v) => audio.buscarEstacoes(v),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(audio.radioTocando ? Icons.stop : Icons.play_arrow,
+                        color: kEmergencyRed),
+                    onPressed: audio.radioTocando ? audio.pararRadio : null,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: audio.carregandoEstacoes
+                  ? const Center(child: CircularProgressIndicator(color: kEmergencyRed))
+                  : audio.estacoes.isEmpty
+                      ? Center(
+                          child: Text('Nenhuma estação encontrada.',
+                              style: TextStyle(color: muted)),
+                        )
+                      : ListView.builder(
+                          itemCount: audio.estacoes.length,
+                          itemBuilder: (context, i) {
+                            final e = audio.estacoes[i];
+                            final tocando = audio.radioTocando && audio.radioEstacao == e.nome;
+                            return ListTile(
+                              leading: Icon(
+                                tocando ? Icons.radio : Icons.radio_outlined,
+                                color: tocando ? kEmergencyRed : muted,
+                              ),
+                              title: Text(e.nome,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: ink)),
+                              subtitle: Text(e.url,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: muted, fontSize: 11)),
+                              onTap: () => audio.tocarEstacao(e),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AudioSwitchVoz extends StatelessWidget {
+  const _AudioSwitchVoz();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    return StatefulBuilder(
+      builder: (context, setState) => SwitchListTile(
+        secondary: Icon(Icons.record_voice_over, color: ink.withValues(alpha: 0.7)),
+        title: Text('Voz das paradas', style: TextStyle(color: ink)),
+        subtitle: Text(
+          'Fala "Chegou no ponto X de Y" ao chegar em cada cliente e avisa rota e viagem concluída',
+          style: TextStyle(color: ink.withValues(alpha: 0.55), fontSize: 12),
+        ),
+        value: VoiceService.instance.ligada,
+        onChanged: (v) async {
+          await VoiceService.instance.alternar(v);
+          setState(() {});
+        },
+        activeThumbColor: kEmergencyRed,
+        activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
       ),
     );
   }

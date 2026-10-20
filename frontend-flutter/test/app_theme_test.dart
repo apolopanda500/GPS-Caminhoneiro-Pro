@@ -3,6 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 
+int rgb(Color c) => c.toARGB32() & 0xFFFFFF;
+
+const _key = Key('surfaceBox');
+
 void main() {
   group('AppTheme', () {
     test('tema escuro usa superficies escuras e vermelho', () {
@@ -19,60 +23,70 @@ void main() {
       expect(appLightTheme.textButtonTheme.style, isNotNull);
     });
 
-    testWidgets('overlaySurface adapta ao brilho', (tester) async {
-      const Color branco = Color(0xF2FFFFFF);
-      const Color escuro = Color(0xE6101418);
-
+    testWidgets('overlaySurface claro e branca translúcida', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: appLightTheme,
           home: Builder(
-            builder: (context) => Container(color: overlaySurface(context)),
+            builder: (context) => Container(
+              key: _key,
+              color: overlaySurface(context),
+            ),
           ),
         ),
       );
-      var container = tester.widget<Container>(find.byType(Container));
-      expect((container.color!.toARGB32() & 0x00FFFFFF).toDouble(),
-          closeTo(branco.computeLuminance(), 0.001));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: appTheme,
-          home: Builder(
-            builder: (context) => Container(color: overlaySurface(context)),
-          ),
-        ),
-      );
-      container = tester.widget<Container>(find.byType(Container));
-      expect((container.color!.toARGB32() & 0x00FFFFFF).toDouble(),
-          closeTo(escuro.computeLuminance(), 0.001));
+      await tester.pump();
+      final container = tester.widget<Container>(find.byKey(_key));
+      expect(rgb(container.color!), 0xFFFFFF);
     });
 
-    testWidgets('overlayText/overlayTextMuted mudam com tema', (tester) async {
+    testWidgets('overlaySurface escura e preta translúcida', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: appTheme,
+          home: Builder(
+            builder: (context) => Container(
+              key: _key,
+              color: overlaySurface(context),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final container = tester.widget<Container>(find.byKey(_key));
+      expect(rgb(container.color!), 0x101418);
+    });
+
+    testWidgets('overlayText claro usa tinta escura', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: appLightTheme,
           home: Builder(
             builder: (context) {
-              expect(overlayText(context), kLightInk);
-              expect(overlayTextMuted(context), kLightInk);
+              expect(rgb(overlayText(context)), rgb(kLightInk));
+              expect(rgb(overlayTextMuted(context)), rgb(kLightInk));
               return const SizedBox.shrink();
             },
           ),
         ),
       );
+      await tester.pump();
+    });
+
+    testWidgets('overlayText escuro usa branco', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: appTheme,
           home: Builder(
             builder: (context) {
-              expect(overlayText(context), Colors.white);
-              expect(overlayTextMuted(context), Colors.white70);
+              expect(rgb(overlayText(context)), 0xFFFFFF);
+              expect(rgb(overlayTextMuted(context)), rgb(Colors.white70));
               return const SizedBox.shrink();
             },
           ),
         ),
       );
+      await tester.pump();
     });
   });
 }

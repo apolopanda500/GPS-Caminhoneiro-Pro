@@ -26,7 +26,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      'primeiro_acesso_v1': true,
+      'permissoes_pedidas_v1': 'x',
+      'audio_musica': false,
+    });
   });
 
   testWidgets('SpeedHUD renderiza a velocidade', (tester) async {

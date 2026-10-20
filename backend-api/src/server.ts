@@ -7,6 +7,7 @@ import { env } from './config/env';
 import authRoutes from './routes/auth';
 import alertRoutes from './routes/alerts';
 import paymentRoutes from './routes/payment';
+import groupRoutes from './routes/groups';
 
 const app = express();
 let dbConnected = false;
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/groups', groupRoutes);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -170,10 +172,20 @@ io.on('connection', (socket: Socket) => {
     fromName: string;
     routeJson: string;
     targetDriverId?: string;
+    groupId?: string;
     speedKmh?: number;
     role?: string;
   }) => {
     if (!data?.routeJson) return;
+    const payload = {
+      ...data,
+      timestamp: Date.now(),
+    };
+    if (data.groupId) {
+      console.log(`📡 Rota compartilhada no grupo ${data.groupId}`);
+      io.to(`group:${data.groupId}`).emit('receive_shared_route', payload);
+      return;
+    }
     io.emit('receive_shared_route', {
       ...data,
       timestamp: Date.now(),
@@ -225,6 +237,54 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('send_truck_reaction', (reactionData: { fromName: string; targetDriverId: string; emoji: string }) => {
     io.emit('receive_truck_reaction', reactionData);
+  });
+
+  socket.on('join_group', async (data: { groupId: string; driverId: string }) => {
+    if (!data?.groupId) return;
+    try {
+      const member = await db.query(
+        'SELECT 1 FROM convoy_members WHERE group_id = $1 AND driver_id = $2',
+        [data.groupId, data.driverId || '']
+      );
+      const isMember = (member.rowCount ?? 0) > 0;
+      const group = await db.query('SELECT is_public, owner_driver_id FROM convoy_groups WHERE id = $1', [data.groupId]);
+      const g = group.rows[0];
+      const allowed = isMember || (g && (g.is_public || g.owner_driver_id === data.driverId));
+      if (!allowed) return;
+      socket.join(`group:${data.groupId}`);
+      socket.emit('group_joined', { groupId: data.groupId, ok: true });
+    } catch { console.error('Erro ao entrar no grupo (socket).'); }
+  });
+
+  socket.on('leave_group', (data: { groupId: string }) => {
+    if (data?.groupId) socket.leave(`group:${data.groupId}`);
+  });
+
+  socket.on('send_group_invite', (data: {
+    groupId: string;
+    groupName: string;
+    fromDriverId: string;
+    fromName: string;
+    targetDriverId: string;
+  }) => {
+    if (!data?.groupId || !data?.targetDriverId) return;
+    const targets = Array.from(activeTrucksNetwork.values()).filter(t => t.driverId === data.targetDriverId);
+    targets.forEach(t => io.to(t.socketId).emit('receive_group_invite', {
+      groupId: data.groupId,
+      groupName: data.groupName,
+      fromName: data.fromName,
+      timestamp: Date.now(),
+    }));
+  });
+
+  socket.on('clear_alert', async (data: { alertId: string; driverId: string }) => {
+    if (!data?.alertId || !data?.driverId) return;
+    try {
+      const res = await db.query('DELETE FROM road_alerts WHERE id::text = $1 AND driver_id = $2', [data.alertId, data.driverId]);
+      if ((res.rowCount ?? 0) > 0) {
+        io.emit('alert_removed', { alertId: data.alertId, driverId: data.driverId });
+      }
+    } catch { console.error('Erro ao apagar alerta.'); }
   });
 
   socket.on('disconnect', () => {

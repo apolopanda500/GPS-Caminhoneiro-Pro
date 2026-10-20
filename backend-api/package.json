@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
+    "test": "npm run build && node --test dist/utils/pix.test.js dist/utils/group_access.test.js",
     "migrate": "node dist/scripts/migrate.js",
     "start": "node dist/scripts/migrate.js || true && node dist/server.js",
     "dev": "ts-node src/server.ts",

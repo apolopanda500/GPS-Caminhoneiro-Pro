@@ -9,7 +9,7 @@ export class PaymentController {
   // Gera o BR Code (PIX estatico) do plano Premium apontando para a conta
   // do desenvolvedor configurada em PIX_KEY.
   async createPixPayment(req: Request, res: Response): Promise<void> {
-    const { driverId } = req.body;
+    const { driverId, amount, plan } = req.body;
     if (!driverId) {
       res.status(400).json({ error: 'driverId obrigatorio.' });
       return;
@@ -20,27 +20,32 @@ export class PaymentController {
       });
       return;
     }
+    const monthly = env.pixAmount;
+    const annual = 29.99;
+    const value = amount === annual ? annual : monthly;
     try {
-      const paymentGatewayId = 'pay_' + Math.random().toString(36).substring(2, 11);
+      const paymentGatewayId =
+        'pay_' + Math.random().toString(36).substring(2, 11);
       const copyAndPaste = buildPixPayload({
         key: env.pixKey,
         name: env.pixName,
         city: env.pixCity,
-        amount: env.pixAmount,
-        txid: paymentGatewayId,
-        description: env.pixDescription,
+        amount: value,
+        txid: `${plan || 'mensal'}_${paymentGatewayId}`,
+        description: `${env.pixDescription} (${plan === 'anual' ? 'anual' : 'mensal'})`,
       });
 
       await this.db.query(
         'INSERT INTO payments (driver_id, gateway_id, amount, status) VALUES ($1, $2, $3, $4)',
-        [driverId, paymentGatewayId, env.pixAmount, 'pending']
+        [driverId, paymentGatewayId, value, 'pending']
       );
 
       res.json({
         success: true,
         paymentId: paymentGatewayId,
+        plan: plan === 'anual' ? 'anual' : 'mensal',
         copyAndPastePix: copyAndPaste,
-        value: env.pixAmount,
+        value,
         receiver: env.pixName,
       });
     } catch {

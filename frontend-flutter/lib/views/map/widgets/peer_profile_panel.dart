@@ -108,7 +108,7 @@ class PeerProfilePanel extends StatelessWidget {
               child: Container(
                 height: 160,
                 width: double.infinity,
-                color: const Color(0xFF121212),
+                color: const Color(0xFF1C0303),
                 child: Image.network(
                   photo,
                   fit: BoxFit.cover,

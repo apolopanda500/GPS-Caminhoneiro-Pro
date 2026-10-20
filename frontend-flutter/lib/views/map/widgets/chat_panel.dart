@@ -100,7 +100,7 @@ class _ChatPanelState extends State<ChatPanel> {
           Container(
             height: 200,
             decoration: BoxDecoration(
-              color: const Color(0xFF121212),
+              color: const Color(0xFF1C0303),
               borderRadius: BorderRadius.circular(12),
             ),
             child: _messages.isEmpty

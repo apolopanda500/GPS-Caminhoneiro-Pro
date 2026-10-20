@@ -22,8 +22,54 @@ CREATE TABLE IF NOT EXISTS drivers (
     truck_photo_url TEXT DEFAULT 'https://placehold.co/300x200',
     truck_model VARCHAR(50) DEFAULT 'Não Informado',
     cargo_type VARCHAR(100) DEFAULT 'Carga Geral',
+    email_verified BOOLEAN DEFAULT FALSE,
+    verified_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 2.1 Codigos de confirmacao de conta (e-mail)
+CREATE TABLE IF NOT EXISTS verification_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(100) NOT NULL,
+    code VARCHAR(6) NOT NULL,
+    purpose VARCHAR(20) NOT NULL DEFAULT 'signup',
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_codes_email
+    ON verification_codes(email);
+
+-- 2.2 Grupos (comboios) de motoristas e ajudantes
+CREATE TABLE IF NOT EXISTS convoy_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(80) NOT NULL,
+    owner_driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    is_public BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS convoy_members (
+    group_id UUID REFERENCES convoy_groups(id) ON DELETE CASCADE,
+    driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL DEFAULT 'motorista',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id, driver_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_shared_routes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID REFERENCES convoy_groups(id) ON DELETE CASCADE,
+    driver_id VARCHAR(50) REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    driver_name VARCHAR(100) NOT NULL DEFAULT '',
+    payload JSONB NOT NULL,
+    is_public BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_convoy_members_driver_id ON convoy_members(driver_id);
+CREATE INDEX IF NOT EXISTS idx_group_routes_group_id ON group_shared_routes(group_id);
 
 -- 3. Tabela de alertas de estrada criados por motoristas
 CREATE TABLE IF NOT EXISTS road_alerts (

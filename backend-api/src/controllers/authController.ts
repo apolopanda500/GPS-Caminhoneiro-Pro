@@ -177,7 +177,7 @@ export class AuthController {
   }
 
   async updateProfile(req: Request, res: Response): Promise<void> {
-    const { driverId, name, truckModel, cargoType, avatarUrl, truckPhotoUrl, role, helpType, companyName, companyLat, companyLon } = req.body;
+      const { driverId, name, truckModel, cargoType, avatarUrl, truckPhotoUrl, role, helpType, companyName, companyLat, companyLon } = req.body;
     try {
       await this.db.query(
         `UPDATE drivers SET name = COALESCE($2, name), truck_model = COALESCE($3, truck_model),
@@ -191,6 +191,48 @@ export class AuthController {
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+    }
+  }
+
+  async updatePhoto(req: Request, res: Response): Promise<void> {
+    const { driverId, data, kind } = req.body as { driverId?: string; data?: string; kind?: string };
+    if (!driverId || !data) {
+      res.status(400).json({ error: 'driverId e data obrigatorios.' });
+      return;
+    }
+    const isDataUrl = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=\s]+$/.test(data);
+    if (!isDataUrl) {
+      res.status(400).json({ error: 'Formato de imagem invalido.' });
+      return;
+    }
+    if (data.length > 900_000) {
+      res.status(413).json({ error: 'Imagem grande demais. Envie ate ~650KB.' });
+      return;
+    }
+    const column = kind === 'truck' ? 'truck_photo_url' : 'avatar_url';
+    try {
+      await this.db.query(`UPDATE drivers SET ${column} = $2 WHERE driver_id = $1`, [driverId, data]);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Erro ao salvar a foto.' });
+    }
+  }
+
+  async getPhoto(req: Request, res: Response): Promise<void> {
+    const driverId = req.params.driverId;
+    try {
+      const row = await this.db.query(
+        'SELECT avatar_url, truck_photo_url FROM drivers WHERE driver_id = $1',
+        [driverId],
+      );
+      const d = row.rows[0];
+      if (!d) {
+        res.status(404).json({ error: 'Motorista nao encontrado.' });
+        return;
+      }
+      res.json({ avatarUrl: d.avatar_url, truckPhotoUrl: d.truck_photo_url });
+    } catch {
+      res.status(500).json({ error: 'Erro ao buscar a foto.' });
     }
   }
 }
