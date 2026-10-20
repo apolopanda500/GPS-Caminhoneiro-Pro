@@ -1,0 +1,126 @@
+# Checklist da sua parte (usuário) — GPS Caminhoneiro Pro
+
+Tudo que depende de você (senha, cartão, painel) está aqui. Os scripts e os
+valores já estão prontos: basta executar/colar.
+
+---
+
+## 1) Assinatura de release (importante: hoje o APK é assinado com chave de debug)
+
+O APK atual está assinado com a chave de **debug** — isso quebra atualizações e
+não serve para o Google Play.
+
+**Rode** (troque a senha pela do seu keystore `upload-keystore.jks`):
+
+```powershell
+pwsh -File tools/preparar-release.ps1 -SenhaKeystore "SUA_SENHA_AQUI"
+```
+
+O script:
+1. descobre o alias do keystore;
+2. mostra o **SHA-1** e o **SHA-256** do certificado;
+3. cria `frontend-flutter/android/key.properties` (já ignorado pelo git);
+4. garante `key.properties` no `.gitignore`.
+
+Depois recompile o APK:
+
+```powershell
+cd frontend-flutter
+flutter build apk --release --dart-define-from-file=keys.json
+```
+
+> Para testar antes disso, o SHA-1 da chave de **debug** já está pronto:
+> `22:7C:6B:5A:B5:07:F1:F3:55:BA:00:24:FD:68:6B:F9:3F:F9:D4:FB:E8:B7:C6:CB:2D:9D:41:9B:46:EB:A2:BA`
+
+---
+
+## 2) Chave do Google (rotas com trânsito em tempo real)
+
+Hoje a chave do Google responde **403** ("Requests from this Android client
+application are blocked") porque está restrita para Android e o app não manda
+os headers. O app já tem suporte: basta informar o SHA-1.
+
+1. [Google Cloud Console](https://console.cloud.google.com) → **APIs e serviços** →
+   **Credenciais** → sua chave do *Routes API*.
+2. **Restrições de aplicativo** → *Android apps*:
+   - Package name: `com.gpscamioneiro.gps_camioneiro_pro`
+   - SHA-1: o que o script `preparar-release.ps1` mostrou
+     (ou o SHA-1 de debug acima, se estiver testando).
+3. Salve e espere alguns minutos.
+
+Opcional: adicione o SHA-1 no `frontend-flutter/keys.json`:
+
+```json
+"APP_ANDROID_CERT_SHA1": "22:7C:6B:...:BA",
+"APP_ANDROID_PACKAGE": "com.gpscamioneiro.gps_camioneiro_pro"
+```
+
+> Sem isso o app **ainda calcula rota** (OpenRouteService para caminhão + OSRM
+> como reserva). O Google só entra como opção extra de trânsito ao vivo.
+
+---
+
+## 3) E-mail real (validação de conta) — Brevo
+
+1. Crie conta em [brevo.com](https://www.brevo.com) e confirme o e-mail.
+2. [SMTP & API](https://app.brevo.com/settings/keys/smtp) → **Gerar nova chave SMTP**.
+3. No [Render](https://dashboard.render.com) → serviço **gps-truck-backend** →
+   *Environment* → variáveis novas:
+
+| Chave | Valor |
+|---|---|
+| `SMTP_HOST` | `smtp-relay.brevo.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | o login do SMTP (ex.: `abc123@smtp-relay.brevo.com`) |
+| `SMTP_PASS` | a chave SMTP gerada |
+| `SMTP_FROM` | `rickjax123@gmail.com` (ou o e-mail confirmado na Brevo) |
+
+4. Salve → o Render faz novo deploy. No log deve aparecer
+   `📧 Contas antigas sem validacao real: N` (a partir daí, **todas as contas
+   passam a exigir o código de e-mail**).
+5. Teste: cadastre um e-mail seu no app e confirme que o código chega.
+
+> Enquanto o SMTP não estiver configurado, o **cadastro volta 503** (falha de
+> propósito: sem validação de verdade não cria conta).
+
+---
+
+## 4) Banco de dados (o free apaga tudo em 18/11/2026)
+
+1. [Render](https://dashboard.render.com/billing) → adicionar **cartão**.
+2. Banco `gps-truck-postgis` → **Upgrade** → plano **Basic 256 MB (US$ 6/mês)**.
+   (Eu já deixei o banco trancado: só o IP de saída do Render + o seu IP
+   `200.13.85.254` acessam.)
+
+---
+
+## 5) IA do assistente (opcional)
+
+Para o assistente responder com LLM em vez das respostas locais:
+
+| Chave no Render (gps-truck-backend) | Valor |
+|---|---|
+| `OPENAI_API_KEY` | chave da OpenAI (`sk-...`) |
+| `ANTHROPIC_API_KEY` | chave da Anthropic (`sk-ant-...`) |
+
+Sem isso, o assistente **continua funcionando** (respostas locais sobre rota,
+sinais, limite, clima e ajuda).
+
+---
+
+## 6) Release no Google Play (quando quiser publicar)
+
+```powershell
+cd frontend-flutter
+flutter build appbundle --release --dart-define-from-file=keys.json
+```
+
+Sobe o arquivo `build/app/outputs/bundle/release/app-release.aab` no Play Console.
+Guia completo em `GUIA-PLAY-STORE.md`.
+
+---
+
+## Como pedir ajuda de novo
+
+- O outro agente e eu conversamos por `COORDENACAO-AGENTES.md` (leio e escrevo lá).
+- O histórico das decisões está em `docs/CONVERSAS-A-B.md`.
