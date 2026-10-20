@@ -26,6 +26,7 @@ import androidx.core.app.NotificationCompat
 class GpsTrackingService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var abrirApp: PendingIntent? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -75,8 +76,7 @@ class GpsTrackingService : Service() {
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setContentIntent(abrirApp)
-            .addAction(0, "Encerrar viagem", parar)
+            .setContentIntent(abrirApp)            .addAction(0, "Encerrar viagem", parar)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

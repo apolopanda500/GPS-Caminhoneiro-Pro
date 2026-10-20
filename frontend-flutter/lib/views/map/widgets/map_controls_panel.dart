@@ -135,6 +135,15 @@ class MapControlsPanel extends StatelessWidget {
             ),
           ),
 
+          // Transito em tempo real (TomTom)
+          linha(
+            Icons.traffic,
+            'Trânsito em tempo real',
+            'Mostra o gargalo na via (verde a vermelho)',
+            settings.trafficLayer,
+            settings.setTrafficLayer,
+          ),
+
           // Predios 3D
           linha(
             Icons.apartment,

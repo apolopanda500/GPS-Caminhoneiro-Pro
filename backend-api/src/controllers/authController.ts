@@ -353,8 +353,8 @@ export class AuthController {
       res.status(400).json({ error: 'Formato de imagem invalido.' });
       return;
     }
-    if (data.length > 900_000) {
-      res.status(413).json({ error: 'Imagem grande demais. Envie ate ~650KB.' });
+    if (data.length > 3_000_000) {
+      res.status(413).json({ error: 'Imagem grande demais. Envie ate ~2MB.' });
       return;
     }
     const column = kind === 'truck' ? 'truck_photo_url' : 'avatar_url';

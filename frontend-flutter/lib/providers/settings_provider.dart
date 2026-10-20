@@ -19,6 +19,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kBackgroundLocation = 'settings.backgroundLocation';
   static const _kBatterySaver = 'settings.batterySaver';
   static const _kShowTrucks = 'settings.showTrucks';
+  static const _kTrafficLayer = 'settings.trafficLayer';
   static const _kRadarSound = 'settings.radarSound';
   static const _kVibration = 'settings.vibration';
   static const _kPushNotifications = 'settings.pushNotifications';
@@ -48,6 +49,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _backgroundLocation = true;
   bool _batterySaver = false;
   bool _showTrucks = true;
+  bool _trafficLayer = true;
   bool _radarSound = true;
   bool _vibration = true;
   bool _pushNotifications = true;
@@ -75,6 +77,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get backgroundLocation => _backgroundLocation;
   bool get batterySaver => _batterySaver;
   bool get showTrucks => _showTrucks;
+  bool get trafficLayer => _trafficLayer;
   bool get radarSound => _radarSound;
   bool get vibration => _vibration;
   bool get pushNotifications => _pushNotifications;
@@ -133,6 +136,14 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setInt(_kRenderQuality, value.index);
     await prefs.setInt(_kTargetFps, _targetFps);
     await prefs.setBool(_kBuildings3d, _buildings3d);
+  }
+
+  /// Liga/desliga a camada de transito em tempo real no mapa.
+  Future<void> setTrafficLayer(bool value) async {
+    _trafficLayer = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kTrafficLayer, value);
   }
 
   Future<void> startDay({DateTime? now}) async {
@@ -197,6 +208,7 @@ class SettingsProvider extends ChangeNotifier {
     _backgroundLocation = prefs.getBool(_kBackgroundLocation) ?? true;
     _batterySaver = prefs.getBool(_kBatterySaver) ?? false;
     _showTrucks = prefs.getBool(_kShowTrucks) ?? true;
+    _trafficLayer = prefs.getBool(_kTrafficLayer) ?? true;
     _radarSound = prefs.getBool(_kRadarSound) ?? true;
     _vibration = prefs.getBool(_kVibration) ?? true;
     _pushNotifications = prefs.getBool(_kPushNotifications) ?? true;

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
+import 'package:gps_camioneiro_pro/core/network/directions_service.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
@@ -119,6 +120,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                   style: TextStyle(
                       color: overlayTextMuted(context), fontSize: 11),
                 ),
+                if (route != null) _chegada(context, route),
               ],
             ),
           ),
@@ -149,6 +151,30 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
             iconSize: 18,
             icon: Icon(Icons.close, color: overlayTextMuted(context)),
             onPressed: widget.onClose,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hora estimada de chegada no destino (recalculada a cada atualizacao).
+  Widget _chegada(BuildContext context, RouteResult rota) {
+    final chegada = DateTime.now().add(rota.duration);
+    final hora =
+        '${chegada.hour.toString().padLeft(2, '0')}:${chegada.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          Icon(Icons.schedule, size: 12, color: overlayAccent(context)),
+          const SizedBox(width: 4),
+          Text(
+            'Chegada $hora (${rota.etaText})',
+            style: TextStyle(
+              color: overlayAccent(context),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

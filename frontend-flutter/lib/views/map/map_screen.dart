@@ -17,6 +17,7 @@ import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
+import 'package:gps_camioneiro_pro/core/map/traffic_layer.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
@@ -567,10 +568,23 @@ class _MapScreenState extends State<MapScreen> {
     _styleFallbackTimer?.cancel();
     _imagesAdded.clear();
     await _ensureBuildings3d();
+    await _aplicarCamadaDeTrafego();
     await _renderMarkers();
     if (_is3d) {
       final target = _currentPosition ?? _center;
       _moverCamera(target, zoom: _zoom, bearing: 25, tilt: 50);
+    }
+  }
+
+  /// Liga (ou desliga) a camada de transito em tempo real (TomTom).
+  Future<void> _aplicarCamadaDeTrafego() async {
+    final c = _mapController;
+    if (c == null || !_styleLoaded) return;
+    final ligado = _settingsProvider?.trafficLayer ?? true;
+    if (ligado && CamadaTrafego.disponivel) {
+      await CamadaTrafego.instancia.aplicar(c);
+    } else {
+      await CamadaTrafego.instancia.remover(c);
     }
   }
 

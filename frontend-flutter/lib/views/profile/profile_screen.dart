@@ -22,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _cargoType;
   late String _icon;
   bool _salvandoFoto = false;
+  bool _salvando = false;
 
   @override
   void initState() {
@@ -65,16 +66,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (origem == null || !mounted) return;
       final picker = ImagePicker();
+      // Foto em boa qualidade: 1600 px de lado maior e 92% de compressao
+      // (antes 512 px e 70%, o que deixava a imagem borrada).
       final x = await picker.pickImage(
         source: origem,
-        maxWidth: 512,
-        imageQuality: 70,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 92,
+        requestFullMetadata: false,
       );
       if (x == null || !mounted) return;
       final bytes = await File(x.path).readAsBytes();
-      if (bytes.length > 640000) {
+      if (bytes.length > 2200000) {
         messenger.showSnackBar(const SnackBar(
-            content: Text('Foto grande demais. Tente outra menor.')));
+            content: Text('Foto grande demais. Escolha uma menor.')));
         return;
       }
       final dataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
@@ -102,15 +107,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  void _salvar() {
+  Future<void> _salvar() async {
     final auth = context.read<AuthProvider>();
     final current = auth.driver;
     if (current == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _salvando = true);
 
+    final nome = _name.text.trim().isEmpty ? current.name : _name.text.trim();
+    final modelo =
+        _truckModel.text.trim().isEmpty ? null : _truckModel.text.trim();
+    final carga = _cargoType.text.trim().isEmpty ? null : _cargoType.text.trim();
+
+    // Grava no servidor (quando ha) e sempre no aparelho: o perfil nao pode
+    // sumir ao trocar de celular ou reiniciar o app.
+    final ok = await auth.updateProfile(
+      name: nome,
+      truckModel: modelo,
+      cargoType: carga,
+    );
+    if (!mounted) return;
+
+    // O icone do caminhao e local: a API ainda nao guarda esse campo.
     auth.setDriver(DriverModel(
       driverId: current.driverId,
       email: current.email,
-      name: _name.text.trim().isEmpty ? current.name : _name.text.trim(),
+      name: nome,
       isPremium: current.isPremium,
       truckHeight: current.truckHeight,
       truckWeight: current.truckWeight,
@@ -118,15 +140,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       hazmat: current.hazmat,
       avatarUrl: current.avatarUrl,
       truckPhotoUrl: current.truckPhotoUrl,
-      truckModel: _truckModel.text.trim().isEmpty ? null : _truckModel.text.trim(),
-      cargoType: _cargoType.text.trim().isEmpty ? null : _cargoType.text.trim(),
+      truckModel: modelo,
+      cargoType: carga,
       truckIcon: _icon,
+      role: current.role,
+      helpType: current.helpType,
+      companyName: current.companyName,
+      companyLat: current.companyLat,
+      companyLon: current.companyLon,
     ));
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Perfil salvo. Ícone $_icon ativo no mapa.')),
-    );
-    Navigator.pop(context);
+    setState(() => _salvando = false);
+    messenger.showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Perfil salvo. Ícone $_icon ativo no mapa.'
+          : 'Perfil salvo só neste aparelho (sem servidor).'),
+    ));
+    if (ok) Navigator.pop(context);
   }
 
   @override
@@ -145,9 +175,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         foregroundColor: ink,
         actions: [
           TextButton(
-            onPressed: _salvar,
+            onPressed: _salvando ? null : _salvar,
             child: Text(
-              'SALVAR',
+              _salvando ? 'SALVANDO...' : 'SALVAR',
               style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
             ),
           ),
@@ -288,8 +318,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             height: 52,
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _salvar,
-              child: const Text('SALVAR PERFIL'),
+              onPressed: _salvando ? null : _salvar,
+              child: _salvando
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  : const Text('SALVAR PERFIL'),
             ),
           ),
         ],
