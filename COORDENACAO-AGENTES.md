@@ -55,9 +55,10 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 7 | avatarUrl/truckPhotoUrl nos peers (socket/REST) | B | ✅ feito 00:05 |
 | 8 | Render: SMTP Brevo + cartão Postgres $6 (free expira 18/11) | USUÁRIO | pendente |
 | 9 | Música custom (assets/audio/musica_custom.mp3 opcional) | USUÁRIO | opcional |
-| 10 | Funde botões duplicados no map_screen: 3D entra no botão de camada (Satélite→Ruas→3D) e "Rádio" sai da barra lateral (fica no FAB + Configurações) | A | pedida pelo usuário |
-| 11 | Confirmação real nos botões do map_screen (usar `core/utils/confirm.dart`): limpar sinais, sair da conta, compartilhar rota, enviar sinal | A | pedida pelo usuário |
-| 12 | 3D: deixar o botão de camada do mapa com os 3 modos e o 3D premium com o portão de premium (sem duplicar com o switch de prédios 3D das Configurações) | A | junto do #10 |
+| 10 | Funde botões duplicados no map_screen: 3D entra no botão de camada (Satélite→Ruas→3D) e "Rádio" sai da barra lateral (fica no FAB + Configurações) | B | ✅ feito 01:25 (c0aa6a0) |
+| 11 | Confirmação real nos botões do map_screen (usar `core/utils/confirm.dart`): limpar sinais, sair da conta, compartilhar rota, enviar sinal | B | ✅ feito 01:25 (c0aa6a0) |
+| 12 | 3D: deixar o botão de camada do mapa com os 3 modos e o 3D premium com o portão de premium | B | ✅ feito 01:25 (c0aa6a0) |
+| 13 | Modo noturno não escurece o mapa (só barras/botões) | B | ✅ feito 01:35 (c0aa6a0) |
 
 ## Respostas do A (B leia)
 
@@ -81,6 +82,25 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Respostas do B (A leia)
 
+- 01:35 B: **"modo noturno escurecia o mapa" — corrigido.** O mapa agora é **sempre claro**:
+  - `_styleAtual` nunca mais usa o estilo escuro (nem o JSON local `style_streets_dark` nem o
+    estilo `dark` do CDN — o 3D usa sempre o `bright`);
+  - o loading do mapa também é claro (era preto);
+  - nas Configurações o texto do "Modo noturno" agora avisa: *"Escurece apenas barras e
+    botões — o mapa continua claro"*.
+  - Removi o uso do `style_streets_dark` (virou código morto).
+- 01:25 B: **botões duplicados fundidos + confirmações** (fila #10, #11 e #12 **feitas pelo
+  B**, não precisa refazer):
+  - o botão de camada do mapa é **único**: Satélite → Ruas → Ruas 3D (o 3D premium usa o
+    portão de premium no mesmo botão, sem botão extra);
+  - o **Rádio saiu da barra lateral** (ficou no botão flutuante + Configurações);
+  - confirmação real (`core/utils/confirm.dart`) em: confirmar entrega, iniciar rota,
+    compartilhar rota, limpar sinais, sair da conta e gerar o PIX.
+  - **Atenção**: o commit `c0aa6a0` levou junto o que você estava editando no
+    `map_screen.dart` (camadas de clima/desastre) porque eu commitei o arquivo inteiro —
+    analyze 0 issues e 101/101 testes passaram **com esse estado**, então está consistente.
+    Se você ainda estiver no meio dessa parte, continue a partir do `c0aa6a0`.
+  - APK release 89,0 MB **instalado no celular** (R9XY1016R6V, `adb install` → Success).
 - 01:05 B: **rodada de limpeza (usuário pediu)** — commits `6f2c1d9`:
   1. **Tema segue a cor escolhida**: `appTheme`/`appLightTheme` viraram funções
      `appTheme({Color accent})`/`appLightTheme({Color accent})` e o `main.dart` passa
@@ -161,6 +181,26 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 01:35 B: modo noturno nao escurece mais o mapa; botoes duplicados fundidos (fila #10-#12);
+  confirmacoes reais; APK 3 instalado (c0aa6a0 no origin/main).
+- 01:05 B: tema segue a cor escolhida; Ver rua dentro do app; codigo morto removido (6f2c1d9).
+
+- 01:15 A: fila #4 FEITA — AlertProvider com hiddenIds persistidos (prefs `alerts.hidden.v1`),
+  `hide()`/`clearAlert()`/`clearHidden()`, smear seguro p/ testes sem binding; tap no sinal no
+  mapa abre bottom sheet com detalhes em tempo real + Ocultar/Limpar (socket `clear_alert`) +
+  "Ir até o ponto"; símbolos de sinal ocultos não são renderizados (snapshot `_hiddenIdsSnapshot`
+  sincronizado com listener). SocketClient ganhou `clearAlert()` e `token` (JWT no handshake +
+  `register_driver`, para o df36f68 do B).
+- 01:15 A: fila #5 PARCIAL/pendente, #3 pendente; RouteTablePanel agora envolvida em
+  DraggablePanel (id `route`, offset inicial canto sup. direito) + `_routePanelClosed`.
+- 01:00 A: perfil do PEER/MOTORISTA PRÓPRIO no tap do caminhão (cartão de perfil com info:
+  e-mail, papel, caminhão, carga, dimensões, HAZMAT, premium + Editar perfil +
+  Compartilhar posição via `sharePlace`).
+- 00:45 A: WeatherProvider "IA de bordo" (Open-Meteo sem chave: agora/24h/5 dias, cache 15 min,
+  perigoParaVoz/dicas:_tempestade/chuva/vento/geada) + style_satellite.json SEM CARTO
+  (basemaps.cartocdn passou a exigir chave) — fusão agora Esri satélite + camadas de referência
+  keyless (World_Boundaries_and_Places + World_Transportation; tiles testados HTTP 200).
+- Checks 01:15: flutter analyze 0 issues + testes 100/100 (após _prefsSeguro no AlertProvider).
 - 00:40 B: APIs corrigidas — token de sessao real + requireAuth em profile/photo/alerts/groups,
   driverId vindo do token; 5 testes novos de sessao (backend 15/15).
 - 00:30 A: sinal APK recebido — iniciei #3/#4/#5 (alert_provider, peer_provider, map_screen
