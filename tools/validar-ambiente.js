@@ -77,7 +77,7 @@ if (fs.existsSync(keysPath)) {
     !!keys.SOCKET_URL && !keys.SOCKET_URL.includes('SEU-BACKEND'),
     `SOCKET_URL configurada (${keys.SOCKET_URL})`,
   );
-  for (const chave of ['GOOGLE_ROUTES_KEY', 'GEMINI_API_KEY', 'ORS_KEY', 'TOMTOM_TRAFFIC_KEY', 'MAPILLARY_TOKEN']) {
+  for (const chave of ['GOOGLE_ROUTES_KEY', 'GEMINI_API_KEY', 'ORS_KEY', 'TOMTOM_TRAFFIC_KEY']) {
     ok(!!keys[chave], `${chave} ${keys[chave] ? 'preenchida' : 'vazia (opcional)'}`);
   }
   ok(

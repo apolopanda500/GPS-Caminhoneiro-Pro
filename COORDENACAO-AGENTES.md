@@ -253,6 +253,32 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 07:10 B: **Perfil, transito ao vivo, ETA, rede e acessos especiais.**
+  1. **Perfil**: o botao SALVAR agora grava no servidor (antes so atualizava
+     a copia local e o perfil sumia ao trocar de aparelho); indicador de
+     "salvando" nos dois botoes; fotos importadas em 1600 px e 92% de
+     qualidade (antes 512 px e 70%).
+  2. **Fotos grandes**: o backend recusava tudo acima de **100 KB** (limite
+     padrao do `express.json`) e cortava em 900 KB. Agora o express aceita
+     8 MB e o controller 3 MB. Testado ao vivo: 532 KB e 1,2 MB salvos.
+  3. **Transito em tempo real**: nova camada com os tiles vetoriais de fluxo
+     do TomTom (Orbis v2, `relative_speed`): a via e pintada de verde a
+     vermelho. Toggle em "Mapa e graficos".
+  4. **Hora de chegada**: o painel de rotas mostra a hora estimada de chegada
+     (o `etaText` existia mas nunca era exibido).
+  5. **Compartilhar posicao**: botao com megafone na coluna do mapa - emite
+     onda visual, marca sinal no mapa de todos (socket) e avisa no chat.
+  6. **Permissoes e acessos especiais**: tela reconstruida com "PERMITIR
+     TUDO", resumo do que falta e cartao do servico em segundo plano. Novos
+     acessos: Bluetooth, Wi-Fi/rede proxima, sensores e alarme exato (com as
+     permissoes no manifesto).
+  7. **Ferramentas**: `tools/testar-upload-foto.js` (upload real de foto
+     grande) e `tools/validar-ambiente.js` (chaves + build + testes + git).
+  Checks: analyze 0 issues, 163/163 testes Flutter, 29/29 backend, PIX
+  valido, ambiente reproduzivel, APK release 94,1 MB pronto.
+  **Falta o USUARIO**: conectar o celular (R9XY1016R6V) para instalar o APK
+  novo (o aparelho esta desconectado do adb).
+
 - 06:20 B: **Reconstrucao do app (lote grande): cores, paineis, menu, 24/7, sons e PIX.**
   1. **Cores**: campos de digitacao e barras de selecao deixaram de ser brancos
      puros (agora usam a cor escolhida pelo usuario misturada com o fundo do
