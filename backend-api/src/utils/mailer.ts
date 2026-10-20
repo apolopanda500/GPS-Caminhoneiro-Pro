@@ -71,14 +71,27 @@ export async function sendVerificationCode(
     console.log(`[mailer] SMTP nao configurado. Codigo de ${to}: ${code}`);
     return false;
   }
-  await transporter.sendMail({
-    from: env.smtpFrom,
-    to,
-    subject: mail.subject,
-    text: mail.text,
-    html: mail.html,
-  });
-  return true;
+  try {
+    await transporter.sendMail({
+      from: env.smtpFrom,
+      to,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[mailer] falha ao enviar o e-mail:', msg);
+    if (/unauthor|not authorized|blocked|401|403|ip/i.test(msg)) {
+      console.error(
+        '[mailer] O provedor recusou o envio. Se a Brevo esta com bloqueio por IP ' +
+          'ativado, libere as faixas de saida do Render (74.220.48.0/24 e ' +
+          '74.220.56.0/24) em Seguranca > IPs autorizados.',
+      );
+    }
+    return false;
+  }
 }
 
 export async function sendPasswordResetCode(
@@ -108,14 +121,20 @@ export async function sendPasswordResetCode(
     console.log(`[mailer] SMTP nao configurado. Codigo de reset para ${to}: ${code}`);
     return false;
   }
-  await transporter.sendMail({
-    from: env.smtpFrom,
-    to,
-    subject: mail.subject,
-    text: mail.text,
-    html: mail.html,
-  });
-  return true;
+  try {
+    await transporter.sendMail({
+      from: env.smtpFrom,
+      to,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
+    return true;
+  } catch (err) {
+    console.error('[mailer] falha ao enviar o e-mail de reset:',
+      err instanceof Error ? err.message : String(err));
+    return false;
+  }
 }
 
 export function mailerConfigured(): boolean {
