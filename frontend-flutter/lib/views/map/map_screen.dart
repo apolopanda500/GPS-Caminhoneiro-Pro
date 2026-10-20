@@ -2834,14 +2834,14 @@ class _MapScreenState extends State<MapScreen> {
             FloatingPanel(
               id: 'acoes',
               initial: const Offset(16, 120),
-              width: 124,
-              height: 320,
+              width: 138,
+              height: 210,
               dragWholeChild: true,
               resizable: false,
-              minimizedChild: const Icon(Icons.apps, size: 20),
+              minimizedChild: const Icon(Icons.apps, size: 18),
               child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
+                spacing: 4,
+                runSpacing: 4,
                 alignment: WrapAlignment.start,
                 children: [
                   _botaoFlutuante(Icons.search, 'Buscar rua', _buscarRua),
@@ -2859,6 +2859,8 @@ class _MapScreenState extends State<MapScreen> {
                       _abrirClima),
                   _botaoFlutuante(Icons.campaign, 'Compartilhar posicao com a rede',
                       _compartilharLocalizacao),
+                  _botaoFlutuante(Icons.add_location_alt, 'Emitir sinal no mapa',
+                      _emitirSinalNoMapa),
                   _botaoFlutuante(Icons.settings, 'Configuracoes', _abrirConfiguracoes),
                   _botaoParar(),
                 ],
@@ -2939,13 +2941,18 @@ class _MapScreenState extends State<MapScreen> {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(7),
             child: Icon(icone,
-                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 21),
+                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 18),
           ),
         ),
       ),
     );
+  }
+
+  /// Emite um sinal no mapa (aviso para a rede) no ponto atual.
+  void _emitirSinalNoMapa() {
+    _showWriteReportDialog();
   }
 
   /// Botao de camada do mapa: alterna Satelite -> Ruas -> 3D (detalhado) com
@@ -2968,8 +2975,8 @@ class _MapScreenState extends State<MapScreen> {
           customBorder: const CircleBorder(),
           onTap: _pararGpsEEncerrarViagem,
           child: const Padding(
-            padding: EdgeInsets.all(11),
-            child: Icon(Icons.stop_rounded, color: Colors.white, size: 22),
+            padding: EdgeInsets.all(8),
+            child: Icon(Icons.stop_rounded, color: Colors.white, size: 19),
           ),
         ),
       ),

@@ -69,12 +69,16 @@ class _FloatingPanelState extends State<FloatingPanel> {
   double? _altura;
 
   bool _minimizado = false;
+
+  /// O painel foi ocultado pelo usuario (some do mapa).
+  bool _oculto = false;
   bool _ladoEsquerdo = false;
   bool _carregado = false;
 
   String get _chavePos => 'panel.pos.${widget.id}';
   String get _chaveEstado => 'panel.state.${widget.id}';
   String get _chaveTamanho => 'panel.size.${widget.id}';
+  String get _chaveOculto => 'panel.oculto.${widget.id}';
 
   @override
   void initState() {
@@ -90,6 +94,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
       final estado = prefs.getString(_chaveEstado);
       final largura = prefs.getDouble('$_chaveTamanho.w');
       final altura = prefs.getDouble('$_chaveTamanho.h');
+      final oculto = prefs.getBool(_chaveOculto) ?? false;
       if (!mounted) return;
       setState(() {
         if (x != null && y != null) {
@@ -101,6 +106,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
           );
         }
         if (largura != null) _largura = largura.clamp(_larguraMin, _larguraMax);
+        _oculto = oculto;
         if (altura != null) _altura = altura.clamp(_alturaMin, _alturaMax);
         if (estado != null) {
           final partes = estado.split('|');
@@ -121,6 +127,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
       await prefs.setDouble('$_chavePos.y', _offset.dy);
       if (_largura != null) await prefs.setDouble('$_chaveTamanho.w', _largura!);
       if (_altura != null) await prefs.setDouble('$_chaveTamanho.h', _altura!);
+      await prefs.setBool(_chaveOculto, _oculto);
       await prefs.setString(
           _chaveEstado, _minimizado ? 'min|${_ladoEsquerdo ? 'esq' : 'dir'}' : 'aberto');
     } catch (_) {}
@@ -187,19 +194,95 @@ class _FloatingPanelState extends State<FloatingPanel> {
     });
     _salvar();
   }
+
+  /// Menu da tab lateral (estilo iPhone): expandir, redimensionar ou ocultar.
+  void _menuDaTab(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.open_in_full),
+              title: const Text('Expandir painel'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _alternarMinimizado();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.zoom_in),
+              title: const Text('Aumentar'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _largura = ((_largura ?? widget.width) * 1.25)
+                      .clamp(_larguraMin, _larguraMax);
+                  _altura = ((_altura ?? widget.height) * 1.25)
+                      .clamp(_alturaMin, _alturaMax);
+                });
+                _salvar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.zoom_out),
+              title: const Text('Diminuir'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _largura = ((_largura ?? widget.width) * 0.8)
+                      .clamp(_larguraMin, _larguraMax);
+                  _altura = ((_altura ?? widget.height) * 0.8)
+                      .clamp(_alturaMin, _alturaMax);
+                });
+                _salvar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: Colors.redAccent),
+              title: const Text('Ocultar painel'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => _oculto = true);
+                _salvar();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!_carregado) {
+    if (!_carregado || _oculto) {
       return const SizedBox.shrink();
     }
 
     if (_minimizado) {
       final mq = MediaQuery.of(context).size;
       return Positioned(
-        left: _ladoEsquerdo ? 4 : mq.width - 52,
+        left: _ladoEsquerdo ? 2 : mq.width - 46,
         top: _offset.dy.clamp(0.0, mq.height - 60),
         child: GestureDetector(
           onTap: _alternarMinimizado,
+          onLongPress: () => _menuDaTab(context),
           onVerticalDragUpdate: (d) => setState(() {
             _offset = Offset(
               _offset.dx,
@@ -211,9 +294,20 @@ class _FloatingPanelState extends State<FloatingPanel> {
             color: Theme.of(context).colorScheme.surface,
             shape: const CircleBorder(),
             child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: widget.minimizedChild ??
-                  const Icon(Icons.open_in_full, size: 20),
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _ladoEsquerdo ? Icons.chevron_right : Icons.chevron_left,
+                    size: 13,
+                    color: overlayTextMuted(context),
+                  ),
+                  const SizedBox(width: 2),
+                  widget.minimizedChild ??
+                      const Icon(Icons.open_in_full, size: 18),
+                ],
+              ),
             ),
           ),
         ),
@@ -246,8 +340,8 @@ class _FloatingPanelState extends State<FloatingPanel> {
                   ),
                 ConstrainedBox(
                   constraints: BoxConstraints(
-                    minWidth: _largura ?? 0,
-                    maxWidth: _largura ?? double.infinity,
+                    minWidth: _largura ?? widget.width,
+                    maxWidth: _largura ?? widget.width,
                     minHeight: 0,
                     maxHeight: _altura ?? double.infinity,
                   ),

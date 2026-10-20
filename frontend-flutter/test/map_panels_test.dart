@@ -63,6 +63,8 @@ void main() {
       children: [
         FloatingPanel(
           id: 'route',
+          width: 320,
+          height: 240,
           child: RouteTablePanel(
             onShowRoute: () {},
             onShare: () {},
