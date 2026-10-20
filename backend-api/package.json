@@ -9,7 +9,8 @@
     "migrate": "node dist/scripts/migrate.js",
     "start": "node dist/scripts/migrate.js || true && node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "backup": "node dist/scripts/backup.js"
+    "backup": "node dist/scripts/backup.js",
+    "backup-share": "npm run build && node dist/scripts/backup_share.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
