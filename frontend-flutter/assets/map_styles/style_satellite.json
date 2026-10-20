@@ -1,6 +1,6 @@
 {
   "version": 8,
-  "name": "GPS Caminhoneiro - Satelite",
+  "name": "GPS Caminhoneiro - Satelite com Ruas",
   "sources": {
     "esri": {
       "type": "raster",
@@ -10,6 +10,15 @@
       "tileSize": 256,
       "maxzoom": 19,
       "attribution": "Esri World Imagery"
+    },
+    "labels": {
+      "type": "raster",
+      "tiles": [
+        "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "maxzoom": 19,
+      "attribution": "© CARTO © OpenStreetMap"
     }
   },
   "layers": [
@@ -23,6 +32,12 @@
       "type": "raster",
       "source": "esri",
       "paint": { "raster-fade-duration": 150 }
+    },
+    {
+      "id": "street-labels",
+      "type": "raster",
+      "source": "labels",
+      "paint": { "raster-opacity": 0.9, "raster-fade-duration": 200 }
     }
   ]
 }

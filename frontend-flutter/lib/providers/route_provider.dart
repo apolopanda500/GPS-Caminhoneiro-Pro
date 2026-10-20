@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,6 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gps_camioneiro_pro/core/network/directions_service.dart';
 
 enum StopStatus { pending, arrived, delivered }
+
+/// Ãrea destacada (contorno de bairro) sobre o mapa.
+class RouteAreaHighlight {
+  final List<List<double>> ring;
+  final String label;
+  RouteAreaHighlight({required this.ring, this.label = ''});
+}
 
 class RouteStopEntry {
   final String label;
@@ -170,7 +177,7 @@ class ScheduledRoute {
       );
 }
 
-/// Planejamento e validação de entregas por parada (clientes numerados).
+/// Planejamento e validaÃ§Ã£o de entregas por parada (clientes numerados).
 class RouteProvider extends ChangeNotifier {
   static const Distance _distance = Distance();
 
@@ -183,8 +190,7 @@ class RouteProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   int _lastCompletedCount = 0;
-  List<List<double>>? _area;
-  String? _areaLabel;
+  final List<RouteAreaHighlight> _areas = [];
   bool _started = false;
   DateTime? _startedAt;
   int? _companyStopIndex;
@@ -315,7 +321,7 @@ class RouteProvider extends ChangeNotifier {
       point: point,
       neighborhood: 'Empresa',
       customer: name,
-      note: 'Retorno à empresa',
+      note: 'Retorno Ã  empresa',
       radiusMeters: 150,
       orderLabel: '${_stops.length + 1}',
     );
@@ -406,18 +412,34 @@ class RouteProvider extends ChangeNotifier {
 
   bool get allDelivered => _stops.isNotEmpty && deliveredCount == _stops.length;
 
-  List<List<double>>? get highlightedArea => _area;
-  String? get highlightedAreaLabel => _areaLabel;
+  List<List<double>>? get highlightedArea => _areas.isEmpty ? null : _areas.first.ring;
+  String? get highlightedAreaLabel =>
+      _areas.isEmpty ? null : _areas.first.label;
+
+  List<RouteAreaHighlight> get highlightedAreas => List.unmodifiable(_areas);
 
   void setHighlightedArea(List<List<double>>? ring, {String? label}) {
-    _area = ring;
-    _areaLabel = label;
+    _areas.clear();
+    if (ring != null) _areas.add(RouteAreaHighlight(ring: ring, label: label ?? ''));
+    notifyListeners();
+  }
+
+  void addHighlightedArea(List<List<double>> ring, {String? label}) {
+    _areas.removeWhere((a) => a.label.isNotEmpty && a.label == label);
+    _areas.add(RouteAreaHighlight(ring: ring, label: label ?? ''));
+    notifyListeners();
+  }
+
+  void addHighlightedAreas(List<RouteAreaHighlight> areas) {
+    for (final a in areas) {
+      _areas.removeWhere((old) => old.label.isNotEmpty && old.label == a.label);
+      _areas.add(a);
+    }
     notifyListeners();
   }
 
   void clearHighlightedArea() {
-    _area = null;
-    _areaLabel = null;
+    _areas.clear();
     notifyListeners();
   }
 
@@ -430,10 +452,10 @@ class RouteProvider extends ChangeNotifier {
 
   String get nextStopLabel {
     final i = nextStopIndex;
-    if (i == null) return 'Rota concluída';
+    if (i == null) return 'Rota concluÃ­da';
     final s = _stops[i];
     final who = s.customer.isNotEmpty ? s.customer : s.label;
-    final bairro = s.neighborhood.isNotEmpty ? ' • ${s.neighborhood}' : '';
+    final bairro = s.neighborhood.isNotEmpty ? ' â€¢ ${s.neighborhood}' : '';
     return '${i + 1}. $who$bairro';
   }
 
@@ -487,8 +509,7 @@ class RouteProvider extends ChangeNotifier {
     _result = null;
     _error = null;
     _lastCompletedCount = 0;
-    _area = null;
-    _areaLabel = null;
+    _areas.clear();
     notifyListeners();
   }
 
@@ -506,7 +527,7 @@ class RouteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Valida a posição do caminhão contra cada cliente.
+  /// Valida a posiÃ§Ã£o do caminhÃ£o contra cada cliente.
   /// Retorna true quando uma entrega foi confirmada nesta chamada.
   bool updatePosition(
     LatLng position, {
@@ -567,7 +588,7 @@ class RouteProvider extends ChangeNotifier {
     return true;
   }
 
-  /// True uma unica vez quando o caminhão chega na empresa.
+  /// True uma unica vez quando o caminhÃ£o chega na empresa.
   bool consumeCompanyReachedEvent() {
     if (!_started) return false;
     if (_companyReachedNotified) return false;

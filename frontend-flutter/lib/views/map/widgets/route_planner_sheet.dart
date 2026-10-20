@@ -38,6 +38,7 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
   List<GeoResult> _results = const [];
   bool _searching = false;
   bool _highlighting = false;
+  bool _contornando = false;
 
   @override
   void dispose() {
@@ -106,6 +107,45 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
     provider.setHighlightedArea(ring, label: bairro);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Bairro "$bairro" destacado no mapa.')),
+    );
+  }
+
+  Future<void> _contornarTodosBairros() async {
+    final provider = context.read<RouteProvider>();
+    final bairros = provider.stops
+        .map((s) => s.neighborhood.trim())
+        .where((n) => n.isNotEmpty)
+        .toSet()
+        .toList();
+    if (bairros.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nenhum bairro na rota para contornar.')),
+      );
+      return;
+    }
+    setState(() => _contornando = true);
+    final areas = <RouteAreaHighlight>[];
+    for (final bairro in bairros) {
+      var ring = await _service.searchPolygon(bairro);
+      if (ring == null && provider.stops.isNotEmpty) {
+        final ref = provider.stops
+            .firstWhere((s) => s.neighborhood == bairro)
+            .label;
+        ring = await _service.searchPolygon('$bairro, $ref');
+      }
+      if (ring != null) areas.add(RouteAreaHighlight(ring: ring, label: bairro));
+    }
+    if (!mounted) return;
+    setState(() => _contornando = false);
+    if (areas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível contornar os bairros.')),
+      );
+      return;
+    }
+    provider.addHighlightedAreas(areas);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${areas.length} bairro(s) contornado(s) no mapa.')),
     );
   }
 
@@ -362,6 +402,29 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
                           visualDensity: VisualDensity.compact,
                         );
                       },
+                    ),
+                  ),
+                ],
+                if (stops.where((s) => s.neighborhood.isNotEmpty).toSet().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _contornando ? null : _contornarTodosBairros,
+                      icon: _contornando
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.map_outlined, size: 18),
+                      label: Text(
+                        _contornando
+                            ? 'Contornando bairros...'
+                            : 'Contornar todos os bairros da rota',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],

@@ -2,6 +2,9 @@
 
 Guia para agentes de IA trabalhando neste repositório. Responder em **português**.
 
+> **Coordenação multiagente**: ler e atualizar `COORDENACAO-AGENTES.md` antes/depois de cada
+> tarefa (donos de arquivos, log de atos, status). Um commit por agente.
+
 ## Estrutura
 
 - `backend-api/` — Node.js + TypeScript + Socket.io + PostgreSQL/PostGIS.
