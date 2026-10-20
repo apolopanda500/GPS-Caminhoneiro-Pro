@@ -105,12 +105,44 @@ Opcional: adicione o SHA-1 no `frontend-flutter/keys.json`:
 
 ---
 
-## 4) Banco de dados (o free apaga tudo em 18/11/2026)
+## 4) Banco de dados — **100% grátis** (sem plano pago)
 
-1. [Render](https://dashboard.render.com/billing) → adicionar **cartão**.
-2. Banco `gps-truck-postgis` → **Upgrade** → plano **Basic 256 MB (US$ 6/mês)**.
-   (Eu já deixei o banco trancado: só o IP de saída do Render + o seu IP
-   `200.13.85.254` acessam.)
+O Postgres free do Render **expira em 18/11/2026** e o banco é apagado. Não vamos
+pagar: o plano é **migrar para um Postgres gratuito que não expira**.
+
+**Escolha (todas com plano grátis):**
+- **Supabase** — 500 MB, não expira (pausa após 1 semana sem uso, retoma sozinho)
+- **Neon** — 0,5 GB, sem expiração
+- **Render free** — 30 dias (só como ponte)
+
+**Passo 1 — crie o banco grátis** (Supabase: *New project → Database → URI*;
+Neon: *Create project → connection string*).
+
+**Passo 2 — me passe a URL** (ou cole no seu `backend-api/.env`, que é ignorado
+pelo git — prefira isso, a senha não passa pelo chat):
+
+```
+SOURCE_DATABASE_URL=<url do Render (externa)>
+TARGET_DATABASE_URL=<url do novo banco>
+```
+
+**Passo 3 — eu rodo a migração** (já está pronta):
+```powershell
+cd backend-api
+$env:SOURCE_DATABASE_URL="..."; $env:TARGET_DATABASE_URL="..."
+npm run migrate-data
+```
+Cria o schema no destino e copia drivers, alertas, mensagens, histórico,
+contatos, pagamentos, grupos e códigos de verificação.
+
+**Passo 4 — apontar o app para o novo banco** (grátis, 1 minuto):
+No [Render](https://dashboard.render.com) → `gps-truck-backend` → *Environment* →
+`DATABASE_URL` = a URL do banco novo → salvar (redeploy automático).
+Depois eu rodo o backup e confirmo que está tudo lá.
+
+> Alternativa sem mexer em nada: o app continua funcionando até 18/11 e a
+> migração é feita depois. Mas o free apaga os dados nessa data, então o
+> passo 2 é o que garante não perder nada.
 
 ---
 
