@@ -9,12 +9,14 @@ import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 
 class AuthProvider extends ChangeNotifier {
   static const String _kSession = 'session.driver';
+  static const String _kToken = 'session.token';
 
   DriverModel? _driver;
   bool _isLoading = false;
   String? _error;
   String? _pendingEmail;
   bool _requiresVerification = false;
+  String? _token;
 
   DriverModel? get driver => _driver;
   bool get isAuthenticated => _driver != null;
@@ -23,9 +25,19 @@ class AuthProvider extends ChangeNotifier {
   String? get pendingEmail => _pendingEmail;
   bool get requiresVerification => _requiresVerification;
 
+  /// Token de sessao (Bearer) devolvido pelo back-end.
+  String? get token => _token;
+
+  /// Headers de autenticacao para as chamadas REST.
+  Map<String, String> get authHeaders => {
+        'Content-Type': 'application/json',
+        if (_token != null) 'Authorization': 'Bearer $_token',
+      };
+
   Future<void> loadSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString(_kToken);
       final raw = prefs.getString(_kSession);
       if (raw == null) return;
       _driver = DriverModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -42,8 +54,12 @@ class AuthProvider extends ChangeNotifier {
       final d = _driver;
       if (d == null) {
         await prefs.remove(_kSession);
+        await prefs.remove(_kToken);
       } else {
         await prefs.setString(_kSession, jsonEncode(d.toJson()));
+        if (_token != null) {
+          await prefs.setString(_kToken, _token!);
+        }
       }
     } catch (_) {}
   }
@@ -57,6 +73,7 @@ class AuthProvider extends ChangeNotifier {
       isPremium: d.isPremium,
       name: d.name ?? 'Motorista',
       truckIcon: d.truckIcon,
+      token: _token,
     );
   }
 
@@ -78,8 +95,10 @@ class AuthProvider extends ChangeNotifier {
             .timeout(const Duration(seconds: 8));
 
         if (resp.statusCode == 200) {
+          final body = jsonDecode(resp.body) as Map<String, dynamic>;
           _driver = DriverModel.fromJson(
               jsonDecode(resp.body) as Map<String, dynamic>);
+          _token = body['token']?.toString() ?? _token;
           _isLoading = false;
           _connectSocket();
           await _persist();
@@ -168,6 +187,7 @@ class AuthProvider extends ChangeNotifier {
             helpType: body['helpType'] ?? helpType,
             truckIcon: truckIcon ?? '🚚',
           );
+          _token = body['token']?.toString() ?? _token;
           _isLoading = false;
           _connectSocket();
           await _persist();
@@ -226,6 +246,7 @@ class AuthProvider extends ChangeNotifier {
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body) as Map<String, dynamic>;
         _driver = DriverModel.fromJson({...body, 'email': email});
+        _token = body['token']?.toString() ?? _token;
         _requiresVerification = false;
         _pendingEmail = null;
         _isLoading = false;
@@ -300,9 +321,8 @@ class AuthProvider extends ChangeNotifier {
       final resp = await http
           .post(
             Uri.parse('${AppConstants.baseUrl}/api/auth/profile'),
-            headers: {'Content-Type': 'application/json'},
+            headers: authHeaders,
             body: jsonEncode({
-              'driverId': d.driverId,
               'name': name,
               'truckModel': truckModel,
               'cargoType': cargoType,

@@ -27,7 +27,8 @@ export class AlertController {
   }
 
   async createAlert(req: Request, res: Response): Promise<void> {
-    const { driverId, type, message, maxHeight, maxWeight, lon, lat } = req.body;
+    const { type, message, maxHeight, maxWeight, lon, lat } = req.body;
+    const driverId = req.driverId;
 
     if (!driverId || !type || lon == null || lat == null) {
       res.status(400).json({ error: 'Campos obrigatórios faltando.' });
@@ -63,7 +64,8 @@ export class AlertController {
   }
 
   async createMessage(req: Request, res: Response): Promise<void> {
-    const { driverId, driverName, message, lon, lat } = req.body;
+    const { driverName, message, lon, lat } = req.body;
+    const driverId = req.driverId;
     if (!driverId || !driverName || !message || lon == null || lat == null) {
       res.status(400).json({ error: 'Campos obrigatórios faltando.' });
       return;

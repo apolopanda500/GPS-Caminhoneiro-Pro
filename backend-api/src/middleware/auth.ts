@@ -1,14 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
+import { tokenDaRequisicao, verificarToken } from '../utils/session';
 
-export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      driverId?: string;
+    }
+  }
+}
 
-  if (!token) {
-    res.status(401).json({ error: 'Token de acesso não fornecido.' });
+/**
+ * Exige um token de sessao valido.
+ * Anexa `req.driverId` para o controller usar como identidade real.
+ */
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const sessao = verificarToken(tokenDaRequisicao(req));
+  if (!sessao) {
+    res.status(401).json({
+      error: 'Sessao invalida ou expirada. Faca login novamente.',
+    });
     return;
   }
-
-  // Em produção, valide JWT aqui. Para MVP, aceitamos qualquer token presente.
+  req.driverId = sessao.driverId;
   next();
 }

@@ -4,6 +4,7 @@ import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import { connectDatabase, db } from './config/database';
 import { env } from './config/env';
+import { verificarToken } from './utils/session';
 import authRoutes from './routes/auth';
 import alertRoutes from './routes/alerts';
 import paymentRoutes from './routes/payment';
@@ -90,10 +91,23 @@ async function carregarPerfil(driverId: string): Promise<any> {
 io.on('connection', (socket: Socket) => {
   console.log(`🚚 Caminhão conectado via Socket.io: ${socket.id}`);
 
+  // Token de sessao (opcional no handshake): quando vem, vira a identidade real.
+  const tokenSocket =
+    (socket.handshake.auth && (socket.handshake.auth as any).token) ||
+    socket.handshake.headers['x-gps-token'];
+  const sessao = verificarToken(
+    typeof tokenSocket === 'string' ? tokenSocket : undefined,
+  );
+  if (sessao) {
+    socket.data.driverId = sessao.driverId;
+  }
+
   socket.on('join_truck_network', async (data: { driverId: string; name: string; truckIcon?: string; role?: string }) => {
+    // Se veio token, a identidade do token manda.
+    const driverId = (socket.data.driverId as string) || data.driverId;
     activeTrucksNetwork.set(socket.id, {
       socketId: socket.id,
-      driverId: data.driverId,
+      driverId,
       name: data.name,
       lat: 0,
       lon: 0,
@@ -102,7 +116,7 @@ io.on('connection', (socket: Socket) => {
     });
     // Carrega o perfil (foto, avatar, modelo) para os peers ja mostrarem.
     try {
-      const p = await carregarPerfil(data.driverId);
+      const p = await carregarPerfil(driverId);
       const truck = activeTrucksNetwork.get(socket.id);
       if (p && truck) {
         truck.name = p.name || truck.name;
@@ -119,12 +133,13 @@ io.on('connection', (socket: Socket) => {
   socket.on('register_driver', (data: { driverId: string; isPremium?: boolean; role?: string }) => {
     const truck = activeTrucksNetwork.get(socket.id);
     if (truck) {
-      truck.driverId = data.driverId;
+      truck.driverId = (socket.data.driverId as string) || data.driverId;
       if (data.role) truck.role = data.role;
     }
   });
 
   socket.on('update_position', async (coords: { lat: number; lon: number; driverId: string; speedKmh?: number }) => {
+    const driverId = (socket.data.driverId as string) || coords.driverId;
     const truck = activeTrucksNetwork.get(socket.id);
     if (truck) {
       truck.lat = coords.lat;
@@ -140,7 +155,7 @@ io.on('connection', (socket: Socket) => {
     } catch { console.error('Erro varredura.'); }
 
     try {
-      const p = await carregarPerfil(coords.driverId);
+      const p = await carregarPerfil(driverId);
       if (truck) {
         truck.name = p.name || truck.name;
         truck.avatarUrl = p.avatar_url;
@@ -168,13 +183,14 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('send_road_alert', async (alert: any) => {
+    const driverId = (socket.data.driverId as string) || alert.driverId;
     try {
       await db.query(
         `INSERT INTO road_alerts (driver_id, alert_type, message, max_height_allowed, max_weight_allowed, geom)
          VALUES ($1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($6, $7), 4326))`,
-        [alert.driverId, alert.type, alert.message || '', alert.maxHeight || null, alert.maxWeight || null, alert.lon, alert.lat]
+        [driverId, alert.type, alert.message || '', alert.maxHeight || null, alert.maxWeight || null, alert.lon, alert.lat]
       );
-      io.emit('receive_alert_realtime', { ...alert, id: Math.random().toString(36).substring(2, 9), timestamp: Date.now() });
+      io.emit('receive_alert_realtime', { ...alert, driverId, id: Math.random().toString(36).substring(2, 9), timestamp: Date.now() });
     } catch { console.error('Erro salvar alerta.'); }
   });
 
@@ -203,10 +219,11 @@ io.on('connection', (socket: Socket) => {
     role?: string;
   }) => {
     if (!data?.routeJson) return;
+    const fromDriverId = (socket.data.driverId as string) || data.fromDriverId;
     try {
       const driver = await db.query(
         'SELECT role FROM drivers WHERE driver_id = $1',
-        [data.fromDriverId],
+        [fromDriverId],
       );
       const role = driver.rows[0]?.role ?? data.role ?? 'motorista';
       if (role === 'ajudante') {

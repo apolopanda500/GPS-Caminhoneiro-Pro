@@ -8,7 +8,7 @@ export class GroupController {
   constructor(private readonly db: Client) {}
 
   async listForDriver(req: Request, res: Response): Promise<void> {
-    const driverId = (req.query.driverId as string) || '';
+    const driverId = req.driverId || '';
     if (!driverId) {
       res.status(400).json({ error: 'driverId obrigatorio.' });
       return;
@@ -37,7 +37,8 @@ export class GroupController {
   }
 
   async create(req: Request, res: Response): Promise<void> {
-    const { name, driverId, role, isPublic } = req.body;
+    const { name, role, isPublic } = req.body;
+    const driverId = req.driverId;
     if (!name || !driverId) {
       res.status(400).json({ error: 'name e driverId obrigatorios.' });
       return;
@@ -63,7 +64,8 @@ export class GroupController {
 
   async join(req: Request, res: Response): Promise<void> {
     const groupId = req.params.id;
-    const { driverId, role } = req.body;
+    const { role } = req.body;
+    const driverId = req.driverId;
     if (!driverId) {
       res.status(400).json({ error: 'driverId obrigatorio.' });
       return;
@@ -88,7 +90,7 @@ export class GroupController {
 
   async leave(req: Request, res: Response): Promise<void> {
     const groupId = req.params.id;
-    const { driverId } = req.body || {};
+    const driverId = req.driverId;
     if (!driverId) {
       res.status(400).json({ error: 'driverId obrigatorio.' });
       return;
@@ -109,7 +111,8 @@ export class GroupController {
 
   async shareRoute(req: Request, res: Response): Promise<void> {
     const groupId = req.params.id;
-    const { driverId, driverName, payload, isPublic, role } = req.body;
+    const { driverName, payload, isPublic, role } = req.body;
+    const driverId = req.driverId;
     if (!driverId || !payload) {
       res.status(400).json({ error: 'driverId e payload obrigatorios.' });
       return;
@@ -150,7 +153,7 @@ export class GroupController {
 
   async listRoutes(req: Request, res: Response): Promise<void> {
     const groupId = req.params.id;
-    const driverId = (req.query.driverId as string) || '';
+    const driverId = req.driverId || '';
     try {
       const group = await this.db.query('SELECT is_public FROM convoy_groups WHERE id = $1', [groupId]);
       if (group.rowCount === 0) {

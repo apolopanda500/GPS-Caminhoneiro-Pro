@@ -2,6 +2,7 @@
 import { Client } from 'pg';
 import crypto from 'crypto';
 import { sendVerificationCode, mailerConfigured } from '../utils/mailer';
+import { criarToken } from '../utils/session';
 
 const CODE_TTL_MINUTES = 10;
 
@@ -63,6 +64,7 @@ export class AuthController {
       res.status(201).json({
         success: true,
         driverId: id,
+        token: criarToken(id),
         name,
         role: safeRole,
         helpType: helpType || null,
@@ -111,6 +113,7 @@ export class AuthController {
       const d = result.rows[0] ?? {};
       res.json({
         driverId: d.driver_id,
+        token: criarToken(d.driver_id),
         name: d.name,
         isPremium: d.is_premium ?? false,
         avatarUrl: d.avatar_url,
@@ -178,6 +181,7 @@ export class AuthController {
       }
       res.json({
         driverId: result.rows[0].driver_id,
+        token: criarToken(result.rows[0].driver_id),
         name: result.rows[0].name,
         isPremium: result.rows[0].is_premium ?? false,
         avatarUrl: result.rows[0].avatar_url,
@@ -196,7 +200,13 @@ export class AuthController {
   }
 
   async updateProfile(req: Request, res: Response): Promise<void> {
-      const { driverId, name, truckModel, cargoType, avatarUrl, truckPhotoUrl, role, helpType, companyName, companyLat, companyLon } = req.body;
+    const { name, truckModel, cargoType, avatarUrl, truckPhotoUrl, role, helpType, companyName, companyLat, companyLon } = req.body;
+    // A identidade vem do token de sessao, nunca do corpo da requisicao.
+    const driverId = req.driverId;
+    if (!driverId) {
+      res.status(401).json({ error: 'Sessao invalida. Faca login novamente.' });
+      return;
+    }
     try {
       await this.db.query(
         `UPDATE drivers SET name = COALESCE($2, name), truck_model = COALESCE($3, truck_model),
@@ -214,8 +224,13 @@ export class AuthController {
   }
 
   async updatePhoto(req: Request, res: Response): Promise<void> {
-    const { driverId, data, kind } = req.body as { driverId?: string; data?: string; kind?: string };
-    if (!driverId || !data) {
+    const { data, kind } = req.body as { data?: string; kind?: string };
+    const driverId = req.driverId;
+    if (!driverId) {
+      res.status(401).json({ error: 'Sessao invalida. Faca login novamente.' });
+      return;
+    }
+    if (!data) {
       res.status(400).json({ error: 'driverId e data obrigatorios.' });
       return;
     }
