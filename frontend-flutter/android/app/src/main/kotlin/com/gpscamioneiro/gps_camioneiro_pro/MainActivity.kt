@@ -37,6 +37,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // A partir de agora, apertar HOME abre a mini janela flutuante
+        // (o GPS continua rodando por tras).
+        configurarAutoEntradaNoPip()
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, canal)
             .setMethodCallHandler { call, resp ->
                 when (call.method) {
@@ -46,6 +49,8 @@ class MainActivity : FlutterActivity() {
                         val texto = call.argument<String>("texto") ?: "Rastreando sua viagem"
                         GpsTrackingService.iniciar(this, titulo, texto)
                         rastreando = true
+                        // A partir de agora, apertar HOME abre a mini janela.
+                        configurarAutoEntradaNoPip()
                         resp.success(true)
                     }
                     "servico/parar" -> {
@@ -119,13 +124,36 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
+     * Android 12+ (API 31): o proprio sistema entra na mini janela quando o
+     * usuario aperta HOME. E o caminho mais confiável (funciona também ao
+     * voltar do mini e sair de novo) e é o que apps como YouTube Premium
+     * usam.
+     */
+    private fun configurarAutoEntradaNoPip() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        try {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .setTitle("GPS Caminhoneiro Pro")
+                .setSubtitle("Rastreando sua viagem")
+                .setAutoEnterEnabled(true)
+                .setSeamlessResizeEnabled(true)
+                .build()
+            setPictureInPictureParams(params)
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
      * Quando o usuario sai do app (botao home), o app vira a mini janela
      * automaticamente - igual ao YouTube Premium. So entra se o rastreio
      * estiver ligado, para nao atrapalhar quem so esta navegando.
      */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!emPip && rastreando) entrarNoPip()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            if (!emPip) entrarNoPip()
+        }
     }
 
     override fun onPictureInPictureModeChanged(
