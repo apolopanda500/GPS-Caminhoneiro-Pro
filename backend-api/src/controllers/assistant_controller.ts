@@ -61,6 +61,28 @@ export class AssistantController {
       `Dados: ${JSON.stringify(dados)}`;
 
     try {
+      if (env.geminiApiKey) {
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent?key=${env.geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: sistema }] },
+              contents: [{ role: 'user', parts: [{ text: pergunta }] }],
+              generationConfig: { maxOutputTokens: 300 },
+            }),
+          },
+        );
+        if (resp.ok) {
+          const data: any = await resp.json();
+          const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (typeof texto === 'string' && texto.trim().length > 0) {
+            return texto.trim();
+          }
+        }
+      }
+
       if (env.openaiApiKey) {
         const resp = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',

@@ -30,4 +30,6 @@ export const env = {
   // IA do assistente (opcional: sem chave, o assistente responde localmente).
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
 };

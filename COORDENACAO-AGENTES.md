@@ -207,6 +207,12 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 03:40 A: chave Gemini do usuario inserida em keys.json (validada com 200 OK ao vivo);
+  modelo padrao atualizado para gemini-3.1-flash-lite (gemini-2.0-flash aposentado pela
+  Google; gemini-flash-latest lento, 2.5-flash 404); IA real ativa no APK. analyze: No
+  issues; APK release (53,7MB) reinstalado no celular (Success, 1ª tentativa falhou por
+  transporte USB, 2ª ok).
+
 - 03:25 A: TUDO plugado — WeatherProvider registrado no main.dart e ligado ao
   Assistente: _abrirAssistente atualiza o clima na posicao real (Open-Meteo) e abre
   a sheet com snapshotAoVivo (velocidade GPS _speedKmh, limite _speedLimitKmh com

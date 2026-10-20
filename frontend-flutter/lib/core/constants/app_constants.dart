@@ -50,8 +50,9 @@
   // Chave: https://aistudio.google.com/apikey  ->  keys.json: GEMINI_API_KEY
   static const String geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  static const String geminiModel =
-      String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-2.0-flash');
+  static const String geminiModel = String.fromEnvironment(
+      'GEMINI_MODEL',
+      defaultValue: 'gemini-3-flash-preview');
   static const bool iaConfigured = geminiApiKey != '';
 
   // Tipos de ajuda do perfil "ajudante".
