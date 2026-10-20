@@ -11,6 +11,7 @@ enum RenderQuality { economy, balanced, ultra }
 /// Persistidas em SharedPreferences para sobreviver a reinícios.
 class SettingsProvider extends ChangeNotifier {
   static const _kShowFps = 'settings.showFps';
+  static const _kModoLeitura = 'settings.modoLeitura';
   static const _kTargetFps = 'settings.targetFps';
   static const _kLayer = 'settings.layer';
   static const _kGpsInterval = 'settings.gpsInterval';
@@ -188,6 +189,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _showFps = prefs.getBool(_kShowFps) ?? false;
+    _modoLeitura = prefs.getBool(_kModoLeitura) ?? false;
     _targetFps = prefs.getInt(_kTargetFps) ?? 60;
     _layer = MapLayerMode.values[prefs.getInt(_kLayer) ?? 0];
     _gpsIntervalSeconds = prefs.getInt(_kGpsInterval) ?? 2;

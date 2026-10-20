@@ -217,6 +217,16 @@ class SettingsScreen extends StatelessWidget {
             value: s.pushNotifications,
             onChanged: s.setPushNotifications,
           ),
+          const _Section('ACESSIBILIDADE E LEITURA'),
+          _Switch(
+            title: 'Modo de leitura',
+            subtitle: s.modoLeitura
+                ? 'Ativo: textos maiores e toques mais fáceis'
+                : 'Textos maiores, contraste e alvos de toque (WCAG)',
+            icon: Icons.accessibility_new,
+            value: s.modoLeitura,
+            onChanged: s.setModoLeitura,
+          ),
           const _Section('DESEMPENHO'),
           // AGENTE B: qualidade grafica, FPS alvo e FPS sao do painel do mapa
           // (um lugar so). Aqui fica so a informacao de leitura.
