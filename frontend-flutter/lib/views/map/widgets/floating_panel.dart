@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/utils/orientacao_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///   arrasto e do painel, o clique e do conteudo).
 /// - Solta na borda esquerda/direita: o painel **minimiza** naquele lado e
 ///   vira uma tab compacta. Tocar na tab expande de novo.
+/// - Nao ha botao de minimizar no painel: arrastar para a lateral ja fecha
+///   (minimiza) e o toque na tab reabre.
 /// - A posicao e o estado (aberto/minimizado) ficam salvos por [id].
 class FloatingPanel extends StatefulWidget {
   final String id;
@@ -36,8 +39,8 @@ class FloatingPanel extends StatefulWidget {
   /// Arrastar funciona em todo o conteudo (ignore o [handle]).
   final bool dragWholeChild;
 
-  /// Mostra o botao de minimizar/expandir no canto do painel.
-  final bool showToggle;
+  /// Mostra a alca para aumentar/diminuir o painel.
+  final bool resizable;
 
   const FloatingPanel({
     super.key,
@@ -50,7 +53,7 @@ class FloatingPanel extends StatefulWidget {
     this.alwaysOpen = false,
     this.handle,
     this.dragWholeChild = false,
-    this.showToggle = true,
+    this.resizable = true,
   });
 
   @override
@@ -59,12 +62,19 @@ class FloatingPanel extends StatefulWidget {
 
 class _FloatingPanelState extends State<FloatingPanel> {
   late Offset _offset = widget.initial;
+
+  /// Tamanho do painel depois do redimensionamento. Enquanto for null o
+  /// painel usa o tamanho natural do seu conteudo.
+  double? _largura;
+  double? _altura;
+
   bool _minimizado = false;
   bool _ladoEsquerdo = false;
   bool _carregado = false;
 
   String get _chavePos => 'panel.pos.${widget.id}';
   String get _chaveEstado => 'panel.state.${widget.id}';
+  String get _chaveTamanho => 'panel.size.${widget.id}';
 
   @override
   void initState() {
@@ -78,6 +88,8 @@ class _FloatingPanelState extends State<FloatingPanel> {
       final x = prefs.getDouble('$_chavePos.x');
       final y = prefs.getDouble('$_chavePos.y');
       final estado = prefs.getString(_chaveEstado);
+      final largura = prefs.getDouble('$_chaveTamanho.w');
+      final altura = prefs.getDouble('$_chaveTamanho.h');
       if (!mounted) return;
       setState(() {
         if (x != null && y != null) {
@@ -88,6 +100,8 @@ class _FloatingPanelState extends State<FloatingPanel> {
             alturaPainel: widget.height,
           );
         }
+        if (largura != null) _largura = largura.clamp(_larguraMin, _larguraMax);
+        if (altura != null) _altura = altura.clamp(_alturaMin, _alturaMax);
         if (estado != null) {
           final partes = estado.split('|');
           _minimizado = partes.isNotEmpty && partes[0] == 'min';
@@ -105,9 +119,26 @@ class _FloatingPanelState extends State<FloatingPanel> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('$_chavePos.x', _offset.dx);
       await prefs.setDouble('$_chavePos.y', _offset.dy);
+      if (_largura != null) await prefs.setDouble('$_chaveTamanho.w', _largura!);
+      if (_altura != null) await prefs.setDouble('$_chaveTamanho.h', _altura!);
       await prefs.setString(
           _chaveEstado, _minimizado ? 'min|${_ladoEsquerdo ? 'esq' : 'dir'}' : 'aberto');
     } catch (_) {}
+  }
+
+  double get _larguraMin => widget.width * 0.6;
+  double get _larguraMax => widget.width * 2.2;
+  double get _alturaMin => 64.0;
+  double get _alturaMax => widget.height * 2.2;
+
+  /// Redimensiona o painel arrastando a alca no canto inferior direito.
+  void _redimensionar(DragUpdateDetails d) {
+    setState(() {
+      _largura = ((_largura ?? widget.width) + d.delta.dx)
+          .clamp(_larguraMin, _larguraMax);
+      _altura = ((_altura ?? widget.height) + d.delta.dy)
+          .clamp(_alturaMin, _alturaMax);
+    });
   }
 
   void _arrastar(DragUpdateDetails d) {
@@ -149,7 +180,6 @@ class _FloatingPanelState extends State<FloatingPanel> {
     });
     _salvar();
   }
-
   @override
   Widget build(BuildContext context) {
     if (!_carregado) {
@@ -207,20 +237,33 @@ class _FloatingPanelState extends State<FloatingPanel> {
                         setState(() => _minimizado = !_minimizado),
                     child: widget.handle!,
                   ),
-                widget.child,
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: _largura ?? 0,
+                    maxWidth: _largura ?? double.infinity,
+                    minHeight: 0,
+                    maxHeight: _altura ?? double.infinity,
+                  ),
+                  child: widget.child,
+                ),
               ],
             ),
           ),
-          if (widget.showToggle)
+          if (widget.resizable)
             Positioned(
-              top: 2,
               right: 2,
-              child: _BotaoMinimizar(
-                minimizado: _minimizado,
-                onTap: () {
-                  setState(() => _minimizado = !_minimizado);
-                  _salvar();
-                },
+              bottom: 2,
+              child: GestureDetector(
+                onPanUpdate: _redimensionar,
+                onPanEnd: (_) => _salvar(),
+                child: Tooltip(
+                  message: 'Arraste para redimensionar',
+                  child: Icon(
+                    Icons.open_in_full,
+                    size: 13,
+                    color: overlayTextMuted(context).withValues(alpha: 0.7),
+                  ),
+                ),
               ),
             ),
         ],
@@ -229,36 +272,3 @@ class _FloatingPanelState extends State<FloatingPanel> {
   }
 }
 
-/// Botao pequeno de minimizar/expandir do painel flutuante.
-class _BotaoMinimizar extends StatelessWidget {
-  final bool minimizado;
-  final VoidCallback onTap;
-
-  const _BotaoMinimizar({
-    required this.minimizado,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: minimizado ? 'Expandir painel' : 'Minimizar painel',
-      child: Material(
-        color: Colors.black.withValues(alpha: 0.35),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(3),
-            child: Icon(
-              minimizado ? Icons.open_in_full : Icons.minimize,
-              size: 13,
-              color: Colors.white70,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

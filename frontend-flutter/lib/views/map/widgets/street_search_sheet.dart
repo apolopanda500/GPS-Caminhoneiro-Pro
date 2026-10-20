@@ -28,7 +28,7 @@ class StreetSearchSheet extends StatefulWidget {
     return showModalBottomSheet<GeoResult>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: kDarkRedTransition,
+      backgroundColor: sheetBackground(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -114,12 +114,16 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
         children: [
           Row(
             children: [
-              const Icon(Icons.search, color: Colors.redAccent),
+              Icon(Icons.search, color: sheetAccent(context)),
               const SizedBox(width: 8),
-              const Text('Buscar rua/cidade', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Buscar rua/cidade',
+                  style: TextStyle(
+                      color: sheetText(context),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.close, color: Colors.white70),
+                icon: Icon(Icons.close, color: sheetMuted(context)),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -128,15 +132,15 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
             controller: _controller,
             autofocus: true,
             textInputAction: TextInputAction.search,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: sheetText(context)),
             onSubmitted: (_) => _search(),
             decoration: InputDecoration(
               hintText: widget.near != null
                   ? 'Ex.: Av. Brasil, proximo a mim'
                   : 'Ex.: Av. Anhanguera, Rio de Janeiro',
-              hintStyle: const TextStyle(color: Colors.grey),
+              hintStyle: TextStyle(color: sheetMuted(context)),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_forward, color: Colors.redAccent),
+                icon: Icon(Icons.arrow_forward, color: sheetAccent(context)),
                 onPressed: _search,
               ),
             ),
@@ -146,13 +150,14 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
               padding: const EdgeInsets.only(top: 6),
               child: Row(
                 children: [
-                  const Icon(Icons.near_me, size: 13, color: Colors.white54),
+                  Icon(Icons.near_me,
+                      size: 13, color: sheetMuted(context)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Buscando perto de voce e dentro de $_regiao',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
+                        color: sheetMuted(context),
                         fontSize: 11,
                       ),
                     ),
@@ -167,6 +172,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
               scrollDirection: Axis.horizontal,
               children: kRegioesRapidas.map((r) {
                 final ativo = r == _regiao;
+                final destaque = sheetAccent(context);
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
@@ -177,11 +183,14 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                       if (_controller.text.trim().isNotEmpty) _search();
                     },
                     labelStyle: TextStyle(
-                      color: ativo ? Colors.white : Colors.white70,
+                      color: ativo
+                          ? Colors.white
+                          : sheetText(context),
                       fontSize: 12,
                     ),
-                    selectedColor: kEmergencyRed,
-                    backgroundColor: Colors.white10,
+                    selectedColor: destaque,
+                    backgroundColor:
+                        sheetDivider(context).withValues(alpha: 0.5),
                     visualDensity: VisualDensity.compact,
                   ),
                 );
@@ -189,11 +198,16 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          if (_loading) const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(color: kEmergencyRed)),
+          if (_loading)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: CircularProgressIndicator(color: sheetAccent(context)),
+            ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(_error!, style: const TextStyle(color: Colors.orangeAccent)),
+              child: Text(_error!,
+                  style: const TextStyle(color: Colors.orangeAccent)),
             ),
           Flexible(
             child: ListView.builder(
@@ -202,20 +216,20 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
               itemBuilder: (context, i) {
                 final r = _results[i];
                 return ListTile(
-                  leading: const Icon(Icons.place, color: Colors.redAccent),
+                  leading: Icon(Icons.place, color: sheetAccent(context)),
                   title: Text(r.displayName,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 13)),
+                      style: TextStyle(
+                          color: sheetText(context), fontSize: 13)),
                   subtitle: r.distanceKm != null
                       ? Text(
                           '${_distanciaTexto(r.distanceKm!)} de voce',
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 11),
+                          style: TextStyle(
+                              color: sheetMuted(context), fontSize: 11),
                         )
                       : null,
                   trailing: r.distanceKm != null
                       ? Icon(Icons.near_me,
-                          size: 14, color: Colors.white.withValues(alpha: 0.5))
+                          size: 14, color: sheetMuted(context))
                       : null,
                   onTap: () => Navigator.pop(context, r),
                 );

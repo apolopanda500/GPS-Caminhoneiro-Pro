@@ -6,16 +6,23 @@ import 'package:gps_camioneiro_pro/core/utils/overlay_style.dart';
 import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
-/// Painel flutuante de sinais e alertas da estrada.
+/// Painel flutuante dos sinais da estrada.
 ///
-/// Fica sobre o mapa sem travar a tela: pode ser arrastado, minimizado
-/// (some com a lista e deixa só o contador) e fechado pelo usuário.
+/// Mostra tudo que acontece na estrada em tempo real. Tocar em um sinal o
+/// seleciona e devolve a coordenada para o mapa destacar o local, deixando o
+/// motorista ver rapido onde o sinal esta.
 class AlertsPanel extends StatefulWidget {
   final List<AlertModel> alerts;
   final Color? surface;
   final Color? accent;
   final VoidCallback onClose;
-  final Offset initialOffset;
+
+  /// Chamado quando o motorista toca em um sinal: devolve o sinal escolhido
+  /// para o mapa destacar (ou null quando o sinal esta sem coordenada).
+  final ValueChanged<AlertModel?>? onSelect;
+
+  /// Sinal que esta selecionado no mapa.
+  final String? selectedId;
 
   const AlertsPanel({
     super.key,
@@ -23,7 +30,8 @@ class AlertsPanel extends StatefulWidget {
     this.surface,
     this.accent,
     required this.onClose,
-    this.initialOffset = const Offset(16, 96),
+    this.onSelect,
+    this.selectedId,
   });
 
   @override
@@ -31,9 +39,9 @@ class AlertsPanel extends StatefulWidget {
 }
 
 class _AlertsPanelState extends State<AlertsPanel> {
-  bool _minimized = false;
+  bool _minimizado = false;
 
-  static const double _maxHeight = 260;
+  /// Largura padrao do painel (o FloatingPanel pode redimensionar).
   static const double _width = 300;
 
   /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
@@ -54,13 +62,12 @@ class _AlertsPanelState extends State<AlertsPanel> {
     final superficie = widget.surface ??
         overlaySurface(context, opacity: settings?.overlayOpacity ?? 1.0);
 
-    // Sem Positioned: quem posiciona e o FloatingPanel que envolve o painel.
+    // Sem Positioned: quem posiciona e o FloatingPanel que envelopa o painel.
     return SizedBox(
       width: _width,
       child: Material(
         color: Colors.transparent,
         child: Container(
-          constraints: const BoxConstraints(maxHeight: _maxHeight),
           decoration: BoxDecoration(
             color: superficie,
             borderRadius: BorderRadius.circular(14),
@@ -80,8 +87,8 @@ class _AlertsPanelState extends State<AlertsPanel> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _cabecalho(alerts.length, texto, cor),
-              if (!_minimized && alerts.isNotEmpty)
-                Flexible(child: _lista(alerts, texto)),
+              if (!_minimizado && alerts.isNotEmpty)
+                Flexible(child: _lista(alerts, texto, cor)),
             ],
           ),
         ),
@@ -90,6 +97,7 @@ class _AlertsPanelState extends State<AlertsPanel> {
   }
 
   Widget _cabecalho(int total, Color texto, Color cor) {
+    final aoVivo = total > 0;
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
       decoration: BoxDecoration(
@@ -105,9 +113,7 @@ class _AlertsPanelState extends State<AlertsPanel> {
               children: [
                 Flexible(
                   child: Text(
-                    total == 0
-                        ? 'Sinais da estrada'
-                        : 'Sinais da estrada ($total)',
+                    total == 0 ? 'Sinais da estrada' : 'Sinais da estrada ($total)',
                     style: TextStyle(
                       color: texto,
                       fontWeight: FontWeight.bold,
@@ -121,39 +127,41 @@ class _AlertsPanelState extends State<AlertsPanel> {
                 Container(
                   width: 7,
                   height: 7,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF39FF14),
+                  decoration: BoxDecoration(
+                    color: aoVivo
+                        ? const Color(0xFF39FF14)
+                        : texto.withValues(alpha: 0.3),
                     shape: BoxShape.circle,
                   ),
                 ),
               ],
             ),
           ),
-            IconButton(
-              tooltip: _minimized ? 'Expandir' : 'Minimizar',
-              iconSize: 18,
-              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-              padding: EdgeInsets.zero,
-              icon: Icon(
-                _minimized ? Icons.expand_less : Icons.expand_more,
-                color: texto,
-              ),
-              onPressed: () => setState(() => _minimized = !_minimized),
+          IconButton(
+            tooltip: _minimizado ? 'Expandir' : 'Minimizar',
+            iconSize: 18,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            padding: EdgeInsets.zero,
+            icon: Icon(
+              _minimizado ? Icons.expand_less : Icons.expand_more,
+              color: texto,
             ),
-            IconButton(
-              tooltip: 'Fechar painel',
-              iconSize: 18,
-              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-              padding: EdgeInsets.zero,
-              icon: Icon(Icons.close, color: texto.withValues(alpha: 0.7)),
-              onPressed: widget.onClose,
-            ),
-          ],
-        ),
+            onPressed: () => setState(() => _minimizado = !_minimizado),
+          ),
+          IconButton(
+            tooltip: 'Fechar painel',
+            iconSize: 18,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            padding: EdgeInsets.zero,
+            icon: Icon(Icons.close, color: texto.withValues(alpha: 0.7)),
+            onPressed: widget.onClose,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _lista(List<AlertModel> alerts, Color texto) {
+  Widget _lista(List<AlertModel> alerts, Color texto, Color destaque) {
     return ListView.builder(
       shrinkWrap: true,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -161,44 +169,80 @@ class _AlertsPanelState extends State<AlertsPanel> {
       itemBuilder: (context, index) {
         final alert = alerts[index];
         final cor = _corDoTipo(alert.type);
-        return Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: cor.withValues(alpha: 0.12),
+        final selecionado = widget.selectedId != null &&
+            widget.selectedId == alert.id;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: cor.withValues(alpha: 0.5)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline, color: cor, size: 16),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '[${alert.type.toUpperCase()}] '
-                      '${alert.message ?? 'Sem mensagem'}',
-                      style: TextStyle(color: texto, fontSize: 12),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _idade(alert.createdAt),
-                      style: TextStyle(
-                        color: texto.withValues(alpha: 0.55),
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
+            onTap: () {
+              setState(() {});
+              widget.onSelect?.call(selecionado ? null : alert);
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: cor.withValues(alpha: selecionado ? 0.34 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: cor.withValues(alpha: selecionado ? 1 : 0.5),
+                  width: selecionado ? 2 : 1,
                 ),
               ),
-            ],
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: cor, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '[${_tipoAmigavel(alert.type)}] '
+                          '${alert.message ?? 'Sem mensagem'}',
+                          style: TextStyle(
+                            color: texto,
+                            fontSize: 12,
+                            fontWeight:
+                                selecionado ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_idade(alert.createdAt)} - toque para destacar no mapa',
+                          style: TextStyle(
+                            color: texto.withValues(alpha: 0.55),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (selecionado)
+                    Icon(Icons.my_location, size: 16, color: destaque),
+                ],
+              ),
+            ),
           ),
         );
       },
     );
+  }
+
+  /// Nome curto do tipo, para o motorista entender sem saber o codigo.
+  String _tipoAmigavel(String type) {
+    switch (type.toLowerCase()) {
+      case 'sinal':
+      case 'signal':
+        return 'SINAL';
+      case 'texto_livre':
+      case 'texto':
+        return 'AVISO';
+      default:
+        return type.toUpperCase();
+    }
   }
 
   /// Idade do sinal (ha quanto tempo foi criado), para o motorista saber

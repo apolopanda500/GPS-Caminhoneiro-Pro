@@ -253,6 +253,45 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 06:20 B: **Reconstrucao do app (lote grande): cores, paineis, menu, 24/7, sons e PIX.**
+  1. **Cores**: campos de digitacao e barras de selecao deixaram de ser brancos
+     puros (agora usam a cor escolhida pelo usuario misturada com o fundo do
+     tema, com `fieldFill/fieldText/fieldHint`); superficie clara virou branco
+     quente (#FBF9F6); folhas (menu, busca, radio, relatorio) seguem o tema e
+     a cor de destaque em vez de vermelho/escuro fixos; `navigationBarTheme` e
+     `bottomNavigationBarTheme` novos.
+  2. **Paineis flutuantes**: sem botao de minimizar (arrastar para a lateral ja
+     fecha) e com **alca de redimensionar** (canto inferior direito), com
+     tamanho salvo por painel.
+  3. **Sinais da estrada**: reconstruido - tocar no sinal **destaca no mapa**
+     (simbolo maior) e leva a camera ate o local; a lista mostra a idade e
+     avisa "toque para destacar no mapa".
+  4. **Menu**: separado nao existe mais. Tudo foi para as **Configuracoes**,
+     com o bloco **"RECONSTRUIR"** (Empresa, Grupos e comboios, Contatos de
+     estrada, Sinalizar na via, Historico, Limpar sinais) e a acao **Sair da
+     conta**. O botao do mapa agora abre Configuracoes direto.
+  5. **Encerrar viagem**: saiu do menu e virou **botao vermelho (stop)** na
+     coluna de acoes do mapa; ao finalizar, o mapa e limpo (linha da rota,
+     paradas e selecao de sinal) e o historico continua salvo.
+  6. **Botao de camada** na coluna flutuante: alterna **Satellite -> Ruas ->
+     3D** com um toque, com aviso do modo escolhido.
+  7. **24/7 em segundo plano**: novo `GpsTrackingService` (Kotlin) com
+     notificacao permanente, WakeLock e `START_STICKY`, ligado ao expediente;
+     `ServicoRastreio` (Dart) + MethodChannel e pedido de isencao do
+     economizador de bateria. Mesma tecnologia do YouTube Premium em segundo
+     plano.
+  8. **Sons/vozes em tempo real**: a voz agora fala **na chegada** (nao so
+     45 s depois na confirmacao) e a cada faixa de aproximacao (1 km, 500 m,
+     200 m) com a distancia do momento; vibracao forte na chegada.
+  9. **Ver a rua** removido (dependia do token Mapillary e o app e exclusivo);
+     arquivos apagados.
+  10. **PIX validado de verdade**: BR Code conferido campo a campo, CRC16
+      recalculado e gerado pela API (200 + codigo valido). O erro 500 agora
+      mostra a causa real no log. Ferramenta nova: `tools/validar-pix.js`.
+  11. **Ambiente reproduzivel**: `tools/validar-ambiente.js` confere chaves do
+      backend e do app, build, testes e git.
+  Checks: analyze 0 issues, 163/163 testes Flutter, 29/29 backend, PIX valido.
+
 - 05:45 B: **Validação final 10/10 (chaves, rotas, busca e assinatura testados ao vivo).**
   - **BUG ACHADO E CORRIGIDO**: o `keytool` em pt-BR desloca os rótulos das impressões
     digitais — a linha marcada como "SHA1" é o SHA-256 e a linha "MD5" é o SHA-1 de

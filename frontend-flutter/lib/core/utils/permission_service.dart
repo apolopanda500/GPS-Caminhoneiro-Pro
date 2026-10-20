@@ -28,7 +28,7 @@ class PermissionService {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: kDarkRedTransition,
+            backgroundColor: sheetBackground(context),
             title: const Text('Permissões necessárias',
                 style: TextStyle(color: Colors.white)),
             content: const Text(

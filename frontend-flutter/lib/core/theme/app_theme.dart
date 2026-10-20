@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 // ---------------------------------------------------------------- Paleta
 const Color kDarkBlack = Color(0xFF0A0A0A);
@@ -6,11 +6,11 @@ const Color kDarkRedTransition = Color(0xFF1C0303);
 const Color kEmergencyRed = Color(0xFF8B0000);
 const Color kLightText = Color(0xFFE5E5E5);
 const Color kLightBackground = Color(0xFFF5F2EE);
-const Color kLightSurface = Color(0xFFFFFFFF);
+const Color kLightSurface = Color(0xFFFBF9F6);
 const Color kLightInk = Color(0xFF1A1A1A);
 
 const Color kAppBarDark = Color(0xFF1C0303);
-const Color kAppBarLight = Color(0xFFFFFFFF);
+const Color kAppBarLight = Color(0xFFFBF9F6);
 const Color kDividerDark = Color(0x33FFFFFF);
 const Color kDividerLight = Color(0x1F000000);
 
@@ -18,6 +18,39 @@ const Color kDividerLight = Color(0x1F000000);
 /// acompanharem a cor escolhida pelo usuario.
 Color _tint(Color accent, Color base, double forca) =>
     Color.alphaBlend(accent.withValues(alpha: forca), base);
+
+/// Cor dos campos de digitacao e das barras de selecao.
+///
+/// Nao e branco puro: e a cor escolhida pelo usuario misturada com o fundo
+/// do tema, para o campo se destacar do cartao sem estourar o olho.
+Color fieldFill(BuildContext context, {Color? accent}) {
+  final escuro = Theme.of(context).brightness == Brightness.dark;
+  final destaque = accent ?? Theme.of(context).colorScheme.primary;
+  return escuro
+      ? _tint(destaque, kDarkBlack, 0.30)
+      : _tint(destaque, kLightBackground, 0.12);
+}
+
+/// Versao sem [BuildContext], para usar dentro da montagem do tema.
+Color fieldFillFor(Color accent, bool escuro) => escuro
+    ? _tint(accent, kDarkBlack, 0.30)
+    : _tint(accent, kLightBackground, 0.12);
+
+/// Cor do texto dentro dos campos e das barras de selecao.
+Color fieldText(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark ? kLightText : kLightInk;
+
+/// Versao sem [BuildContext], para usar dentro da montagem do tema.
+Color fieldTextFor(bool escuro) => escuro ? kLightText : kLightInk;
+
+/// Cor de apoio (dica, rotulo) dentro dos campos.
+Color fieldHint(BuildContext context) => Theme.of(context).brightness == Brightness.dark
+    ? Colors.white54
+    : kLightInk.withValues(alpha: 0.55);
+
+/// Versao sem [BuildContext], para usar dentro da montagem do tema.
+Color fieldHintFor(bool escuro) =>
+    escuro ? Colors.white54 : kLightInk.withValues(alpha: 0.55);
 
 // --------------------------------------------------- Superficies no mapa
 Color overlaySurface(
@@ -29,7 +62,7 @@ Color overlaySurface(
   final Color destaque = accent ?? Theme.of(context).colorScheme.primary;
   final Color base = escuro
       ? _tint(destaque, kDarkBlack, 0.16)
-      : const Color(0xF2FFFFFF);
+      : kLightSurface;
   return base
       .withValues(alpha: (base.a * opacity.clamp(0.3, 1.0)).clamp(0.05, 1.0));
 }
@@ -53,6 +86,29 @@ Color overlayTextSoft(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
         ? Colors.white70
         : kLightInk.withValues(alpha: 0.7);
+
+/// Fundo das folhas (bottomsheets) e dialogos: segue o tema e a cor escolhida.
+Color sheetBackground(BuildContext context, {Color? accent}) {
+  final escuro = Theme.of(context).brightness == Brightness.dark;
+  final destaque = accent ?? Theme.of(context).colorScheme.primary;
+  return escuro ? _tint(destaque, kDarkBlack, 0.18) : kLightSurface;
+}
+
+/// Divisor das folhas e listas.
+Color sheetDivider(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? kDividerDark
+        : kDividerLight;
+
+/// Texto principal de uma folha.
+Color sheetText(BuildContext context) => overlayText(context);
+
+/// Texto secundario de uma folha.
+Color sheetMuted(BuildContext context) => overlayTextMuted(context);
+
+/// Cor de destaque (icones, acoes) de uma folha: a cor escolhida pelo usuario.
+Color sheetAccent(BuildContext context, {Color? accent}) =>
+    overlayAccent(context, accent: accent);
 
 // ---------------------------------------------------------------- ESCURO
 /// Tema escuro. [accent] e a cor escolhida pelo usuario na tela de Aparencia
@@ -124,6 +180,28 @@ ThemeData appTheme({Color accent = kEmergencyRed}) {
     ),
     dividerTheme:
         const DividerThemeData(color: kDividerDark, space: 1, thickness: 1),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: appBar,
+      indicatorColor: accent.withValues(alpha: 0.22),
+      surfaceTintColor: Colors.transparent,
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected) ? accent : kLightText,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          color: states.contains(WidgetState.selected) ? accent : kLightText,
+          fontSize: 12,
+        ),
+      ),
+    ),
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      backgroundColor: appBar,
+      selectedItemColor: accent,
+      unselectedItemColor: kLightText,
+      type: BottomNavigationBarType.fixed,
+    ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
@@ -175,13 +253,45 @@ ThemeData appTheme({Color accent = kEmergencyRed}) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: surface,
-      hintStyle: const TextStyle(color: Colors.grey),
-      labelStyle: const TextStyle(color: kLightText),
-      enabledBorder:
-          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
-      focusedBorder:
-          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+      fillColor: fieldFillFor(accent, true),
+      hintStyle: TextStyle(color: fieldHintFor(true)),
+      labelStyle: TextStyle(color: fieldTextFor(true)),
+      floatingLabelStyle: TextStyle(color: accent),
+      prefixIconColor: fieldHintFor(true),
+      suffixIconColor: fieldHintFor(true),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kDividerDark, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: accent, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFFF6B6B), width: 1.2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFFF6B6B), width: 1.6),
+      ),
+    ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      textStyle: TextStyle(color: fieldTextFor(true)),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: fieldFillFor(accent, true),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: kDividerDark, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: accent, width: 1.6),
+        ),
+      ),
     ),
   );
 }
@@ -256,6 +366,28 @@ ThemeData appLightTheme({Color accent = kEmergencyRed}) {
     ),
     dividerTheme:
         const DividerThemeData(color: kDividerLight, space: 1, thickness: 1),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: surface,
+      indicatorColor: accent.withValues(alpha: 0.16),
+      surfaceTintColor: Colors.transparent,
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected) ? accent : kLightInk,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          color: states.contains(WidgetState.selected) ? accent : kLightInk,
+          fontSize: 12,
+        ),
+      ),
+    ),
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      backgroundColor: surface,
+      selectedItemColor: accent,
+      unselectedItemColor: kLightInk,
+      type: BottomNavigationBarType.fixed,
+    ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
@@ -307,13 +439,45 @@ ThemeData appLightTheme({Color accent = kEmergencyRed}) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: surface,
-      hintStyle: const TextStyle(color: Colors.black45),
-      labelStyle: const TextStyle(color: kLightInk),
-      enabledBorder:
-          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
-      focusedBorder:
-          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+      fillColor: fieldFillFor(accent, false),
+      hintStyle: TextStyle(color: fieldHintFor(false)),
+      labelStyle: TextStyle(color: fieldTextFor(false)),
+      floatingLabelStyle: TextStyle(color: accent),
+      prefixIconColor: fieldHintFor(false),
+      suffixIconColor: fieldHintFor(false),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kDividerLight, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: accent, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFB71C1C), width: 1.2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFB71C1C), width: 1.6),
+      ),
+    ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      textStyle: TextStyle(color: fieldTextFor(false)),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: fieldFillFor(accent, false),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: kDividerLight, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: accent, width: 1.6),
+        ),
+      ),
     ),
   );
 }

@@ -40,5 +40,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Servico em primeiro plano: mantem o app vivo com a tela apagada
+             (GPS, rede V2X e chat continuam funcionando na estrada). -->
+        <service
+            android:name=".GpsTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false" />
     </application>
 </manifest>

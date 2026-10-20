@@ -16,6 +16,7 @@ import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
@@ -41,7 +42,6 @@ import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/utils/map_icons.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/report_dialog.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/speed_hud.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/street_view_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/marker_dialog.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/street_search_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/chat_panel.dart';
@@ -51,7 +51,6 @@ import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
 import 'package:gps_camioneiro_pro/views/settings/settings_screen.dart';
@@ -521,6 +520,30 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Sinal escolhido no painel de sinais: o mapa destaca o local dele.
+  String? _sinalSelecionadoId;
+
+  /// Toca em um sinal no painel: destaca o ponto no mapa e leva a camera
+  /// ate ele. Toca de novo no mesmo sinal: volta a selection.
+  void _selecionarSinal(AlertModel? alert) {
+    setState(() => _sinalSelecionadoId = alert?.id);
+    if (alert == null) {
+      _renderMarkers();
+      return;
+    }
+    if (alert.latitude == 0 && alert.longitude == 0) {
+      _showSnackBar('Este sinal nao tem localizacao.');
+      return;
+    }
+    _renderMarkers();
+    _moverCamera(
+      LatLng(alert.latitude, alert.longitude),
+      zoom: 16,
+      bearing: _bearing,
+      tilt: 0,
+    );
+  }
+
   /// Ajusta o mapa e o consumo de dados conforme a conexao.
   /// Em 4G/5G o app continua com o mapa completo (3D e tudo mais);
   /// a rede apenas informa o usuario e garante reconexao rapida.
@@ -749,16 +772,24 @@ class _MapScreenState extends State<MapScreen> {
     await _addImageOnce('icon_alert', await MapIcons.alert());
     final alertasSnapshot = List<AlertModel>.from(_activeAlerts);
     final hiddenIds = _hiddenIdsSnapshot;
+    final sinalSelecionado = _sinalSelecionadoId;
     for (final a
         in alertasSnapshot.where((a) => a.latitude != 0 && a.longitude != 0)) {
       if (hiddenIds.contains(a.id)) continue;
+      final emDestaque = a.id == sinalSelecionado;
       await c.addSymbol(
         ml.SymbolOptions(
           geometry: ml.LatLng(a.latitude, a.longitude),
           iconImage: 'icon_alert',
-          iconSize: 0.42,
+          iconSize: emDestaque ? 0.85 : 0.42,
         ),
-        {'kind': 'alert', 'id': a.id, 'type': a.type, 'message': a.message},
+        {
+          'kind': 'alert',
+          'id': a.id,
+          'type': a.type,
+          'message': a.message,
+          if (emDestaque) 'selected': true,
+        },
       );
     }
 
@@ -946,7 +977,7 @@ class _MapScreenState extends State<MapScreen> {
     final criado = alert.isNotEmpty ? alert.first.createdAt : null;
     showModalBottomSheet(
       context: context,
-      backgroundColor: kDarkRedTransition,
+      backgroundColor: sheetBackground(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1074,7 +1105,7 @@ class _MapScreenState extends State<MapScreen> {
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: kDarkRedTransition,
+        backgroundColor: sheetBackground(context),
         content: Text(
           message,
           style: const TextStyle(
@@ -1484,16 +1515,6 @@ class _MapScreenState extends State<MapScreen> {
     _renderMarkers();
   }
 
-  void _verRua() {
-    final target = _currentPosition ?? _center;
-    StreetViewScreen.show(
-      context,
-      latitude: target.latitude,
-      longitude: target.longitude,
-      token: AppConstants.mapillaryToken.isEmpty ? null : AppConstants.mapillaryToken,
-    );
-  }
-
   /// Novo toque curto no mapa: usado pelo modo "escolher empresa".
   void _onMapClickCurto(LatLng point) {
     if (!_modoEscolherEmpresa) return;
@@ -1727,16 +1748,55 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Falas automaticas de aproximacao: quando o caminhao passa de 1 km,
+  /// 500 m e 200 m da proxima parada, o app fala uma vez em cada faixa com
+  /// a distancia atualizada em tempo real.
+  static const List<double> _faixasKm = [1.0, 0.5, 0.2];
+  int _faixaAnunciada = -1;
+
+  /// Fala a aproximacao da proxima parada (uma vez por faixa).
+  void _anunciarAproximacao(RouteProvider route, int total) {
+    final km = route.distanciaProximaParadaKm;
+    if (km == null || km > _faixasKm.first) {
+      _faixaAnunciada = -1;
+      return;
+    }
+    var faixa = 0;
+    for (var i = 0; i < _faixasKm.length; i++) {
+      if (km <= _faixasKm[i]) faixa = i;
+    }
+    if (_faixaAnunciada == faixa) return;
+    _faixaAnunciada = faixa;
+
+    final proxima = route.nextStopLabel;
+    if (proxima.isEmpty || proxima.startsWith('Rota conclu')) return;
+    final texto = km < 0.2
+        ? 'Chegando: $proxima.'
+        : 'Faltam ${(km * 1000).round()} metros para $proxima.';
+    unawaited(VoiceService.instance.falar(texto));
+  }
+
   void _validarEntregas(LatLng pos) {
     final route = context.read<RouteProvider>();
     if (route.totalStops == 0) return;
     final before = route.deliveredCount;
     route.updatePosition(pos);
+    final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
+
+    // Chegou na parada: fala na hora (com a distancia real do momento) e
+    // vibra, sem esperar a confirmacao da entrega.
+    final chegada = route.consumeArrivalEvent();
+    if (chegada != null) {
+      HapticFeedback.heavyImpact();
+      unawaited(_falarChegada(route, total, chegada));
+    } else {
+      _anunciarAproximacao(route, total);
+    }
+
     if (route.deliveredCount > before) {
       HapticFeedback.mediumImpact();
       _showSnackBar('Entrega validada: ${route.nextStopLabel}');
       _renderMarkers();
-      final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
       // Sequencia da chegada: primeiro o SINO, depois a VOZ (com o radio
       // abaixado) dizendo a proxima parada e a distancia.
       unawaited(_tocarChegadaEVoz(route, total));
@@ -1744,6 +1804,21 @@ class _MapScreenState extends State<MapScreen> {
     if (route.allDelivered && route.consumeCompletionEvent()) {
       _mostrarViagemConcluida(route.deliveredCount);
     }
+  }
+
+  /// Fala a chegada na parada com os dados atualizados do momento.
+  Future<void> _falarChegada(
+      RouteProvider route, int total, int indiceParada) async {
+    final audio = context.read<AudioProvider>();
+    await audio.tocarChegada();
+    if (!mounted) return;
+    final numero = route.numeroDaParada(indiceParada);
+    await VoiceService.instance.chegadaNaParada(
+      numero,
+      total,
+      proxima: route.nextStopLabel.isEmpty ? null : route.nextStopLabel,
+      distanciaProximaKm: route.distanciaProximaParadaKm,
+    );
   }
 
   /// Toca o sino da parada e depois fala (com o radio abaixado).
@@ -1974,6 +2049,23 @@ class _MapScreenState extends State<MapScreen> {
       _showSnackBar('✅ Viagem salva: ${trip.distanceKm.toStringAsFixed(1)} km');
     }
     _resetTrip();
+    _limparMapaAoFinalizar();
+  }
+
+  /// Ao encerrar a viagem o mapa fica limpo: some a linha da rota, as
+  /// paradas e os marcadores de caminhao (o historico ja foi salvo).
+  void _limparMapaAoFinalizar() {
+    final route = context.read<RouteProvider>();
+    route.clear();
+    setState(() {
+      _routePanelClosed = true;
+      _sinalSelecionadoId = null;
+      _faixaAnunciada = -1;
+    });
+    _renderMarkers();
+    // Sem viagem em andamento o app pode voltar ao normal: o servico em
+    // primeiro plano e desligado.
+    unawaited(ServicoRastreio.instancia.parar());
   }
 
   void _resetTrip() {
@@ -2077,6 +2169,26 @@ class _MapScreenState extends State<MapScreen> {
       _positionSubscription = null;
       setState(() => _currentPosition = null);
     }
+    _sincronizarServicoDeFundo(tracking);
+  }
+
+  /// Mantem o app vivo em segundo plano (servico em primeiro plano do
+  /// Android): com a tela apagada o GPS, a rede V2X e as vozes continuam
+  /// funcionando, como nos apps de video/musica premium.
+  Future<void> _sincronizarServicoDeFundo(bool tracking) async {
+    try {
+      if (tracking) {
+        await ServicoRastreio.instancia.iniciar(
+          titulo: 'GPS Caminhoneiro Pro',
+          texto: 'Rastreando sua viagem - GPS e rede ativos',
+        );
+        // Pede a isencao do economizador de bateria (o Android mata o app
+        // em segundo plano sem isso).
+        await ServicoRastreio.instancia.pedirIsencaoDeBateria();
+      } else {
+        await ServicoRastreio.instancia.parar();
+      }
+    } catch (_) {}
   }
 
   Future<void> _carregarAlertsOffline() async {
@@ -2147,13 +2259,22 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _abrirConfiguracoes() {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (context) => const SettingsScreen()));
-  }
-
-  void _abrirPerfil() {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (context) => const ProfileScreen()));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsScreen(
+          onCompany: _marcarEmpresa,
+          onGrupos: _abrirGrupos,
+          onContatos: () =>
+              _gatePremium(PremiumFeature.roadContacts, _abrirContatosEstrada),
+          onSinalizar: _abrirSinalizacoes,
+          onHistorico: () =>
+              _gatePremium(PremiumFeature.tripHistory, _abrirHistoricoViagens),
+          onSairDaConta: _sairDaConta,
+          onLimparSinais: _limparSinaisDoMapa,
+        ),
+      ),
+    );
   }
 
   void _abrirPaymentGate() {
@@ -2262,27 +2383,6 @@ class _MapScreenState extends State<MapScreen> {
   /// AGENTE B: ajudante acompanha a rede e envia sinais, mas nao monta rota.
   bool get _isHelper =>
       context.read<AuthProvider>().driver?.isHelper ?? false;
-
-  void _abrirMenu() {
-    MapMenuSheet.show(
-      context,
-      isPremium: context.read<AuthProvider>().driver?.isPremium ?? false,
-      onProfile: _abrirPerfil,
-      onTrips: () =>
-          _gatePremium(PremiumFeature.tripHistory, _abrirHistoricoViagens),
-      onEndTrip: _finalizarViagem,
-      onContacts: () =>
-          _gatePremium(PremiumFeature.roadContacts, _abrirContatosEstrada),
-      onSettings: _abrirConfiguracoes,
-      onPremium: _abrirPaymentGate,
-      onClearSignals: _limparSinaisDoMapa,
-      onLogout: _sairDaConta,
-      onStreetView: _verRua,
-      onCompany: _marcarEmpresa,
-      onGrupos: _abrirGrupos,
-      onSinalizar: _abrirSinalizacoes,
-    );
-  }
 
   /// Painel de grupos (comboios) + modo estrito de visibilidade.
   void _abrirGrupos() {
@@ -2410,10 +2510,10 @@ class _MapScreenState extends State<MapScreen> {
               id: 'acoes',
               initial: const Offset(16, 120),
               width: 56,
-              height: 190,
+              height: 250,
               dragWholeChild: true,
+              resizable: false,
               minimizedChild: const Icon(Icons.apps, size: 20),
-              showToggle: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2424,7 +2524,14 @@ class _MapScreenState extends State<MapScreen> {
                   const SizedBox(height: 8),
                   _botaoFlutuante(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
                   const SizedBox(height: 8),
-                  _botaoFlutuante(Icons.settings, 'Configuracoes e menu', _abrirMenu),
+                  _botaoCamada(),
+                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.warning_amber_rounded, 'Sinais da estrada',
+                      () => setState(() => _alertsPanelClosed = false)),
+                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.settings, 'Configuracoes', _abrirConfiguracoes),
+                  const SizedBox(height: 8),
+                  _botaoParar(),
                 ],
               ),
             ),
@@ -2454,14 +2561,16 @@ class _MapScreenState extends State<MapScreen> {
               id: 'alerts',
               initial: Offset(_contentLeft, 96),
               width: 300,
-              height: 200,
+              height: 260,
               minimizedChild: const Icon(Icons.warning_amber_rounded, size: 20),
-              handle: _buildPuxador('Sinais', Icons.warning_amber_rounded),
+              handle: _buildPuxador('Sinais da estrada', Icons.warning_amber_rounded),
               child: AlertsPanel(
                 alerts: List<AlertModel>.unmodifiable(_activeAlerts),
                 surface: _superficie(context),
                 accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
                 onClose: () => setState(() => _alertsPanelClosed = true),
+                selectedId: _sinalSelecionadoId,
+                onSelect: _selecionarSinal,
               ),
             ),
           // Sinais recebidos com o painel fechado: badge para reabrir.
@@ -2502,6 +2611,69 @@ class _MapScreenState extends State<MapScreen> {
             padding: const EdgeInsets.all(10),
             child: Icon(icone,
                 color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 21),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Botao de camada do mapa: alterna Satelite -> Ruas -> 3D (detalhado) com
+  /// um toque. O icone mostra em qual modo o mapa esta.
+  Widget _botaoCamada() {
+    final (icone, dica) = switch (_layerMode) {
+      MapLayerMode.satellite => (Icons.satellite_alt, 'Camada: satelite (toque para ruas)'),
+      MapLayerMode.streets => (Icons.map_outlined, 'Camada: ruas (toque para 3D)'),
+      MapLayerMode.detailed => (Icons.view_in_ar, 'Camada: 3D (toque para satelite)'),
+    };
+    return Tooltip(
+      message: dica,
+      child: Material(
+        color: _superficie(context),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _trocarCamada,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icone,
+                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 21),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Troca a camada do mapa (satelite -> ruas -> 3D) e avisa o usuario.
+  void _trocarCamada() {
+    final proxima = switch (_layerMode) {
+      MapLayerMode.satellite => MapLayerMode.streets,
+      MapLayerMode.streets => MapLayerMode.detailed,
+      MapLayerMode.detailed => MapLayerMode.satellite,
+    };
+    final nome = switch (proxima) {
+      MapLayerMode.satellite => 'Satelite',
+      MapLayerMode.streets => 'Ruas',
+      MapLayerMode.detailed => '3D detalhado',
+    };
+    context.read<SettingsProvider>().setLayer(proxima);
+    _showSnackBar('Mapa: $nome');
+  }
+
+  /// Botao vermelho de encerrar a viagem: fica sempre a vista na coluna de
+  /// acoes do mapa (no menu ele ficava longe e era facil esquecer).
+  Widget _botaoParar() {
+    return Tooltip(
+      message: 'Encerrar viagem',
+      child: Material(
+        color: const Color(0xFFC62828),
+        shape: const CircleBorder(),
+        elevation: 3,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _finalizarViagem,
+          child: const Padding(
+            padding: EdgeInsets.all(11),
+            child: Icon(Icons.stop_rounded, color: Colors.white, size: 22),
           ),
         ),
       ),

@@ -53,7 +53,10 @@ void main() {
       );
       await tester.pump();
       final container = tester.widget<Container>(find.byKey(_key));
-      expect(rgb(container.color!), 0xFFFFFF);
+      // No tema claro a superficie e um branco quente (nao branco puro):
+      // o branco puro brigava com o fundo do app.
+      expect(rgb(container.color!), rgb(kLightSurface));
+      expect(container.color!.a, greaterThan(0));
     });
 
     testWidgets('overlaySurface escura e preta translúcida', (tester) async {

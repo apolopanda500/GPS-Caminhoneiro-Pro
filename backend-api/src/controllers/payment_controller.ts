@@ -48,8 +48,13 @@ export class PaymentController {
         value,
         receiver: env.pixName,
       });
-    } catch {
-      res.status(500).json({ error: 'Falha ao gerar o pagamento PIX.' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('❌ Falha ao gerar o pagamento PIX:', message);
+      res.status(500).json({
+        error: 'Falha ao gerar o pagamento PIX.',
+        detalhe: message,
+      });
     }
   }
 

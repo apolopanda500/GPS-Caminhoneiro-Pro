@@ -1,4 +1,4 @@
-﻿class AppConstants {
+class AppConstants {
   // Valores injetados no build: --dart-define-from-file=keys.json
   // Exemplo em keys.example.json. Nunca commite o keys.json.
   static const String baseUrl = String.fromEnvironment(
@@ -33,12 +33,6 @@
   static const String openRouteServiceApiKey =
       String.fromEnvironment('ORS_KEY', defaultValue: '');
   static const bool orsConfigured = openRouteServiceApiKey != '';
-
-  // Mapillary: imagens de rua (Street View aberto). Token gratuito.
-  // https://www.mapillary.com/dashboard/developers
-  static const String mapillaryToken =
-      String.fromEnvironment('MAPILLARY_TOKEN', defaultValue: '');
-  static const bool streetViewConfigured = mapillaryToken != '';
 
   // TomTom: camada de transito em tempo real (flow) do mundo todo.
   // Chave gratuita: https://developer.tomtom.com/user/register (2500/dia).

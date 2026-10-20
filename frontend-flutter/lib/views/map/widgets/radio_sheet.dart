@@ -11,7 +11,7 @@ class RadioSheet extends StatefulWidget {
   static Future<void> open(BuildContext context) {
     return showModalBottomSheet(
       context: context,
-      backgroundColor: kDarkRedTransition,
+      backgroundColor: sheetBackground(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

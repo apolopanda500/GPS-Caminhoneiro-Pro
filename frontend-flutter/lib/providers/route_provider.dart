@@ -200,6 +200,9 @@ class RouteProvider extends ChangeNotifier {
   int? _companyStopIndex;
   bool _routeFinishedNotified = false;
   bool _companyReachedNotified = false;
+
+  /// Parada em que o caminhão acabou de entrar (evento de chegada).
+  int? _chegadaRecente;
   List<RouteTemplate> _templates = [];
   List<ClientEntry> _clients = [];
   List<ScheduledRoute> _scheduled = [];
@@ -561,6 +564,7 @@ class RouteProvider extends ChangeNotifier {
         if (statusOf(i) == StopStatus.pending) {
           _status[i] = StopStatus.arrived;
           _arrivedAt[i] = clock;
+          _chegadaRecente = i;
           changed = true;
         } else {
           final since = _arrivedAt[i];
@@ -579,6 +583,25 @@ class RouteProvider extends ChangeNotifier {
 
     if (changed) notifyListeners();
     return delivered;
+  }
+
+  /// Devolve (uma vez) o indice da parada em que o caminhão acabou de
+  /// entrar. O app usa isso para falar e vibrar na hora da chegada, sem
+  /// esperar a confirmacao da entrega.
+  int? consumeArrivalEvent() {
+    final i = _chegadaRecente;
+    if (i == null) return null;
+    _chegadaRecente = null;
+    return i;
+  }
+
+  /// Numero que o motorista ve (1, 2, 3...) para a parada de indice [i].
+  /// A parada da empresa nao entra na numeracao.
+  int numeroDaParada(int i) {
+    final empresa = _companyStopIndex;
+    if (empresa == null) return i + 1;
+    if (i == empresa) return i + 1;
+    return i + 1;
   }
 
   bool consumeCompletionEvent() {

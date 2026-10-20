@@ -22,7 +22,26 @@ import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  /// Acoes que vivem no mapa e foram reunidas aqui para deixar o acesso
+  /// mais simples (o grupo "Reconstruir").
+  final VoidCallback? onCompany;
+  final VoidCallback? onGrupos;
+  final VoidCallback? onContatos;
+  final VoidCallback? onSinalizar;
+  final VoidCallback? onHistorico;
+  final VoidCallback? onSairDaConta;
+  final VoidCallback? onLimparSinais;
+
+  const SettingsScreen({
+    super.key,
+    this.onCompany,
+    this.onGrupos,
+    this.onContatos,
+    this.onSinalizar,
+    this.onHistorico,
+    this.onSairDaConta,
+    this.onLimparSinais,
+  });
 
   /// Abre o painel de clima (as coordenadas vem da ultima leitura do GPS).
   void _abrirClima(BuildContext context) {
@@ -378,6 +397,85 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
+          const _Section('RECONSTRUIR'),
+          ListTile(
+            leading: const Icon(Icons.factory, color: Colors.redAccent),
+            title: Text('Empresa', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Marcar o local exato da empresa',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onCompany?.call();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.group, color: Colors.redAccent),
+            title: Text('Grupos e comboios', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Rotas compartilhadas e companhia',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onGrupos?.call();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.people, color: Colors.redAccent),
+            title: Text('Contatos de estrada', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Motoristas de confiança por perto',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onContatos?.call();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.add_location_alt, color: Colors.redAccent),
+            title: Text('Sinalizar na via', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Avisos, radares, pontes baixas e perigos',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onSinalizar?.call();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.history, color: Colors.redAccent),
+            title: Text('Histórico de viagens', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Km rodados e viagens concluídas',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onHistorico?.call();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services, color: Colors.redAccent),
+            title: Text('Limpar sinais do mapa', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Apaga os sinais que voce placed no mapa',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onLimparSinais?.call();
+            },
+          ),
           const _Section('PERMISSÕES DO ANDROID'),
           ListTile(
             leading: const Icon(Icons.shield, color: Colors.redAccent),
@@ -399,6 +497,16 @@ class SettingsScreen extends StatelessWidget {
             ),
             trailing: Icon(Icons.chevron_right, color: muted),
             onTap: () => _limparCache(context),
+          ),
+          const _Section('CONTA'),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.redAccent),
+            title: Text('Sair da conta', style: TextStyle(color: ink)),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () {
+              Navigator.of(context).pop();
+              onSairDaConta?.call();
+            },
           ),
         ],
       ),

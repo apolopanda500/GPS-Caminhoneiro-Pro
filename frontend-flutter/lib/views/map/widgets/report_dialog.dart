@@ -30,7 +30,7 @@ class _ReportDialogState extends State<ReportDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: kDarkRedTransition,
+      backgroundColor: sheetBackground(context),
       title: const Text(
         'Escrever Aviso no Mapa',
         style: TextStyle(color: Colors.white),
