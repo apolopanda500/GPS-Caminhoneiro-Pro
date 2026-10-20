@@ -4,6 +4,7 @@ import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/views/config/truck_setup_screen.dart';
+import 'package:gps_camioneiro_pro/views/map/map_screen.dart';
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -77,10 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       password: _passwordController.text,
                     );
                     if (ok) {
-                      navigator.pushReplacement(
-                        MaterialPageRoute(
-                            builder: (_) => const TruckSetupScreen()),
-                      );
+                      _abrirApp(auth, navigator);
                     } else if (auth.requiresVerification) {
                       if (!mounted) return;
                       await _verificarEmail(
@@ -116,8 +114,27 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _voltar() {
-    final navigator = Navigator.of(context);
+  /// Ajudante entra direto no mapa: nao configura caminhao nem monta rota.
+  void _abrirApp(AuthProvider auth, NavigatorState navigator) {
+    final driver = auth.driver;
+    final isAjudante = driver?.role == 'ajudante';
+    if (isAjudante && driver != null) {
+      navigator.pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => MapScreen(
+            driverId: driver.driverId,
+            driverName: driver.name ?? 'Ajudante',
+          ),
+        ),
+      );
+      return;
+    }
+    navigator.pushReplacement(
+      MaterialPageRoute(builder: (_) => const TruckSetupScreen()),
+    );
+  }
+
+  void _voltar() {    final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
     } else {
@@ -276,9 +293,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
         await _verificarEmail(emailController.text.trim());
       } else {
-        navigator.pushReplacement(
-          MaterialPageRoute(builder: (_) => const TruckSetupScreen()),
-        );
+        _abrirApp(auth, navigator);
       }
     } else {
       messenger.showSnackBar(
@@ -350,9 +365,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.verifyCode(email: email, code: action);
     if (!mounted) return;
     if (ok) {
-      navigator.pushReplacement(
-        MaterialPageRoute(builder: (_) => const TruckSetupScreen()),
-      );
+      _abrirApp(auth, navigator);
     } else {
       messenger.showSnackBar(
         SnackBar(content: Text(auth.error ?? 'Código inválido.')),

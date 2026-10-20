@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:gps_camioneiro_pro/core/utils/overlay_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Camadas de mapa suportadas.
 enum MapLayerMode { satellite, streets, detailed }
-
 /// Perfis de desempenho gráfico (GPU/CPU).
 enum RenderQuality { economy, balanced, ultra }
 
@@ -28,6 +28,9 @@ class SettingsProvider extends ChangeNotifier {
   static const _kRenderQuality = 'settings.renderQuality';
   static const _kTracking = 'settings.trackingEnabled';
   static const _kDayStartedAt = 'settings.dayStartedAt';
+  static const _kOverlayOpacity = 'settings.overlayOpacity';
+  static const _kOverlayAccent = 'settings.overlayAccent';
+  static const _kRadioFab = 'settings.radioFab';
 
   /// O mapa de ruas é recarregado a cada 12 h ou na virada do dia.
   static const Duration mapUpdateInterval = Duration(hours: 12);
@@ -50,6 +53,9 @@ class SettingsProvider extends ChangeNotifier {
   RenderQuality _renderQuality = RenderQuality.balanced;
   bool _trackingEnabled = true;
   DateTime? _dayStartedAt;
+  double _overlayOpacity = 0.92;
+  int _overlayAccent = 0;
+  bool _radioFabEnabled = true;
   bool _loaded = false;
 
   bool get showFps => _showFps;
@@ -71,6 +77,17 @@ class SettingsProvider extends ChangeNotifier {
   RenderQuality get renderQuality => _renderQuality;
   bool get trackingEnabled => _trackingEnabled;
   DateTime? get dayStartedAt => _dayStartedAt;
+
+  /// Opacidade dos painéis e botões flutuantes sobre o mapa (0.3 a 1.0).
+  double get overlayOpacity => _overlayOpacity;
+
+  /// Índice da cor de destaque usada nos painéis e na barra de ferramentas.
+  int get overlayAccentIndex => _overlayAccent;
+
+  Color get overlayColor => kOverlayAccents[_overlayAccent % kOverlayAccents.length];
+
+  /// Mostra o botão flutuante do rádio sobre o mapa.
+  bool get radioFabEnabled => _radioFabEnabled;
 
   String get dayStartedLabel {
     final start = _dayStartedAt;
@@ -177,6 +194,11 @@ class SettingsProvider extends ChangeNotifier {
       _renderQuality = RenderQuality.values[quality];
     }
     _trackingEnabled = prefs.getBool(_kTracking) ?? true;
+    _overlayOpacity = (prefs.getDouble(_kOverlayOpacity) ?? 0.92).clamp(0.3, 1.0);
+    final accent = prefs.getInt(_kOverlayAccent) ?? 0;
+    _overlayAccent =
+        (accent >= 0 && accent < kOverlayAccents.length) ? accent : 0;
+    _radioFabEnabled = prefs.getBool(_kRadioFab) ?? true;
     final dayStart = prefs.getInt(_kDayStartedAt);
     _dayStartedAt =
         dayStart == null ? null : DateTime.fromMillisecondsSinceEpoch(dayStart);
@@ -279,5 +301,30 @@ class SettingsProvider extends ChangeNotifier {
     _buildings3d = value;
     notifyListeners();
     await _setBool(_kBuildings3d, value);
+  }
+
+  /// Ajusta a transparência dos elementos flutuantes do mapa.
+  Future<void> setOverlayOpacity(double value) async {
+    _overlayOpacity = value.clamp(0.3, 1.0);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_kOverlayOpacity, _overlayOpacity);
+  }
+
+  /// Troca a cor de destaque dos painéis e da barra de ferramentas.
+  Future<void> setOverlayAccent(int index) async {
+    if (index < 0 || index >= kOverlayAccents.length) return;
+    _overlayAccent = index;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kOverlayAccent, index);
+  }
+
+  /// Liga ou desliga o botão flutuante do rádio no mapa.
+  Future<void> setRadioFabEnabled(bool value) async {
+    _radioFabEnabled = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kRadioFab, value);
   }
 }

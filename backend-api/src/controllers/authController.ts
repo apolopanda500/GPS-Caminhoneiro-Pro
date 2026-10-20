@@ -33,30 +33,42 @@ export class AuthController {
       res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
       return;
     }
+    const emailLimpo = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailLimpo)) {
+      res.status(400).json({ error: 'E-mail inválido.' });
+      return;
+    }
+    if (String(password).length < 6) {
+      res.status(400).json({ error: 'A senha precisa ter ao menos 6 caracteres.' });
+      return;
+    }
+    if (!mailerConfigured()) {
+      res.status(503).json({
+        error:
+          'Validação por e-mail indisponível no momento. Tente novamente mais tarde.',
+      });
+      return;
+    }
 
     const hash = crypto.createHash('sha256').update(password).digest('hex');
-    const id = 'drv_' + Math.random().toString(36).substring(2, 9);
+    const id = 'drv_' + crypto.randomUUID().replace(/-/g, '').substring(0, 16);
     const safeRole = role === 'ajudante' ? 'ajudante' : 'motorista';
-    const precisaVerificar = mailerConfigured();
 
     try {
       await this.db.query(
-        'INSERT INTO drivers (driver_id, email, password_hash, name, truck_height, truck_weight, role, help_type, email_verified) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-        [id, email, hash, name || '', height || 4.40, weight || 45.00, safeRole, helpType || null, precisaVerificar ? false : true]
+        'INSERT INTO drivers (driver_id, email, password_hash, name, truck_height, truck_weight, role, help_type, email_verified) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)',
+        [id, emailLimpo, hash, name || '', height || 4.40, weight || 45.00, safeRole, helpType || null]
       );
-      let emailSent = false;
-      if (precisaVerificar) {
-        emailSent = await this.issueCode(email, 'signup');
-      }
+      const emailSent = await this.issueCode(emailLimpo, 'signup');
       res.status(201).json({
         success: true,
         driverId: id,
         name,
         role: safeRole,
         helpType: helpType || null,
-        requiresVerification: precisaVerificar,
+        requiresVerification: true,
         emailSent,
-        smtpConfigured: mailerConfigured(),
+        smtpConfigured: true,
       });
     } catch (err: any) {
       if (err.code === '23505') {
@@ -93,7 +105,7 @@ export class AuthController {
         [email]
       );
       const result = await this.db.query(
-        'SELECT driver_id, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type FROM drivers WHERE email = $1',
+        'SELECT driver_id, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type FROM drivers WHERE email = $1',
         [email]
       );
       const d = result.rows[0] ?? {};
@@ -105,6 +117,8 @@ export class AuthController {
         truckPhotoUrl: d.truck_photo_url,
         truckModel: d.truck_model,
         cargoType: d.cargo_type,
+        role: d.role ?? 'motorista',
+        helpType: d.help_type,
       });
     } catch {
       res.status(500).json({ error: 'Erro ao validar o código.' });
@@ -143,16 +157,21 @@ export class AuthController {
 
     try {
       const result = await this.db.query(
-        'SELECT driver_id, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type, company_name, company_lat, company_lon, email_verified FROM drivers WHERE email = $1 AND password_hash = $2',
+        'SELECT driver_id, email, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type, company_name, company_lat, company_lon, email_verified FROM drivers WHERE email = $1 AND password_hash = $2',
         [email, hash]
       );
       if (result.rows.length === 0) {
         res.status(401).json({ error: 'E-mail ou senha inválidos.' });
         return;
       }
-      if (mailerConfigured() && result.rows[0].email_verified === false) {
+      if (result.rows[0].email_verified === false) {
+        const emailSent = await this.issueCode(
+          result.rows[0].email ?? email,
+          'login'
+        );
         res.status(403).json({
           requiresVerification: true,
+          emailSent,
           error: 'Confirme sua conta com o código enviado por e-mail.',
         });
         return;

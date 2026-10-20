@@ -26,11 +26,14 @@ class AudioProvider extends ChangeNotifier {
   bool estacaoLigada = true;
   bool radioTocando = false;
   String radioEstacao = '';
+  double _volume = 1.0;
+  bool _carregando = false;
   List<EstacaoRadio> _estacoes = [];
 
   List<EstacaoRadio> get estacoes => List.unmodifiable(_estacoes);
   bool get carregandoEstacoes => _carregando;
-  bool _carregando = false;
+  double get volume => _volume;
+  bool get radioAtivo => radioTocando;
 
   Future<void> carregarPreferencias() async {
     final prefs = await SharedPreferences.getInstance();
@@ -70,11 +73,22 @@ class AudioProvider extends ChangeNotifier {
   }
 
   /// Som de chegada (sino de estacao) na parada.
+  /// Se o radio estiver tocando, abaixa o volume (duck), toca o sino
+  /// e devolve o volume do radio em seguida.
   Future<void> tocarChegada() async {
     if (!estacaoLigada) return;
+    final salvarVolume = _radio.volume;
+    final radioAtivo = radioTocando;
+    try {
+      if (radioAtivo) await _radio.setVolume(0.2);
+    } catch (_) {}
     final p = AudioPlayer();
     try {
-      await p.setAsset('assets/audio/estacao.wav');
+      try {
+        await p.setAsset('assets/audio/estacao_custom.wav');
+      } catch (_) {
+        await p.setAsset('assets/audio/estacao.wav');
+      }
       await p.setVolume(0.9);
       await p.play();
       await p.playerStateStream
@@ -82,6 +96,11 @@ class AudioProvider extends ChangeNotifier {
           .timeout(const Duration(seconds: 6));
     } catch (_) {}
     await p.dispose();
+    if (radioAtivo) {
+      try {
+        await _radio.setVolume(salvarVolume <= 0 ? 1.0 : salvarVolume);
+      } catch (_) {}
+    }
   }
 
   Future<void> alternarEstacao(bool ligar) async {
@@ -118,6 +137,7 @@ class AudioProvider extends ChangeNotifier {
     try {
       await _player.stop();
       await _radio.setUrl(e.url);
+      await _radio.setVolume(_volume);
       await _radio.play();
       radioTocando = true;
       radioEstacao = e.nome;
@@ -129,10 +149,20 @@ class AudioProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> pararRadio() async {
-    await _radio.stop();
+  /// Volume do radio (0 a 1).
+  Future<void> setVolume(double value) async {
+    _volume = value.clamp(0.0, 1.0);
+    try {
+      await _radio.setVolume(_volume);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> pararRadio() async {    await _radio.stop();
+    await _radio.setVolume(_volume);
     radioTocando = false;
     radioEstacao = '';
+    if (musicaLigada) await tocarMusica();
     notifyListeners();
   }
 

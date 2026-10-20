@@ -1,6 +1,7 @@
 import { Client } from 'pg';
 import { SCHEMA_SQL } from '../db/schema';
 import { env } from '../config/env';
+import { mailerConfigured } from '../utils/mailer';
 
 export function splitStatements(sql: string): string[] {
   const statements: string[] = [];
@@ -61,8 +62,37 @@ export async function runMigrations(): Promise<void> {
   console.log('✅ Schema atualizado.');
 }
 
+/**
+ * Contas criadas enquanto o SMTP nao estava configurado nunca foram
+ * validadas de verdade. Quando o e-mail passa a funcionar, elas voltam a
+ * exigir confirmacao no proximo login.
+ */
+export async function backfillVerificacoes(): Promise<void> {
+  if (!mailerConfigured()) {
+    console.log('📧 SMTP ainda nao configurado: validacao real aguardando.');
+    return;
+  }
+  const client = new Client({
+    connectionString: env.databaseUrl,
+    ssl: env.requiresSsl ? { rejectUnauthorized: false } : undefined,
+  });
+  await client.connect();
+  try {
+    const result = await client.query(
+      `UPDATE drivers SET email_verified = FALSE
+       WHERE email_verified = TRUE AND verified_at IS NULL`
+    );
+    console.log(
+      `📧 Contas antigas sem validacao real: ${result.rowCount ?? 0}`
+    );
+  } finally {
+    await client.end();
+  }
+}
+
 if (require.main === module) {
   runMigrations()
+    .then(() => backfillVerificacoes())
     .then(() => process.exit(0))
     .catch((error) => {
       console.error('❌ Falha na migracao:', error instanceof Error ? error.message : error);

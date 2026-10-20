@@ -43,6 +43,10 @@ import 'package:gps_camioneiro_pro/views/map/widgets/chat_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/peer_profile_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_planner_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/radio_fab.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/draggable_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
@@ -88,6 +92,7 @@ class _MapScreenState extends State<MapScreen> {
 
   bool _is3d = false;
   bool _uiExpanded = true;
+  bool _alertsPanelClosed = false;
   bool _sideRailOpen = false;
   bool _railHidden = false;
   MapLayerMode _layerMode = MapLayerMode.satellite;
@@ -1697,6 +1702,15 @@ class _MapScreenState extends State<MapScreen> {
     RoutePlannerSheet.show(context, origin: _currentPosition);
   }
 
+  /// Radio digital: abre o player (agenda com volume e agora tocando).
+  void _abrirRadio() {
+    _gatePremium(PremiumFeature.radio, () => RadioSheet.open(context));
+  }
+
+  /// AGENTE B: ajudante acompanha a rede e envia sinais, mas nao monta rota.
+  bool get _isHelper =>
+      context.read<AuthProvider>().driver?.isHelper ?? false;
+
   void _abrirMenu() {
     MapMenuSheet.show(
       context,
@@ -1751,29 +1765,50 @@ class _MapScreenState extends State<MapScreen> {
               onConfirmNext: _confirmarEntregaAtual,
               onClose: () => context.read<RouteProvider>().clearRoute(),
             ),
-          if (ui && _activeAlerts.isNotEmpty)
-            Positioned(
-              top: 96,
-              left: _contentLeft,
-              right: 16,
-              child: _buildAlertsCard(),
-            ),
-          if (ui)
-            Positioned(
-              bottom: 96,
-              right: 16,
-              child: SpeedHUD(
-                speedKmh: _speedKmh,
-                limitKmh: _speedLimitKmh,
-                streetName: _streetName,
+          // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
+          if (ui && _activeAlerts.isNotEmpty && !_alertsPanelClosed)
+            DraggablePanel(
+              initial: Offset(_contentLeft, 96),
+              child: AlertsPanel(
+                alerts: List<AlertModel>.unmodifiable(_activeAlerts),
+                surface: overlaySurface(context),
+                accent: kEmergencyRed,
+                onClose: () => setState(() => _alertsPanelClosed = true),
               ),
             ),
+          // AGENTE B: botao flutuante do radio (liga/desliga nas Configuracoes).
+          if (ui && _settingsProvider?.radioFabEnabled != false)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return DraggablePanel(
+                initial: Offset(size.width - 70, size.height - 300),
+                child: RadioFab(
+                  surface: overlaySurface(context),
+                  accent: kEmergencyRed,
+                  onPressed: _abrirRadio,
+                ),
+              );
+            }),
+          if (ui)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return DraggablePanel(
+                initial: Offset(size.width - 220, size.height - 230),
+                child: SpeedHUD(
+                  speedKmh: _speedKmh,
+                  limitKmh: _speedLimitKmh,
+                  streetName: _streetName,
+                ),
+              );
+            }),
           if (ui && _peerTrucks.isNotEmpty)
-            Positioned(
-              bottom: 164,
-              right: 16,
-              child: _buildPeerBubble(),
-            ),
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return DraggablePanel(
+                initial: Offset(size.width - 200, size.height - 390),
+                child: _buildPeerBubble(),
+              );
+            }),
           if (ui)
             Positioned(
               left: 12,
@@ -1888,37 +1923,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildAlertsCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: overlaySurface(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: kEmergencyRed, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: _activeAlerts.take(4).map((alert) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                const Icon(Icons.warning, color: Colors.redAccent, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '[${alert.type.toUpperCase()}] ${alert.message ?? 'Sem mensagem'}',
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _railAction(IconData icon, String label, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -2020,11 +2024,12 @@ class _MapScreenState extends State<MapScreen> {
               ),
               const Divider(color: Colors.white12, height: 1),
               _railAction(Icons.settings, 'Tudo', _abrirMenu),
-              _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
+              // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
+              if (!_isHelper)
+                _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
               _railAction(Icons.add_location_alt, 'Sinalizar',
                   _abrirSinalizacoes),
-              _railAction(Icons.radio, 'Rádio',
-                  () => _gatePremium(PremiumFeature.radio, _openChatPanel)),
+              _railAction(Icons.radio, 'Rádio', _abrirRadio),
               _railAction(Icons.search, 'Buscar',
                   () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
               _railAction(Icons.gps_fixed, 'Aqui', _recentralizarNoCaminhao),

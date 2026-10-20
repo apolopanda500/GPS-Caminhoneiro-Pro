@@ -167,7 +167,7 @@ io.on('connection', (socket: Socket) => {
     });
   });
 
-  socket.on('share_route', (data: {
+  socket.on('share_route', async (data: {
     fromDriverId: string;
     fromName: string;
     routeJson: string;
@@ -177,6 +177,21 @@ io.on('connection', (socket: Socket) => {
     role?: string;
   }) => {
     if (!data?.routeJson) return;
+    try {
+      const driver = await db.query(
+        'SELECT role FROM drivers WHERE driver_id = $1',
+        [data.fromDriverId],
+      );
+      const role = driver.rows[0]?.role ?? data.role ?? 'motorista';
+      if (role === 'ajudante') {
+        socket.emit('route_share_error', {
+          error: 'Ajudantes acompanham as rotas, mas nao montam nem iniciam.',
+        });
+        return;
+      }
+    } catch {
+      // sem permissao de leitura, segue com o papel informado pelo cliente
+    }
     const payload = {
       ...data,
       timestamp: Date.now(),

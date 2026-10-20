@@ -116,6 +116,17 @@ export class GroupController {
     }
     const memberRole = VALID_ROLES.has(role) ? role : 'motorista';
     try {
+      const driver = await this.db.query(
+        'SELECT role FROM drivers WHERE driver_id = $1',
+        [driverId],
+      );
+      const dbRole = driver.rows[0]?.role ?? memberRole;
+      if (dbRole === 'ajudante') {
+        res.status(403).json({
+          error: 'Ajudantes acompanham as rotas, mas nao montam nem iniciam.',
+        });
+        return;
+      }
       const exists = await this.db.query('SELECT 1 FROM convoy_groups WHERE id = $1', [groupId]);
       if (exists.rowCount === 0) {
         res.status(404).json({ error: 'Grupo nao encontrado.' });
