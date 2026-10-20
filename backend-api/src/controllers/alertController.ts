@@ -13,14 +13,10 @@ export class AlertController {
 
     try {
       const result = await this.db.query(
-        `SELECT id, driver_id, alert_type, message, max_height_allowed, max_weight_allowed,
-                ST_X(geom) as lon, ST_Y(geom) as lat, created_at
-         FROM road_alerts
-         WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1::numeric, $2::numeric), 4326)::geography, $3::int)
-         ORDER BY created_at DESC`,
+        `SELECT id::text, driver_id, alert_type, message, max_height_allowed, max_weight_allowed, ST_X(geom) as lon, ST_Y(geom) as lat, created_at, ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint($1::numeric, $2::numeric), 4326)::geography) as distancia_m FROM road_alerts WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1::numeric, $2::numeric), 4326)::geography, $3::int) AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC`,
         [lon, lat, radius]
       );
-      res.json(result.rows);
+      const sinais = result.rows.map((r) => ({ id: r.id, driverId: r.driver_id, type: r.alert_type, message: r.message, maxHeight: r.max_height_allowed, maxWeight: r.max_weight_allowed, lat: parseFloat(r.lat), lon: parseFloat(r.lon), distanciaM: Math.round(parseFloat(r.distancia_m)), timestamp: new Date(r.created_at).getTime(), })); res.json(sinais);
     } catch {
       res.status(500).json({ error: 'Erro ao buscar alertas próximos.' });
     }
@@ -57,7 +53,7 @@ export class AlertController {
          ORDER BY created_at DESC LIMIT 100`,
         [lon, lat, radius]
       );
-      res.json(result.rows);
+      const sinais = result.rows.map((r) => ({ id: r.id, driverId: r.driver_id, type: r.alert_type, message: r.message, maxHeight: r.max_height_allowed, maxWeight: r.max_weight_allowed, lat: parseFloat(r.lat), lon: parseFloat(r.lon), distanciaM: Math.round(parseFloat(r.distancia_m)), timestamp: new Date(r.created_at).getTime(), })); res.json(sinais);
     } catch {
       res.status(500).json({ error: 'Erro ao buscar mensagens do chat.' });
     }

@@ -31,10 +31,20 @@
       maxWeight: _toDouble(json['maxWeight'] ?? json['max_weight_allowed']),
       latitude: _toDouble(json['latitude'] ?? json['lat']) ?? 0,
       longitude: _toDouble(json['longitude'] ?? json['lon']) ?? 0,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        json['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
-      ),
+      createdAt: _toDate(json['timestamp'] ?? json['created_at']),
     );
+  }
+
+  static DateTime _toDate(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    if (value is num) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    if (value is String) {
+      final epoch = int.tryParse(value);
+      if (epoch != null) return DateTime.fromMillisecondsSinceEpoch(epoch);
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    return DateTime.now();
   }
 
   static double? _toDouble(dynamic value) {

@@ -13,6 +13,7 @@ import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/group_provider.dart';
 import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/views/splash/splash_screen.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +27,9 @@ void main() {
   audio.tocadorEntrada = () => sons.tocar(SlotSom.entradaParada);
   audio.carregarPreferencias();
   sons.carregar();
+  // A voz abaixa o radio enquanto fala e devolve o volume depois.
+  VoiceService.instance.antesDeFalar = () => audio.abaixarRadio();
+  VoiceService.instance.depoisDeFalar = () => audio.restaurarRadio();
 
   runApp(
     MultiProvider(

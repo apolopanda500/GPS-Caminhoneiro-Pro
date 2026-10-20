@@ -22,6 +22,7 @@ class WeatherPanel extends StatefulWidget {
 
 class _WeatherPanelState extends State<WeatherPanel> {
   Timer? _timer;
+  bool _expandido = false;
 
   @override
   void initState() {
@@ -158,34 +159,47 @@ class _WeatherPanelState extends State<WeatherPanel> {
             Text('Sem dados de clima ainda.',
                 style: TextStyle(color: muted, fontSize: 12))
           else ...[
-            // Agora
-            Row(
-              children: [
-                Text(clima.emojiForCode(now.code),
+          // Agora
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _expandido = !_expandido),
+                child: Text(clima.emojiForCode(now.code),
                     style: const TextStyle(fontSize: 28)),
-                const SizedBox(width: 10),
-                Text('${now.tempC.toStringAsFixed(0)}°C',
-                    style: TextStyle(
-                        color: texto,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Vento ${now.windKmh.toStringAsFixed(0)} km/h',
-                          style: TextStyle(color: texto, fontSize: 12)),
-                      if (now.precipMm > 0)
-                        Text('Chuva ${now.precipMm.toStringAsFixed(1)} mm',
-                            style: TextStyle(color: muted, fontSize: 11)),
-                    ],
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Text('${now.tempC.toStringAsFixed(0)}°C',
+                  style: TextStyle(
+                      color: texto,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Vento ${now.windKmh.toStringAsFixed(0)} km/h',
+                        style: TextStyle(color: texto, fontSize: 12)),
+                    if (now.precipMm > 0)
+                      Text('Chuva ${now.precipMm.toStringAsFixed(1)} mm',
+                          style: TextStyle(color: muted, fontSize: 11)),
+                    GestureDetector(
+                      onTap: () => setState(() => _expandido = !_expandido),
+                      child: Text(
+                        _expandido
+                            ? 'Ocultar previsao'
+                            : 'Ver previsao (${dias.length} dias, ${horas.length}h)',
+                        style: TextStyle(
+                            color: overlayAccent(context), fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
             // Proximas horas
-            if (horas.isNotEmpty) ...[
+            if (_expandido && horas.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text('Próximas horas',
                   style: TextStyle(
@@ -234,7 +248,7 @@ class _WeatherPanelState extends State<WeatherPanel> {
               ),
             ],
             // Proximos dias
-            if (dias.isNotEmpty) ...[
+            if (_expandido && dias.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text('Previsão dos próximos dias',
                   style: TextStyle(

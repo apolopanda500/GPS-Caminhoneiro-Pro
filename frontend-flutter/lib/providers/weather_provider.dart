@@ -197,7 +197,7 @@ class WeatherProvider extends ChangeNotifier {
       _hours = [
         for (var i = 0; i < times.length; i++)
           WeatherHour(
-            time: DateTime.parse('${times[i]}Z').toLocal(),
+            time: _parseLocal(times[i] as String),
             tempC: _num(temps.length > i ? temps[i] : null) ?? 0,
             precipMm: _num(prec.length > i ? prec[i] : null) ?? 0,
             precipProb:
@@ -238,5 +238,12 @@ class WeatherProvider extends ChangeNotifier {
     if (v is num) return v.toDouble();
     if (v is String) return double.tryParse(v);
     return null;
+  }
+
+  /// A API devolve os horarios no fuso local (sem 'Z'): nao podemos tratar
+  /// como UTC, senao as horas ficam erradas em 3 horas.
+  static DateTime _parseLocal(String iso) {
+    final semZ = iso.endsWith('Z') ? iso.substring(0, iso.length - 1) : iso;
+    return DateTime.parse(semZ);
   }
 }

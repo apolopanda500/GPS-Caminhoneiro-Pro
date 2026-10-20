@@ -54,7 +54,7 @@ void main() {
 
   testWidgets('SplashScreen mostra marca e indicador', (tester) async {
     await tester.pumpWidget(_wrap(const SplashScreen()));
-    expect(find.text('GPS CAMIONEIRO PRO'), findsOneWidget);
+    expect(find.text('GPS CAMINHONEIRO PRO'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,12 @@ class AuthProvider extends ChangeNotifier {
   String? _pendingEmail;
   bool _requiresVerification = false;
   String? _token;
+  final Completer<void> _pronto = Completer<void>();
+
+  /// Completa quando a sessao salva foi lida do armazenamento.
+  /// A splash AGUARDA isso antes de decidir para onde ir (evita pedir login
+  /// toda vez que o app abre).
+  Future<void> get pronto => _pronto.future;
 
   DriverModel? get driver => _driver;
   bool get isAuthenticated => _driver != null;
@@ -39,13 +46,26 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString(_kToken);
       final raw = prefs.getString(_kSession);
-      if (raw == null) return;
-      _driver = DriverModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-      _connectSocket();
-      notifyListeners();
+      if (raw != null) {
+        _driver = DriverModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        _connectSocket();
+        notifyListeners();
+      }
     } catch (_) {
       // Sessão corrompida: ignora e começa deslogado.
+    } finally {
+      if (!_pronto.isCompleted) _pronto.complete();
     }
+  }
+
+  /// Garante que a sessao salva foi lida (usado pela splash).
+  /// Nunca bloqueia para sempre: se o armazenamento demorar, segue o fluxo.
+  Future<void> ensureLoaded() async {
+    if (_pronto.isCompleted) return;
+    await Future.any<void>([
+      _pronto.future,
+      Future<void>.delayed(const Duration(seconds: 2)),
+    ]);
   }
 
   Future<void> _persist() async {

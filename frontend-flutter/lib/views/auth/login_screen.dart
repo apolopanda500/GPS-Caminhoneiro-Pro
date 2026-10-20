@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/config/truck_setup_screen.dart';
@@ -19,6 +20,25 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Na tela de login a musica de entrada continua tocando.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        context.read<AudioProvider>().tocarMusica();
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

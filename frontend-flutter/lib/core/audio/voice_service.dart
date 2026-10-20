@@ -9,6 +9,11 @@ class VoiceService {
   bool _iniciado = false;
   bool ligada = true;
 
+  /// Chamado antes/depois de falar para abaixar o radio (duck) e devolver o
+  /// volume. Definido pelo app no main.dart.
+  Future<void> Function()? antesDeFalar;
+  Future<void> Function()? depoisDeFalar;
+
   Future<void> carregarPreferencia() async {
     final prefs = await SharedPreferences.getInstance();
     ligada = prefs.getBool('audio_voz') ?? true;
@@ -41,18 +46,42 @@ class VoiceService {
     await _garantir();
     if (!_iniciado) return;
     try {
+      await antesDeFalar?.call();
+    } catch (_) {}
+    try {
       await _tts.speak(texto);
+    } catch (_) {}
+    try {
+      await depoisDeFalar?.call();
     } catch (_) {}
   }
 
   /// "Chegou no ponto 1... chegou no ponto 2..." ate o ultimo cliente.
-  Future<void> chegadaNaParada(int numero, int total, {String? proxima}) async {
+  Future<void> chegadaNaParada(
+    int numero,
+    int total, {
+    String? proxima,
+    double? distanciaProximaKm,
+  }) async {
     final buf = StringBuffer();
     if (numero >= total) {
       buf.write('Rota concluída. Volte para a empresa.');
     } else {
-      buf.write(
-          'Chegou no ponto $numero de $total. ${proxima ?? 'A próxima parada está esperando por você.'}');
+      buf.write('Chegou no ponto $numero de $total. ');
+      if (proxima != null && proxima.trim().isNotEmpty) {
+        buf.write('Próxima parada: $proxima');
+        if (distanciaProximaKm != null && distanciaProximaKm > 0) {
+          if (distanciaProximaKm < 1) {
+            buf.write(', a menos de 1 quilômetro.');
+          } else {
+            buf.write(', a ${distanciaProximaKm.toStringAsFixed(1)} quilômetros.');
+          }
+        } else {
+          buf.write('.');
+        }
+      } else {
+        buf.write('A próxima parada está esperando por você.');
+      }
     }
     await falar(buf.toString());
   }

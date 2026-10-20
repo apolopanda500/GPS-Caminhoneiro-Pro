@@ -147,6 +147,11 @@ class _MapScreenState extends State<MapScreen> {
     _carregarEstilos();
     _initRealtimeSocket();
     _startLocationStream();
+    // No mapa a musica de entrada para (so toca no splash e no login).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<AudioProvider>().pararMusica();
+    });
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _atualizarMapaSeNecessario());
   }
@@ -214,7 +219,7 @@ class _MapScreenState extends State<MapScreen> {
             .map((e) => AlertModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
         setState(() {
-          _activeAlerts.addAll(alerts);
+          _adicionarAlerts(alerts);
         });
         _renderMarkers();
       }
@@ -223,9 +228,11 @@ class _MapScreenState extends State<MapScreen> {
     _socket.onReceiveAlertRealtime((data) {
       if (!mounted) return;
       final alert = AlertModel.fromJson(Map<String, dynamic>.from(data));
+      bool novo = false;
       setState(() {
-        _activeAlerts.add(alert);
+        novo = _adicionarAlerts([alert]);
       });
+      if (!novo) return;
       LocalCache.saveAlertCache(Map<String, dynamic>.from(data))
           .catchError((_) {});
       _dispararAlarme(alert.type);
@@ -459,9 +466,15 @@ class _MapScreenState extends State<MapScreen> {
         if (_center == _fallbackCenter) _center = newPos;
       });
       _socket.sendLocationUpdate(
-          lat: pos.latitude, lon: pos.longitude, driverId: widget.driverId);
+          lat: newPos.latitude, lon: newPos.longitude, driverId: widget.driverId);
       _validarEntregas(newPos);
       _verificarLimiteVelocidade(newPos, _speedKmh);
+      // Clima em tempo real: busca assim que o GPS define a posicao.
+      if (mounted) {
+        unawaited(context
+            .read<WeatherProvider>()
+            .refresh(lat: newPos.latitude, lon: newPos.longitude));
+      }
       if (isFirst) {
         _moverCamera(newPos, zoom: 15, bearing: 0, tilt: 0);
       } else {
@@ -1714,16 +1727,26 @@ class _MapScreenState extends State<MapScreen> {
       _showSnackBar('Entrega validada: ${route.nextStopLabel}');
       _renderMarkers();
       final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
-      unawaited(context.read<AudioProvider>().tocarChegada());
-      unawaited(VoiceService.instance
-          .chegadaNaParada(route.deliveredCount, total,
-              proxima: route.nextStopLabel.isEmpty
-                  ? null
-                  : 'A próxima parada é: ${route.nextStopLabel}.'));
+      // Sequencia da chegada: primeiro o SINO, depois a VOZ (com o radio
+      // abaixado) dizendo a proxima parada e a distancia.
+      unawaited(_tocarChegadaEVoz(route, total));
     }
     if (route.allDelivered && route.consumeCompletionEvent()) {
       _mostrarViagemConcluida(route.deliveredCount);
     }
+  }
+
+  /// Toca o sino da parada e depois fala (com o radio abaixado).
+  Future<void> _tocarChegadaEVoz(RouteProvider route, int total) async {
+    final audio = context.read<AudioProvider>();
+    await audio.tocarChegada();
+    if (!mounted) return;
+    await VoiceService.instance.chegadaNaParada(
+      route.deliveredCount,
+      total,
+      proxima: route.nextStopLabel.isEmpty ? null : route.nextStopLabel,
+      distanciaProximaKm: route.distanciaProximaParadaKm,
+    );
   }
 
   void _mostrarViagemConcluida(int entregas) {
@@ -2058,6 +2081,24 @@ class _MapScreenState extends State<MapScreen> {
       });
       _renderMarkers();
     } catch (_) {}
+  }
+
+  /// Adiciona sinais sem duplicar (por id) e limita a lista (evita inundacao
+  /// quando a varredura de proximidade reenvia os mesmos sinais a cada
+  /// atualizacao de posicao). Retorna true se algum sinal e novo.
+  bool _adicionarAlerts(List<AlertModel> novos) {
+    final existentes = _activeAlerts.map((a) => a.id).toSet();
+    var adicionou = false;
+    for (final a in novos) {
+      if (a.id.isEmpty || existentes.contains(a.id)) continue;
+      _activeAlerts.add(a);
+      existentes.add(a.id);
+      adicionou = true;
+    }
+    if (_activeAlerts.length > 60) {
+      _activeAlerts.removeRange(0, _activeAlerts.length - 60);
+    }
+    return adicionou;
   }
 
   void _dispararAlarme(String type) {
@@ -2522,25 +2563,6 @@ class _MapScreenState extends State<MapScreen> {
               handle: _buildPuxador('Ferramentas', Icons.build_outlined),
               child: _buildSideRail(),
             ),
-          if (ui)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'topo',
-                initial: Offset(size.width - 80, 44),
-                width: 56,
-                height: 200,
-                dragWholeChild: true,
-                minimizedChild: const Icon(Icons.tune, size: 20),
-                child: Column(
-                  children: [
-                    _buildCompass(),
-                    const SizedBox(height: 10),
-                    _buildCentralizar(),
-                  ],
-                ),
-              );
-            }),
         ],
       ),
     );
@@ -2584,55 +2606,66 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Bussola propria: fica logo abaixo do botao de modo e volta ao norte.
-  Widget _buildCompass() {
-    return Material(
-      color: _superficie(context),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () {
-          final target = _currentPosition ?? _center;
-          _moverCamera(target, zoom: _zoom, bearing: 0, tilt: _is3d ? 50 : 0);
-        },
-        child: Tooltip(
-          message: 'Voltar ao norte',
+  /// Abre o assistente (IA que le rota, alertas, limite e clima).
+  void _abrirAssistente() {
+    unawaited(_abrirAssistenteComContexto());
+  }
+
+  Future<void> _abrirAssistenteComContexto() async {
+    final pos = _currentPosition;
+    if (pos != null) {
+      await context
+          .read<WeatherProvider>()
+          .refresh(lat: pos.latitude, lon: pos.longitude);
+    }
+    if (!mounted) return;
+    AssistantSheet.show(
+      context,
+      snapshotAoVivo: () => {
+        'velocidade': '${_speedKmh.toStringAsFixed(0)} km/h agora'
+            '${_speedLimitKmh != null ? ' (limite $_speedLimitKmh km/h'
+                '${_speedKmh > _speedLimitKmh! + 8 ? ', excesso!' : ''})' : ''}',
+        'clima': _resumoClimaIA(),
+        'rua': _streetName ?? 'logradouro não identificado',
+      },
+    );
+  }
+
+  String _resumoClimaIA() {
+    try {
+      final clima = context.read<WeatherProvider>();
+      final n = clima.now;
+      final dicas = clima.dicasIA();
+      if (n == null) return 'sem informação de clima (sem rede/GPS)';
+      return '${clima.emojiForCode(n.code)} ${n.tempC.toStringAsFixed(0)}°C, '
+          'vento ${n.windKmh.toStringAsFixed(0)} km/h'
+          '${dicas.isNotEmpty ? ' | ${dicas.join(' | ')}' : ''}';
+    } catch (_) {
+      return 'clima indisponível';
+    }
+  }
+
+  /// Botao do assistente (IA) sobre o mapa.
+  Widget _buildAssistantButton() {
+    return Tooltip(
+      message: 'Assistente da estrada',
+      child: Material(
+        color: _superficie(context),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _abrirAssistente,
           child: Padding(
             padding: const EdgeInsets.all(10),
-            child: Transform.rotate(
-              angle: -_bearing * 3.1415926535 / 180,
-              child: Icon(Icons.navigation,
-                  color: overlayTextMuted(context), size: 20),
-            ),
+            child: Icon(Icons.auto_awesome,
+                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 22),
           ),
         ),
       ),
     );
   }
 
-  /// Botao dedicado: recentra a camera no caminhao (GPS).
-  Widget _buildCentralizar() {
-    return Material(
-      color: _superficie(context),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: _recentralizarNoCaminhao,
-        child: Tooltip(
-          message: 'Centralizar no caminhão',
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(
-              Icons.center_focus_strong,
-              color: overlayText(context),
-              size: 22,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
+  /// Troca a camada do mapa (satelite/ruas/3D).
   Future<void> _definirCamada(MapLayerMode novo) async {
     if (novo == MapLayerMode.detailed &&
         PremiumPolicy.isLocked(PremiumFeature.detailedMap,
@@ -2661,62 +2694,10 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  /// Botao do assistente: abre a conversa com o estado real do app.
-  Widget _buildAssistantButton() {
-    return Tooltip(
-      message: 'Assistente da estrada',
-      child: Material(
-        color: _superficie(context),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _abrirAssistente,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(Icons.auto_awesome,
-                color: _settingsProvider?.overlayColor ?? kEmergencyRed,
-                size: 22),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Abre o assistente (IA que le rota, alertas, limite e clima).
-  void _abrirAssistente() {
-    unawaited(_abrirAssistenteComContexto());
-  }
-
-  Future<void> _abrirAssistenteComContexto() async {
-    final pos = _currentPosition;
-    if (pos != null) {
-      await context.read<WeatherProvider>().refresh(lat: pos.latitude, lon: pos.longitude);
-    }
-    if (!mounted) return;
-    AssistantSheet.show(
-      context,
-      snapshotAoVivo: () => {
-        'velocidade': '${_speedKmh.toStringAsFixed(0)} km/h agora'
-            '${_speedLimitKmh != null ? ' (limite $_speedLimitKmh km/h'
-                '${_speedKmh > _speedLimitKmh! + 8 ? ', excesso!' : ''})' : ''}',
-        'clima': _resumoClimaIA(),
-        'rua': _streetName ?? 'logradouro não identificado',
-      },
-    );
-  }
-
-  String _resumoClimaIA() {
-    try {
-      final clima = context.read<WeatherProvider>();
-      final n = clima.now;
-      final dicas = clima.dicasIA();
-      if (n == null) return 'sem informação de clima (sem rede/GPS)';
-      return '${clima.emojiForCode(n.code)} ${n.tempC.toStringAsFixed(0)}°C, '
-          'vento ${n.windKmh.toStringAsFixed(0)} km/h'
-          '${dicas.isNotEmpty ? ' | ${dicas.join(' | ')}' : ''}';
-    } catch (_) {
-      return 'clima indisponível';
-    }
+  /// Volta a camera para o norte (bussola).
+  void _voltarAoNorte() {
+    final target = _currentPosition ?? _center;
+    _moverCamera(target, zoom: _zoom, bearing: 0, tilt: _is3d ? 50 : 0);
   }
 
   Widget _railAction(IconData icon, String label, VoidCallback onTap) {
@@ -2801,7 +2782,12 @@ class _MapScreenState extends State<MapScreen> {
             Divider(
                 color: overlayTextMuted(context).withValues(alpha: 0.18),
                 height: 1),
-            _railAction(Icons.settings, 'Tudo', _abrirMenu),
+              _railAction(Icons.settings, 'Tudo', _abrirMenu),
+              // AGENTE B: bussola e centralizar foram fundidos na barra
+              // (antes eram dois botoes flutuantes soltos na tela).
+              _railAction(Icons.explore, 'Bússola', _voltarAoNorte),
+              _railAction(Icons.center_focus_strong, 'Centralizar',
+                  _recentralizarNoCaminhao),
             // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
             if (!_isHelper)
               _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),

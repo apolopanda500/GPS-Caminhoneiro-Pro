@@ -101,6 +101,27 @@ class AudioProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Abaixa o radio (duck) enquanto a voz fala.
+  Future<void> abaixarRadio() async {
+    try {
+      if (radioTocando) await _radio.setVolume(0.15);
+    } catch (_) {}
+  }
+
+  /// Devolve o volume do radio depois da voz.
+  Future<void> restaurarRadio() async {
+    try {
+      if (radioTocando) await _radio.setVolume(_volume);
+    } catch (_) {}
+  }
+
+  /// Para a musica de entrada (usada so no splash e na tela de login).
+  Future<void> pararMusica() async {
+    try {
+      await _player.stop();
+    } catch (_) {}
+  }
+
   /// Callback que toca o som personalizado de entrada, quando houver.
   /// Retorna true se tocou (evitando o sino padrao).
   /// Definido em `main.dart` para amarrar os dois providers.

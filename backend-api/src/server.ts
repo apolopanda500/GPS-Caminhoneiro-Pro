@@ -132,6 +132,19 @@ io.on('connection', (socket: Socket) => {
       }
     } catch { console.error('Erro ao carregar perfil na entrada.'); }
     console.log(`📡 ${data.name} entrou na rede V2X.`);
+
+    // Envia os sinais ja existentes nas proximidades para o motorista que
+    // acabou de entrar (antes disso ele so via sinais novos em tempo real).
+    try {
+      const truck = activeTrucksNetwork.get(socket.id);
+      if (truck && truck.lat !== 0 && truck.lon !== 0) {
+        const scan = await db.query(
+          'SELECT * FROM verify_road_safety($1, $2, 5000)',
+          [truck.lon, truck.lat]
+        );
+        if (scan.rows.length > 0) socket.emit('road_validation_alerts', scan.rows);
+      }
+    } catch { console.error('Erro ao buscar sinais na entrada.'); }
   });
 
   socket.on('register_driver', (data: { driverId: string; isPremium?: boolean; role?: string }) => {
@@ -189,12 +202,19 @@ io.on('connection', (socket: Socket) => {
   socket.on('send_road_alert', async (alert: any) => {
     const driverId = (socket.data.driverId as string) || alert.driverId;
     try {
-      await db.query(
+      const resultado = await db.query(
         `INSERT INTO road_alerts (driver_id, alert_type, message, max_height_allowed, max_weight_allowed, geom)
-         VALUES ($1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($6, $7), 4326))`,
+         VALUES ($1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($6, $7), 4326))
+         RETURNING id, created_at`,
         [driverId, alert.type, alert.message || '', alert.maxHeight || null, alert.maxWeight || null, alert.lon, alert.lat]
       );
-      io.emit('receive_alert_realtime', { ...alert, driverId, id: Math.random().toString(36).substring(2, 9), timestamp: Date.now() });
+      const registro = resultado.rows[0];
+      io.emit('receive_alert_realtime', {
+        ...alert,
+        driverId,
+        id: registro.id,
+        timestamp: new Date(registro.created_at).getTime(),
+      });
     } catch { console.error('Erro salvar alerta.'); }
   });
 
@@ -362,6 +382,20 @@ connectDatabase().then(() => {
   httpServer.listen(env.port, () => {
     console.log(`🚀 Servidor GPS Caminhoneiro Pro rodando na porta ${env.port}`);
   });
+
+  // Remove sinais expirados (raio de 12h) de tempos em tempos para a tabela
+  // nao crescer e a varredura de proximidade continuar rapida.
+  const limparExpirados = async () => {
+    try {
+      const res = await db.query(
+        'DELETE FROM road_alerts WHERE expires_at IS NOT NULL AND expires_at < NOW()'
+      );
+      if ((res.rowCount ?? 0) > 0) {
+        console.log(`🧹 ${res.rowCount} sinais expirados removidos.`);
+      }
+    } catch { console.error('Erro ao limpar sinais expirados.'); }
+  };
+  setInterval(limparExpirados, 10 * 60 * 1000).unref();
 });
 
 process.on('SIGTERM', () => {

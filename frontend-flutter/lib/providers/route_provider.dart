@@ -181,6 +181,10 @@ class ScheduledRoute {
 class RouteProvider extends ChangeNotifier {
   static const Distance _distance = Distance();
 
+  /// Ultima posicao do caminhao conhecida (para calcular a distancia ate a
+  /// proxima parada e anunciar na voz).
+  LatLng? _ultimaPosicao;
+
   final DirectionsService _service;
   final List<RouteStopEntry> _stops = [];
   final Map<int, StopStatus> _status = {};
@@ -450,8 +454,17 @@ class RouteProvider extends ChangeNotifier {
     return null;
   }
 
-  String get nextStopLabel {
+  /// Distancia (em km) ate a proxima parada, quando houver.
+  double? get distanciaProximaParadaKm {
     final i = nextStopIndex;
+    if (i == null) return null;
+    final pos = _ultimaPosicao;
+    if (pos == null) return null;
+    final metros = _distance.as(LengthUnit.Meter, pos, _stops[i].point);
+    return metros / 1000;
+  }
+
+  String get nextStopLabel {    final i = nextStopIndex;
     if (i == null) return 'Rota concluÃ­da';
     final s = _stops[i];
     final who = s.customer.isNotEmpty ? s.customer : s.label;
@@ -535,6 +548,7 @@ class RouteProvider extends ChangeNotifier {
     DateTime? now,
   }) {
     if (_stops.isEmpty) return false;
+    _ultimaPosicao = position;
     final clock = now ?? DateTime.now();
     var changed = false;
     var delivered = false;
