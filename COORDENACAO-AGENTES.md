@@ -181,6 +181,12 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 01:50 A: grupos (comboios) completos no app: GroupProvider corrigido (headers auth),
+  GroupsSheet criado (meus/públicos, criar, entrar/sair, membros, switch estrito),
+  registrado no main.dart; filtro estrito nos peers do mapa; rota compartilhada vai
+  só ao grupo quando existir (shareRoute com groupId); socket onReceiveGroupInvite
+  com dialog de aceite; tap em marcador de emoji com Ocultar/Apagar; botão Grupos
+  no rail. flutter analyze: No issues; test 101/101.
 - 01:35 B: modo noturno nao escurece mais o mapa; botoes duplicados fundidos (fila #10-#12);
   confirmacoes reais; APK 3 instalado (c0aa6a0 no origin/main).
 - 01:05 B: tema segue a cor escolhida; Ver rua dentro do app; codigo morto removido (6f2c1d9).
