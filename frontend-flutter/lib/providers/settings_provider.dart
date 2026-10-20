@@ -39,6 +39,7 @@ class SettingsProvider extends ChangeNotifier {
   static const Duration mapUpdateInterval = Duration(hours: 12);
 
   bool _showFps = false;
+  bool _modoLeitura = false;
   int _targetFps = 60;
   MapLayerMode _layer = MapLayerMode.satellite;
   int _gpsIntervalSeconds = 2;
@@ -65,6 +66,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _loaded = false;
 
   bool get showFps => _showFps;
+  bool get modoLeitura => _modoLeitura;
   int get targetFps => _targetFps;
   MapLayerMode get layer => _layer;
   int get gpsIntervalSeconds => _gpsIntervalSeconds;
@@ -237,6 +239,13 @@ class SettingsProvider extends ChangeNotifier {
     _showFps = value;
     notifyListeners();
     await _setBool(_kShowFps, value);
+  }
+
+  /// Liga/desliga o modo de leitura acessivel (textos e toques maiores).
+  Future<void> setModoLeitura(bool value) async {
+    _modoLeitura = value;
+    notifyListeners();
+    await _setBool(_kModoLeitura, value);
   }
 
   Future<void> setTargetFps(int value) async {

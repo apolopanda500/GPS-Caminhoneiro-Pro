@@ -10,13 +10,15 @@ class OrientacaoLayout {
 
   /// True quando a tela esta mais larga que alta (paisagem).
   static bool ehPaisagem(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
+    final size = MediaQuery.of(context).size;
     return size.width > size.height;
   }
 
   /// Margem lateral usada pelos paineis (maior na paisagem).
-  static double margem(BuildContext context) =>
-      ehPaisagem(context) ? 24.0 : 16.0;
+  static double margem(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return size.width > size.height ? 24.0 : 16.0;
+  }
 
   /// Posicao inicial de um painel pela sua funcao e orientacao atual.
   ///
@@ -75,8 +77,8 @@ class OrientacaoLayout {
     required double larguraPainel,
     required double alturaPainel,
   }) {
-    final size = MediaQuery.sizeOf(context);
-    final recorte = MediaQuery.viewPaddingOf(context);
+    final size = MediaQuery.of(context).size;
+    final recorte = MediaQuery.of(context).padding;
     final minX = recorte.left + 4.0;
     final minY = recorte.top + 4.0;
     final maxX = (size.width - larguraPainel - recorte.right - 4.0)
@@ -109,9 +111,9 @@ class ModoLeitura {
   static Widget aplicar(BuildContext context, Widget filho,
       {required bool ativo}) {
     if (!ativo) return filho;
-    final base = MediaQuery.textScalerOf(context);
+    final base = MediaQuery.of(context).textScaler;
     final escala = base.scale(1.0) < escalaMinima
-        ? TextScaler.linear(escalaMinima)
+        ? const TextScaler.linear(escalaMinima)
         : base;
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: escala),

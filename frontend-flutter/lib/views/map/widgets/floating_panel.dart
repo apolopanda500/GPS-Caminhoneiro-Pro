@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:gps_camioneiro_pro/core/utils/orientacao_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Painel flutuante organizavel.
@@ -78,7 +80,14 @@ class _FloatingPanelState extends State<FloatingPanel> {
       final estado = prefs.getString(_chaveEstado);
       if (!mounted) return;
       setState(() {
-        if (x != null && y != null) _offset = Offset(x, y);
+        if (x != null && y != null) {
+          _offset = OrientacaoLayout.limitarTela(
+            context,
+            Offset(x, y),
+            larguraPainel: widget.width,
+            alturaPainel: widget.height,
+          );
+        }
         if (estado != null) {
           final partes = estado.split('|');
           _minimizado = partes.isNotEmpty && partes[0] == 'min';
@@ -102,8 +111,8 @@ class _FloatingPanelState extends State<FloatingPanel> {
   }
 
   void _arrastar(DragUpdateDetails d) {
-    final mq = MediaQuery.of(context).size;
     setState(() {
+      final mq = MediaQuery.of(context).size;
       _offset = Offset(
         (_offset.dx + d.delta.dx).clamp(-40.0, mq.width - 40.0),
         (_offset.dy + d.delta.dy).clamp(0.0, mq.height - 40.0),
