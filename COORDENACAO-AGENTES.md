@@ -29,6 +29,16 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **PROJETO FINALIZADO 10/10 (05:50, B)** — APK release 94,0 MB **assinado**
+  (SHA-1 `2F:AE:30:A2:...:83:34`) e **instalado no aparelho** (`Success`), rodando com o
+  mapa nativo e lendo os **sinais já migrados para o Supabase** no painel "Sinais da
+  estrada (2)" com conexão ao viva. Backend no Render com o banco do Supabase
+  (pooler IPv4) e o SSL do `pg` corrigido. Chaves testadas ao vivo: Gemini OK,
+  OpenRouteService OK, TomTom (Orbis + geocode) OK, Nominatim/Photon/ArcGIS OK.
+  Commits `8df76c2`, `9bc8c5a`, `55a57ed`, `b0558f1` — **tudo no origin/main**.
+- **Ficaram só 3 ações do USUÁRIO** (filas #14, #16, #17): trocar o `DATABASE_URL`
+  no Render para o pooler, copiar a `SUPABASE_SECRET_KEY` real e registrar os 2 SHA-1
+  da chave do Google no console. Nenhuma bloqueia o app.
 - **BANCO DE DADOS: MIGRADO para o Supabase (05:20, B)** — PostGIS 3.3 ativo, schema criado,
   dados copiados e conferidos (14 drivers / 4 alertas / 3 mensagens / 1 pagamento /
   44 códigos). O Render `gps-truck-postgis` **expira em 18/11/2026**. Falta só o USUÁRIO
