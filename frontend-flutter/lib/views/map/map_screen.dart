@@ -675,8 +675,9 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     await _addImageOnce('icon_alert', await MapIcons.alert());
+    final alertasSnapshot = List<AlertModel>.from(_activeAlerts);
     for (final a
-        in _activeAlerts.where((a) => a.latitude != 0 && a.longitude != 0)) {
+        in alertasSnapshot.where((a) => a.latitude != 0 && a.longitude != 0)) {
       await c.addSymbol(
         ml.SymbolOptions(
           geometry: ml.LatLng(a.latitude, a.longitude),
@@ -688,7 +689,8 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     if (showTrucks) {
-      for (final p in _peerTrucks) {
+      final peersSnapshot = List<Map<String, dynamic>>.from(_peerTrucks);
+    for (final p in peersSnapshot) {
         final lat = (p['lat'] as num?)?.toDouble();
         final lon = (p['lon'] as num?)?.toDouble();
         if (lat == null || lon == null || (lat == 0 && lon == 0)) continue;
@@ -1856,7 +1858,7 @@ class _MapScreenState extends State<MapScreen> {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
             Icon(icon, color: Colors.redAccent, size: 20),
