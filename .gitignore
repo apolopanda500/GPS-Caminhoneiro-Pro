@@ -16,6 +16,8 @@ frontend-flutter/android/key.properties
 frontend-flutter/android/app/upload-keystore.jks
 *.jks
 *.keystore
+backend-api/test-conn.js
+backend-api/_*.js
 
 # IDE
 .idea/

@@ -1,8 +1,9 @@
 ﻿import { Client } from 'pg';
 import { env } from './env';
+import { semSslMode } from '../utils/pg_url';
 
 export const db = new Client({
-  connectionString: env.databaseUrl,
+  connectionString: semSslMode(env.databaseUrl),
   ssl: env.requiresSsl ? { rejectUnauthorized: false } : undefined,
 });
 

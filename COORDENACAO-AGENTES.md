@@ -29,6 +29,16 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **BANCO DE DADOS: MIGRADO para o Supabase (05:20, B)** — PostGIS 3.3 ativo, schema criado,
+  dados copiados e conferidos (14 drivers / 4 alertas / 3 mensagens / 1 pagamento /
+  44 códigos). O Render `gps-truck-postgis` **expira em 18/11/2026**. Falta só o USUÁRIO
+  trocar o `DATABASE_URL` do serviço web no Render para a URI do pooler (ver fila #14).
+- Git: working tree do B com as correções de SSL do Postgres (`env.ts`, `database.ts`,
+  `migrate_data.ts`), `.env.example` e `.gitignore` — **pendente de commit/push**.
+- Checks: backend 29/29 + tsc OK + conexão real no Supabase OK (05:20);
+  Flutter analyze 0 issues e 168 testes verdes (04:30, A).
+- Fila #8 (Render SMTP Brevo + cartão Postgres): o SMTP Brevo **já está** no `.env`; o banco
+  agora é o Supabase (sem plano pago) — o Postgres do Render vira descartável.
 - Git: local main = `59ae8e4` + commit do B (2º turno) **pendente de push**; origin/main = `59ae8e4`
 - Working tree: B commitou `draggable_panel.dart` (persistencia de posicao) e `server.ts`
   (perfil dos peers no socket + cache de 60s); A pode seguir nas tarefas #3/#4/#5
@@ -59,6 +69,9 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 11 | Confirmação real nos botões do map_screen (usar `core/utils/confirm.dart`): limpar sinais, sair da conta, compartilhar rota, enviar sinal | B | ✅ feito 01:25 (c0aa6a0) |
 | 12 | 3D: deixar o botão de camada do mapa com os 3 modos e o 3D premium com o portão de premium | B | ✅ feito 01:25 (c0aa6a0) |
 | 13 | Modo noturno não escurece o mapa (só barras/botões) | B | ✅ feito 01:35 (c0aa6a0) |
+| 14 | Trocar `DATABASE_URL` do serviço web no Render para o pooler do Supabase (dados já migrados) | USUÁRIO | **pendente (05:20)** — ver Log de atos |
+| 15 | Commit/push do B: correções de SSL do Postgres (`env.ts`, `database.ts`, `migrate_data.ts`) + `.env.example` + `.gitignore` | B | pendente |
+| 16 | Copiar a `SUPABASE_SECRET_KEY` real no `.env` (hoje está com máscara `••••`) | USUÁRIO | pendente |
 
 ## Respostas do A (B leia)
 
@@ -227,6 +240,23 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   do usuário: SMTP Brevo + cartão do Postgres.
 
 ## Log de atos (append-only)
+
+- 05:20 B: **Migração do banco Render → Supabase (PostGIS) concluída e validada.**
+  Diagnóstico: o `DATABASE_URL` apontava para `db.*.supabase.co` (IPv6-only) → falha
+  `ENOTFOUND` em IPv4 (Render). A região correta é `us-east-1` e o acesso IPv4 é pelo
+  POOLER `aws-0-us-east-1.pooler.supabase.com:5432` com usuário `postgres.<ref>`.
+  PostGIS 3.3 + pgcrypto ATIVADOS no Supabase; schema criado; dados copiados e conferidos
+  (drivers 14, road_alerts 4, truck_messages 3, payments 1, verification_codes 44, resto 0).
+  `verify_road_safety` OK e geometrias preservadas. Bug de SSL corrigido no código: o
+  `sslmode=require` na URL fazia o `pg` validar a cadeia (`verify-full`) e falhar com
+  "self-signed certificate" → agora `env.ts` detecta host supabase.com, `database.ts` e
+  `migrate_data.ts` removem o `sslmode` da URL e aplicam TLS sem validar a cadeia.
+  Checks: backend 29/29, tsc OK, conexão real no Supabase OK.
+  **Pendente do USUÁRIO**: trocar no Render (Environment do serviço web) o `DATABASE_URL`
+  para `postgresql://postgres.zvuuymewijwoppgwmpqy:<senha>@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require`
+  (o banco `gps-truck-postgis` do Render expira em 18/11/2026 e pode ser apagado depois).
+  Também: `SUPABASE_SECRET_KEY` no .env está com a máscara `••••` — copiar a chave real
+  no dashboard (Project Settings → API Keys).
 
 - 03:40 A: chave Gemini do usuario inserida em keys.json (validada com 200 OK ao vivo);
   modelo padrao atualizado para gemini-3.1-flash-lite (gemini-2.0-flash aposentado pela

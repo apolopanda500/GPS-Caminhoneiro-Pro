@@ -2,6 +2,7 @@ import { Client } from 'pg';
 import { SCHEMA_SQL } from '../db/schema';
 import { env } from '../config/env';
 import { mailerConfigured } from '../utils/mailer';
+import { semSslMode } from '../utils/pg_url';
 
 export function splitStatements(sql: string): string[] {
   const statements: string[] = [];
@@ -32,7 +33,7 @@ export function splitStatements(sql: string): string[] {
 
 export async function runMigrations(): Promise<void> {
   const client = new Client({
-    connectionString: env.databaseUrl,
+    connectionString: semSslMode(env.databaseUrl),
     ssl: env.requiresSsl ? { rejectUnauthorized: false } : undefined,
   });
 
@@ -73,7 +74,7 @@ export async function backfillVerificacoes(): Promise<void> {
     return;
   }
   const client = new Client({
-    connectionString: env.databaseUrl,
+    connectionString: semSslMode(env.databaseUrl),
     ssl: env.requiresSsl ? { rejectUnauthorized: false } : undefined,
   });
   await client.connect();

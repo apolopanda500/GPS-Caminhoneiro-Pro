@@ -1,6 +1,9 @@
 import { Client as PgClient } from 'pg';
 import { SCHEMA_SQL } from '../db/schema';
 import { splitStatements } from './migrate';
+import { semSslMode } from '../utils/pg_url';
+import dotenv from 'dotenv';
+dotenv.config();
 
 /**
  * Copia os dados de um Postgres para outro (usado para migrar do Render
@@ -25,9 +28,11 @@ const TABELAS = [
 ];
 
 function sslDe(url: string) {
-  return /sslmode=require/i.test(url)
-    ? { rejectUnauthorized: false }
-    : undefined;
+  if (/sslmode=disable/i.test(url)) return undefined;
+  if (/sslmode=/i.test(url) || /supabase\.com/i.test(url)) {
+    return { rejectUnauthorized: false };
+  }
+  return undefined;
 }
 
 export async function migrarDados(
@@ -40,11 +45,11 @@ export async function migrarDados(
     );
   }
   const origem = new PgClient({
-    connectionString: sourceUrl,
+    connectionString: semSslMode(sourceUrl),
     ssl: sslDe(sourceUrl),
   });
   const destino = new PgClient({
-    connectionString: targetUrl,
+    connectionString: semSslMode(targetUrl),
     ssl: sslDe(targetUrl),
   });
 
