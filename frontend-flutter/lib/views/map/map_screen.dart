@@ -33,6 +33,7 @@ import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
 import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
+import 'package:gps_camioneiro_pro/providers/group_provider.dart';
 import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/utils/map_icons.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/report_dialog.dart';
@@ -47,6 +48,7 @@ import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_fab.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/draggable_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
@@ -262,6 +264,44 @@ class _MapScreenState extends State<MapScreen> {
       if (!mounted) return;
       _handleSharedRoute(Map<String, dynamic>.from(data));
     });
+
+    _socket.onReceiveGroupInvite((data) {
+      if (!mounted) return;
+      _abrirConviteGrupo(Map<String, dynamic>.from(data));
+    });
+  }
+
+  /// Convite de grupo recebido: Aceptar (entra via REST) ou ignorar.
+  void _abrirConviteGrupo(Map<String, dynamic> data) {
+    final groupId = data['groupId']?.toString() ?? '';
+    final groupName = data['groupName']?.toString() ?? 'grupo';
+    if (groupId.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Convite de grupo'),
+        content: Text(
+            '${data['fromName'] ?? 'Um caminhoneiro'} te convidou para o comboio "$groupName".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Ignorar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              final grupos = context.read<GroupProvider>();
+              grupos.join(
+                  groupId: groupId,
+                  driverId: widget.driverId,
+                  auth: context.read<AuthProvider>().authHeaders);
+              _showSnackBar('Entrando no grupo $groupName...');
+            },
+            child: const Text('Aceitar'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleSharedRoute(Map<String, dynamic> data) {
@@ -604,6 +644,17 @@ class _MapScreenState extends State<MapScreen> {
     final routeProvider = context.read<RouteProvider>();
     final route = routeProvider.result;
     final routeStops = routeProvider.stops;
+    final gruposFiltro = context.read<GroupProvider>();
+    final authHeadersFiltro = context.read<AuthProvider>().authHeaders;
+    Set<String>? permitidos;
+    if (gruposFiltro.estrito && gruposFiltro.temGrupos) {
+      permitidos = gruposFiltro.memberIds;
+      for (final g in gruposFiltro.mine) {
+        if (gruposFiltro.membersOf(g.id).isEmpty) {
+          gruposFiltro.loadMembers(groupId: g.id, auth: authHeadersFiltro);
+        }
+      }
+    }
 
     try {
       await c.clearSymbols();
@@ -702,6 +753,11 @@ class _MapScreenState extends State<MapScreen> {
         final lat = (p['lat'] as num?)?.toDouble();
         final lon = (p['lon'] as num?)?.toDouble();
         if (lat == null || lon == null || (lat == 0 && lon == 0)) continue;
+        if (permitidos != null) {
+          final pid = p['driverId']?.toString() ?? '';
+          if (pid == widget.driverId || pid.isEmpty) continue;
+          if (!permitidos.contains(pid)) continue;
+        }
         final helper = (p['role'] ?? 'motorista').toString() == 'ajudante';
         final emoji = (p['truckIcon'] ?? '🚚').toString();
         final photo = await _fotoDoMotorista(p);
@@ -1653,11 +1709,14 @@ class _MapScreenState extends State<MapScreen> {
       _showSnackBar('Adicione clientes antes de compartilhar a rota.');
       return;
     }
+    final grupos = context.read<GroupProvider>();
+    final grupo = grupos.mine.isEmpty ? null : grupos.mine.first;
     confirmarEExecutar(
       context,
       titulo: 'Compartilhar rota',
-      mensagem:
-          'Sua rota com ${route.totalStops} parada(s) sera enviada para os caminhoes da rede V2X.\n\nTodos veem onde voce esta e para onde vai.',
+      mensagem: grupo != null
+          ? 'Sua rota com ${route.totalStops} parada(s) sera enviada so para o grupo "${grupo.name}" (modo privado).\n\nSo caminhoneiros do grupo veem.'
+          : 'Sua rota com ${route.totalStops} parada(s) sera enviada para os caminhoes da rede V2X.\n\nTodos veem onde voce esta e para onde vai.',
       textoConfirmar: 'COMPARTILHAR',
       icone: Icons.share_location,
       acao: () async {
@@ -1665,8 +1724,11 @@ class _MapScreenState extends State<MapScreen> {
           fromDriverId: widget.driverId,
           fromName: widget.driverName,
           routeJson: route.exportRouteJson(),
+          groupId: grupo?.id,
         );
-        _showSnackBar('Rota compartilhada com os caminhões da rede.');
+        _showSnackBar(grupo != null
+            ? 'Rota compartilhada so com o grupo "${grupo.name}".'
+            : 'Rota compartilhada com os caminhões da rede.');
       },
     );
   }
@@ -2066,9 +2128,83 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Painel de grupos (comboios) + modo estrito de visibilidade.
+  void _abrirGrupos() {
+    final auth = context.read<AuthProvider>();
+    GroupsSheet.show(
+      context,
+      driverId: widget.driverId,
+      authHeaders: auth.authHeaders,
+    );
+  }
+
   void _mostrarInfoMarcador(MapMarkerModel m) {
-    _showSnackBar(
-        '${m.emoji} ${m.label ?? m.type} (segure no mapa para adicionar outro)');
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xF20E1216),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(m.emoji, style: const TextStyle(fontSize: 30)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      m.label ?? m.type,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Posicao: ${m.latitude.toStringAsFixed(4)}, ${m.longitude.toStringAsFixed(4)}',
+                style: const TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _markerProvider?.removeMarker(m.id);
+                      },
+                      icon: const Icon(Icons.visibility_off, size: 18),
+                      label: const Text('Ocultar'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _markerProvider?.removeMarker(m.id);
+                        _showSnackBar('Marcador apagado.');
+                      },
+                      icon: const Icon(Icons.delete_outline,
+                          size: 18, color: Colors.redAccent),
+                      label: const Text('Apagar',
+                          style: TextStyle(color: Colors.redAccent)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -2088,12 +2224,15 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final ui = _uiExpanded;
+    // O painel de rotas so aparece quando existe rota de verdade: painel
+    // vazio sobre o mapa so atrapalhava.
+    final totalParadas = context.watch<RouteProvider>().totalStops;
 
     return Scaffold(
       body: Stack(
         children: [
           _buildMapView(),
-          if (ui && !_routePanelClosed)
+          if (ui && !_routePanelClosed && totalParadas > 0)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
               return DraggablePanel(
@@ -2174,6 +2313,8 @@ class _MapScreenState extends State<MapScreen> {
                 _buildCompass(),
                 const SizedBox(height: 10),
                 _buildLayerToggle(),
+                const SizedBox(height: 10),
+                _buildCentralizar(),
               ],
             ),
           ),
@@ -2199,8 +2340,8 @@ class _MapScreenState extends State<MapScreen> {
             padding: const EdgeInsets.all(10),
             child: Transform.rotate(
               angle: -_bearing * 3.1415926535 / 180,
-              child:
-                  const Icon(Icons.navigation, color: Colors.white70, size: 20),
+              child: Icon(Icons.navigation,
+                  color: overlayTextMuted(context), size: 20),
             ),
           ),
         ),
@@ -2226,7 +2367,30 @@ class _MapScreenState extends State<MapScreen> {
           message: tooltip,
           child: Padding(
             padding: const EdgeInsets.all(10),
-            child: Icon(icone, color: Colors.white, size: 22),
+            child: Icon(icone, color: overlayText(context), size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Botao dedicado: recentra a camera no caminhao (GPS).
+  Widget _buildCentralizar() {
+    return Material(
+      color: _superficie(context),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _recentralizarNoCaminhao,
+        child: Tooltip(
+          message: 'Centralizar no caminhão',
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(
+              Icons.center_focus_strong,
+              color: overlayText(context),
+              size: 22,
+            ),
           ),
         ),
       ),
@@ -2285,7 +2449,7 @@ class _MapScreenState extends State<MapScreen> {
           message: tooltip,
           child: Padding(
             padding: const EdgeInsets.all(10),
-            child: Icon(icon, color: Colors.white, size: 22),
+            child: Icon(icon, color: overlayText(context), size: 22),
           ),
         ),
       ),
@@ -2293,19 +2457,22 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _railAction(IconData icon, String label, VoidCallback onTap) {
+    final corIcone =
+        _settingsProvider?.overlayColor ?? Theme.of(context).colorScheme.primary;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
-            Icon(icon, color: Colors.redAccent, size: 20),
+            Icon(icon, color: corIcone, size: 20),
             if (_sideRailOpen) ...[
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
                   label,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: TextStyle(
+                      color: overlayTextMuted(context), fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -2318,15 +2485,19 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildSideRail() {
     if (_railHidden) {
-      return Material(
-        color: _superficie(context),
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () => setState(() => _railHidden = false),
-          child: const Padding(
-            padding: EdgeInsets.all(12),
-            child: Icon(Icons.chevron_right, color: Colors.white70, size: 20),
+      return Tooltip(
+        message: 'Abrir barra de ferramentas',
+        child: Material(
+          color: _superficie(context),
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => setState(() => _railHidden = false),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Icon(Icons.chevron_right,
+                  color: overlayTextMuted(context), size: 20),
+            ),
           ),
         ),
       );
@@ -2369,35 +2540,46 @@ class _MapScreenState extends State<MapScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InkWell(
-                    onTap: () => setState(() => _sideRailOpen = !_sideRailOpen),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      child: Icon(
-                        _sideRailOpen
-                            ? Icons.chevron_left
-                            : Icons.chevron_right,
-                        color: Colors.white70,
-                        size: 20,
+                  Tooltip(
+                    message: _sideRailOpen ? 'Recolher' : 'Expandir',
+                    child: InkWell(
+                      onTap: () =>
+                          setState(() => _sideRailOpen = !_sideRailOpen),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        child: Icon(
+                          _sideRailOpen
+                              ? Icons.chevron_left
+                              : Icons.chevron_right,
+                          color: overlayTextMuted(context),
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
-                  InkWell(
-                    onTap: () => setState(() => _railHidden = true),
-                    child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      child: Icon(Icons.close, color: Colors.white70, size: 18),
+                  Tooltip(
+                    message: 'Minimizar barra',
+                    child: InkWell(
+                      onTap: () => setState(() => _railHidden = true),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        child: Icon(Icons.close,
+                            color: overlayTextMuted(context), size: 18),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const Divider(color: Colors.white12, height: 1),
+              Divider(
+                  color: overlayTextMuted(context).withValues(alpha: 0.18),
+                  height: 1),
               _railAction(Icons.settings, 'Tudo', _abrirMenu),
               // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
               if (!_isHelper)
                 _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
+              _railAction(Icons.group, 'Grupos', _abrirGrupos),
               _railAction(Icons.add_location_alt, 'Sinalizar',
                   _abrirSinalizacoes),
               // O radio ficou no botao flutuante e nas Configuracoes (sem duplicar).
@@ -2438,8 +2620,8 @@ class _MapScreenState extends State<MapScreen> {
                     const SizedBox(width: 6),
                     Text(
                       '${_peerTrucks.length} caminhões por perto',
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: overlayText(context),
                           fontSize: 12,
                           fontWeight: FontWeight.bold),
                     ),
@@ -2456,8 +2638,8 @@ class _MapScreenState extends State<MapScreen> {
                           },
                           child: Text(
                             '🚚 ${p['name'] ?? 'Caminhoneiro'}',
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12),
+                            style: TextStyle(
+                                color: overlayTextMuted(context), fontSize: 12),
                           ),
                         ),
                       ),

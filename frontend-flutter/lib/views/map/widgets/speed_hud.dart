@@ -57,7 +57,9 @@ class SpeedHUD extends StatelessWidget {
           Text(
             '${speedKmh.toStringAsFixed(0)} km/h',
             style: TextStyle(
-              color: _overLimit ? const Color(0xFFFF8A80) : Colors.white,
+              color: _overLimit
+                  ? const Color(0xFFFF5252)
+                  : overlayText(context),
               fontSize: 22,
               fontWeight: FontWeight.bold,
               fontFamily: 'monospace',
@@ -69,20 +71,20 @@ class SpeedHUD extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0x33000000),
+                color: overlayTextMuted(context).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: _overLimit
                       ? const Color(0xFFFF5252)
-                      : Colors.white24,
+                      : overlayTextMuted(context).withValues(alpha: 0.30),
                 ),
               ),
               child: Text(
                 'máx ${limit.toStringAsFixed(0)}',
                 style: TextStyle(
                   color: _overLimit
-                      ? const Color(0xFFFF8A80)
-                      : Colors.white70,
+                      ? const Color(0xFFFF5252)
+                      : overlayTextMuted(context),
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'monospace',

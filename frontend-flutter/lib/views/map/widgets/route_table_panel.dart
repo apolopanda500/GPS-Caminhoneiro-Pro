@@ -134,7 +134,8 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                       : '$entregues de $total concluídas${route != null ? ' • ${route.distanceKm.toStringAsFixed(1)} km' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  style: TextStyle(
+                      color: overlayTextMuted(context), fontSize: 11),
                 ),
               ],
             ),
@@ -142,13 +143,14 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
           IconButton(
             tooltip: 'Mostrar rota',
             iconSize: 18,
-            icon: const Icon(Icons.center_focus_strong, color: Colors.white70),
+            icon: Icon(Icons.center_focus_strong,
+                color: overlayTextMuted(context)),
             onPressed: widget.onShowRoute,
           ),
           IconButton(
             tooltip: 'Compartilhar rota',
             iconSize: 18,
-            icon: const Icon(Icons.share_location, color: Colors.white70),
+            icon: Icon(Icons.share_location, color: overlayTextMuted(context)),
             onPressed: widget.onShare,
           ),
           IconButton(
@@ -156,14 +158,14 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
             iconSize: 18,
             icon: Icon(
               _minimized ? Icons.expand_less : Icons.expand_more,
-              color: Colors.white70,
+              color: overlayTextMuted(context),
             ),
             onPressed: () => setState(() => _minimized = !_minimized),
           ),
           IconButton(
             tooltip: 'Fechar',
             iconSize: 18,
-            icon: const Icon(Icons.close, color: Colors.white54),
+            icon: Icon(Icons.close, color: overlayTextMuted(context)),
             onPressed: widget.onClose,
           ),
         ],
@@ -173,41 +175,45 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
 
   Widget _tabela(RouteProvider provider, List<RouteStopEntry> stops) {
     if (stops.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(18),
+      return Padding(
+        padding: const EdgeInsets.all(18),
         child: Text(
           'Monte a rota no botão "Rota" para ver a tabela de clientes aqui.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70, fontSize: 12),
+          style: TextStyle(color: overlayTextMuted(context), fontSize: 12),
         ),
       );
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           child: Row(
             children: [
               SizedBox(
                 width: 26,
                 child: Text('#',
-                    style: TextStyle(color: Colors.white54, fontSize: 10)),
+                    style: TextStyle(
+                        color: overlayTextMuted(context), fontSize: 10)),
               ),
               Expanded(
                 child: Text('CLIENTE',
-                    style: TextStyle(color: Colors.white54, fontSize: 10)),
+                    style: TextStyle(
+                        color: overlayTextMuted(context), fontSize: 10)),
               ),
               SizedBox(
                 width: 74,
                 child: Text('STATUS',
                     textAlign: TextAlign.right,
-                    style: TextStyle(color: Colors.white54, fontSize: 10)),
+                    style: TextStyle(
+                        color: overlayTextMuted(context), fontSize: 10)),
               ),
             ],
           ),
         ),
-        const Divider(color: Colors.white12, height: 1),
+        Divider(
+            color: overlayTextMuted(context).withValues(alpha: 0.18), height: 1),
         Flexible(
           child: ListView.builder(
             shrinkWrap: true,
@@ -238,7 +244,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   decoration: BoxDecoration(
                     color: isProximo
-                        ? Colors.white.withValues(alpha: 0.06)
+                        ? overlayTextMuted(context).withValues(alpha: 0.10)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -265,16 +271,17 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                                   : stop.label,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 12),
+                              style: TextStyle(
+                                  color: overlayText(context), fontSize: 12),
                             ),
                             if (stop.neighborhood.isNotEmpty)
                               Text(
                                 stop.neighborhood,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: Colors.white54, fontSize: 10),
+                                style: TextStyle(
+                                    color: overlayTextMuted(context),
+                                    fontSize: 10),
                               ),
                           ],
                         ),
