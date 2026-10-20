@@ -26,3 +26,6 @@ frontend-flutter/android/app/upload-keystore.jks
 *.aab
 hs_err_pid*.log
 .kotlin/
+
+# Backups de keystore (nunca versionar)
+*.jks.bak-*
