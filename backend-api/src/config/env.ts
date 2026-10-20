@@ -26,6 +26,7 @@ export const env = {
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || '',
   smtpSecure: process.env.SMTP_SECURE === 'true',
+  brevoApiKey: process.env.BREVO_API_KEY || '',
 
   // IA do assistente (opcional: sem chave, o assistente responde localmente).
   openaiApiKey: process.env.OPENAI_API_KEY || '',

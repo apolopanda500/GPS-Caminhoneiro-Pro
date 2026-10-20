@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
+
 class GeoResult {
   final String displayName;
   final double latitude;
@@ -19,8 +21,8 @@ class GeoResult {
       );
 }
 
-/// Busca de endereços/ruas usando o Nominatim (OpenStreetMap).
-/// Não requer chave; respeita a política de uso com User-Agent próprio.
+/// Busca de endereços/ruas: Nominatim (OpenStreetMap) e, se houver chave,
+/// TomTom Geocoding (resposta mais rapida e precisa).
 class GeocodingService {
   static const String _endpoint = 'https://nominatim.openstreetmap.org/search';
   static const String _userAgent =
@@ -29,6 +31,11 @@ class GeocodingService {
   Future<List<GeoResult>> search(String query, {int limit = 5}) async {
     final q = query.trim();
     if (q.isEmpty) return [];
+
+    if (AppConstants.trafficConfigured) {
+      final tomtom = await _searchTomTom(q, limit: limit);
+      if (tomtom.isNotEmpty) return tomtom;
+    }
 
     final uri = Uri.parse(_endpoint).replace(queryParameters: {
       'q': q,
@@ -48,6 +55,40 @@ class GeocodingService {
         .whereType<Map<String, dynamic>>()
         .map(GeoResult.fromJson)
         .toList(growable: false);
+  }
+
+  /// Geocoding do TomTom (usa a mesma chave de trafego/rotas).
+  Future<List<GeoResult>> _searchTomTom(String query, {int limit = 5}) async {
+    try {      final uri = Uri.https('api.tomtom.com', '/search/2/geocode/${Uri.encodeComponent(query)}.json', {
+        'key': AppConstants.tomTomTrafficApiKey,
+        'language': 'pt-BR',
+        'limit': '$limit',
+      });
+      final resp = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) return [];
+      final data =
+          jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? const [];
+      return results.whereType<Map<String, dynamic>>().map((r) {
+        final pos = (r['position'] as Map?)?.cast<String, dynamic>() ?? {};
+        final endereco = (r['address'] as Map?)?.cast<String, dynamic>() ?? {};
+        final nome = [
+          endereco['streetName'],
+          endereco['municipalitySubdivision'],
+          endereco['municipality'],
+          endereco['countrySubdivision'],
+        ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
+        return GeoResult(
+          displayName: nome.isEmpty
+              ? (r['freeformAddress']?.toString() ?? query)
+              : nome,
+          latitude: (pos['lat'] as num?)?.toDouble() ?? 0,
+          longitude: (pos['lon'] as num?)?.toDouble() ?? 0,
+        );
+      }).toList(growable: false);
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Contorno (anel externo) de um bairro/região para destacar no mapa.
