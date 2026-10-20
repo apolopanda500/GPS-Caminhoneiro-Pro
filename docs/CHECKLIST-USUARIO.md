@@ -144,6 +144,31 @@ Depois eu rodo o backup e confirmo que está tudo lá.
 > migração é feita depois. Mas o free apaga os dados nessa data, então o
 > passo 2 é o que garante não perder nada.
 
+### ✅ Feito em 20/10/2026 (Supabase)
+
+O banco já é o **Supabase** (`zvuuymewijwoppgwmpqy`, região `us-east-1`).
+PostGIS 3.3 e pgcrypto ativados, schema criado e dados conferidos
+(14 drivers, 4 alertas, 3 mensagens, 1 pagamento, 44 códigos de verificação).
+O Postgres do Render vira descartável depois da troca.
+
+**Detalhe importante — use sempre o POOLER, nunca o host direto:**
+o host `db.zvuuymewijwoppgwmpqy.supabase.co` é **IPv6-only** e falha em
+IPv4 (que é o caso do Render) com `ENOTFOUND`. A URL que funciona é:
+
+```
+postgresql://postgres.zvuuymewijwoppgwmpqy:<senha>@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+O `?sslmode=require` pode ficar na URL: o backend remove o parâmetro e aplica
+TLS sem validar a cadeia (o pooler usa certificado próprio e o `pg` trataria
+`require` como `verify-full`, que falha).
+
+**Falta só você** (fila #14 no COORDENACAO-AGENTES.md): no Render →
+`gps-truck-backend` → *Environment* → `DATABASE_URL` = a URL do pooler acima →
+salvar. O redeploy é automático e o app passa a usar o banco que não expira.
+
+Depois disso o banco `gps-truck-postgis` do Render pode ser apagado à vontade.
+
 ---
 
 ## 5) IA do assistente (opcional)

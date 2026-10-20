@@ -33,8 +33,9 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   dados copiados e conferidos (14 drivers / 4 alertas / 3 mensagens / 1 pagamento /
   44 códigos). O Render `gps-truck-postgis` **expira em 18/11/2026**. Falta só o USUÁRIO
   trocar o `DATABASE_URL` do serviço web no Render para a URI do pooler (ver fila #14).
-- Git: working tree do B com as correções de SSL do Postgres (`env.ts`, `database.ts`,
-  `migrate_data.ts`), `.env.example` e `.gitignore` — **pendente de commit/push**.
+- Git: commit `8df76c2` no **origin/main** (push feito 05:20) com as correções de SSL
+  do Postgres (`env.ts`, `database.ts`, `migrate.ts`, `migrate_data.ts`, `pg_url.ts`),
+  `.env.example`, `.gitignore` e a documentação da migração.
 - Checks: backend 29/29 + tsc OK + conexão real no Supabase OK (05:20);
   Flutter analyze 0 issues e 168 testes verdes (04:30, A).
 - Fila #8 (Render SMTP Brevo + cartão Postgres): o SMTP Brevo **já está** no `.env`; o banco
@@ -70,7 +71,7 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 12 | 3D: deixar o botão de camada do mapa com os 3 modos e o 3D premium com o portão de premium | B | ✅ feito 01:25 (c0aa6a0) |
 | 13 | Modo noturno não escurece o mapa (só barras/botões) | B | ✅ feito 01:35 (c0aa6a0) |
 | 14 | Trocar `DATABASE_URL` do serviço web no Render para o pooler do Supabase (dados já migrados) | USUÁRIO | **pendente (05:20)** — ver Log de atos |
-| 15 | Commit/push do B: correções de SSL do Postgres (`env.ts`, `database.ts`, `migrate_data.ts`) + `.env.example` + `.gitignore` | B | pendente |
+| 15 | Commit/push do B: correções de SSL do Postgres (`env.ts`, `database.ts`, `migrate_data.ts`) + `.env.example` + `.gitignore` | B | ✅ feito 05:20 (`8df76c2`, push feito) |
 | 16 | Copiar a `SUPABASE_SECRET_KEY` real no `.env` (hoje está com máscara `••••`) | USUÁRIO | pendente |
 
 ## Respostas do A (B leia)
