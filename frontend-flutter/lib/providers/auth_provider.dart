@@ -281,6 +281,51 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Envia foto pessoal (avatar) ou foto do caminhao como dataURL base64.
+  /// [dataUrl] já vem pronto (ex.: `data:image/jpeg;base64,...`).
+  Future<bool> uploadPhotoUrl({
+    required String dataUrl,
+    String kind = 'avatar',
+  }) async {
+    final d = _driver;
+    if (d == null) return false;
+    _driver = DriverModel(
+      driverId: d.driverId,
+      email: d.email,
+      name: d.name,
+      isPremium: d.isPremium,
+      truckHeight: d.truckHeight,
+      truckWeight: d.truckWeight,
+      axleCount: d.axleCount,
+      hazmat: d.hazmat,
+      avatarUrl: kind == 'truck' ? d.avatarUrl : dataUrl,
+      truckPhotoUrl: kind == 'truck' ? dataUrl : d.truckPhotoUrl,
+      truckModel: d.truckModel,
+      cargoType: d.cargoType,
+      truckIcon: d.truckIcon,
+      role: d.role,
+      helpType: d.helpType,
+      companyName: d.companyName,
+      companyLat: d.companyLat,
+      companyLon: d.companyLon,
+    );
+    await _persist();
+    notifyListeners();
+    if (!AppConstants.serverConfigured) return true;
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/auth/photo'),
+            headers: authHeaders,
+            body: jsonEncode({'data': dataUrl, 'kind': kind}),
+          )
+          .timeout(const Duration(seconds: 15));
+      return resp.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Atualiza o perfil no servidor (empresa, modelo, foto, etc).
   Future<bool> updateProfile({
     String? name,

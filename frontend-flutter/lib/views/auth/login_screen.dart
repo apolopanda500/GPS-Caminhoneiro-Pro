@@ -43,20 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
               const Icon(Icons.local_shipping,
                   size: 80, color: kEmergencyRed),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'GPS Caminhoneiro Pro',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Entrar',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 32),
               TextField(

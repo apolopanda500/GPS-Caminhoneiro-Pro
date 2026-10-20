@@ -1,4 +1,8 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
@@ -17,6 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _truckModel;
   late final TextEditingController _cargoType;
   late String _icon;
+  bool _salvandoFoto = false;
 
   @override
   void initState() {
@@ -26,6 +31,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _truckModel = TextEditingController(text: d?.truckModel ?? '');
     _cargoType = TextEditingController(text: d?.cargoType ?? '');
     _icon = d?.truckIcon ?? AppConstants.truckIcons.first;
+  }
+
+  /// Abre seletor de foto (galeria ou câmera) e envia via dataURL.
+  Future<void> _escolherFoto(String kind) async {
+    if (_salvandoFoto) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthProvider>();
+    setState(() => _salvandoFoto = true);
+    try {
+      final origem = await showModalBottomSheet<ImageSource>(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Escolher da galeria'),
+                onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Tirar foto'),
+                onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (origem == null || !mounted) return;
+      final picker = ImagePicker();
+      final x = await picker.pickImage(
+        source: origem,
+        maxWidth: 512,
+        imageQuality: 70,
+      );
+      if (x == null || !mounted) return;
+      final bytes = await File(x.path).readAsBytes();
+      if (bytes.length > 640000) {
+        messenger.showSnackBar(const SnackBar(
+            content: Text('Foto grande demais. Tente outra menor.')));
+        return;
+      }
+      final dataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final ok = await auth.uploadPhotoUrl(dataUrl: dataUrl, kind: kind);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+            ok ? 'Foto atualizada!' : 'Foto salva localmente (sem servidor).'),
+      ));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Não foi possível carregar a foto.')));
+      }
+    } finally {
+      if (mounted) setState(() => _salvandoFoto = false);
+    }
   }
 
   @override
@@ -91,19 +157,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           Center(
-            child: Container(
-              width: 96,
-              height: 96,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: premium ? Colors.amber.shade700 : theme.colorScheme.primary,
-                  width: 2,
+            child: Stack(
+              children: [
+                Container(
+                  width: 96,
+                  height: 96,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: premium
+                          ? Colors.amber.shade700
+                          : theme.colorScheme.primary,
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: (driver?.avatarUrl ?? '').isNotEmpty
+                        ? Image.network(
+                            driver!.avatarUrl!,
+                            width: 92,
+                            height: 92,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                Text(_icon, style: const TextStyle(fontSize: 46)),
+                          )
+                        : Text(_icon, style: const TextStyle(fontSize: 46)),
+                  ),
                 ),
-              ),
-              child: Text(_icon, style: const TextStyle(fontSize: 46)),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: InkWell(
+                    onTap: _salvandoFoto
+                        ? null
+                        : () => _escolherFoto('avatar'),
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _salvandoFoto
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.photo_camera,
+                              size: 18, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: TextButton.icon(
+              onPressed:
+                  _salvandoFoto ? null : () => _escolherFoto('truck'),
+              icon: const Icon(Icons.add_a_photo_outlined, size: 16),
+              label: const Text('Foto do caminhão'),
             ),
           ),
           const SizedBox(height: 12),

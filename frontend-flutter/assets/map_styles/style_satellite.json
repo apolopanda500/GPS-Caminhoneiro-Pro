@@ -11,14 +11,23 @@
       "maxzoom": 19,
       "attribution": "Esri World Imagery"
     },
-    "labels": {
+    "esri-nomes": {
       "type": "raster",
       "tiles": [
-        "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png"
+        "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
       ],
       "tileSize": 256,
       "maxzoom": 19,
-      "attribution": "© CARTO © OpenStreetMap"
+      "attribution": "Esri Reference (nomes)"
+    },
+    "esri-vias": {
+      "type": "raster",
+      "tiles": [
+        "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+      ],
+      "tileSize": 256,
+      "maxzoom": 19,
+      "attribution": "Esri Transportation (vias)"
     }
   },
   "layers": [
@@ -34,9 +43,15 @@
       "paint": { "raster-fade-duration": 150 }
     },
     {
-      "id": "street-labels",
+      "id": "esri-vias-overlay",
       "type": "raster",
-      "source": "labels",
+      "source": "esri-vias",
+      "paint": { "raster-opacity": 0.9, "raster-fade-duration": 200 }
+    },
+    {
+      "id": "esri-nomes-overlay",
+      "type": "raster",
+      "source": "esri-nomes",
       "paint": { "raster-opacity": 0.9, "raster-fade-duration": 200 }
     }
   ]

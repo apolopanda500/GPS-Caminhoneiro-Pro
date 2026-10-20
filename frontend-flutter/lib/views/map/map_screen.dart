@@ -50,7 +50,7 @@ import 'package:gps_camioneiro_pro/views/map/widgets/assistant_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_fab.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/draggable_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
@@ -99,8 +99,11 @@ class _MapScreenState extends State<MapScreen> {
   bool _uiExpanded = true;
   bool _alertsPanelClosed = false;
   bool _routePanelClosed = false;
+  bool _chatAberto = false;
+  String? _chatPeerName;
+  String? _chatPeerId;
   bool _sideRailOpen = false;
-  bool _railHidden = false;
+
   MapLayerMode _layerMode = MapLayerMode.satellite;
   final SpeedLimitService _speedLimitService = SpeedLimitService();
   int? _speedLimitKmh;
@@ -111,9 +114,7 @@ class _MapScreenState extends State<MapScreen> {
   bool get _isSatellite => _layerMode == MapLayerMode.satellite;
   bool get _isDetailed => _layerMode == MapLayerMode.detailed;
 
-  double get _railWidth => _railHidden ? 0 : (_sideRailOpen ? 168 : 56);
-
-  double get _contentLeft => _railHidden ? 16 : 12 + _railWidth + 10;
+  double get _contentLeft => 16;
   bool _settingsApplied = false;
   MapLayerMode? _appliedLayer;
   bool _peerBubbleOpen = false;
@@ -647,6 +648,8 @@ class _MapScreenState extends State<MapScreen> {
     final routeStops = routeProvider.stops;
     final gruposFiltro = context.read<GroupProvider>();
     final authHeadersFiltro = context.read<AuthProvider>().authHeaders;
+    final minhaFotoUrl = context.read<AuthProvider>().driver?.truckPhotoUrl;
+    final meuAvatarUrl = context.read<AuthProvider>().driver?.avatarUrl;
     Set<String>? permitidos;
     if (gruposFiltro.estrito && gruposFiltro.temGrupos) {
       permitidos = gruposFiltro.memberIds;
@@ -784,12 +787,22 @@ class _MapScreenState extends State<MapScreen> {
 
     final me = _currentPosition;
     if (me != null) {
+      final minhaFoto = await _fotoDoMotorista(<String, dynamic>{
+        'truckPhotoUrl': minhaFotoUrl,
+        'avatarUrl': meuAvatarUrl,
+      });
+      String imgNameMe = 'icon_me';
+      if (minhaFoto != null) {
+        imgNameMe = 'icon_me_foto';
+        await _addImageOnce(
+            imgNameMe, await MapIcons.photoBadge(minhaFoto, helper: false, mine: true));
+      }
       await _addImageOnce(
           'icon_me', await MapIcons.truckIcon(_truckIcon, mine: true));
       await c.addSymbol(
         ml.SymbolOptions(
           geometry: ml.LatLng(me.latitude, me.longitude),
-          iconImage: 'icon_me',
+          iconImage: imgNameMe,
           iconSize: 0.55,
         ),
         {'kind': 'me'},
@@ -1083,30 +1096,13 @@ class _MapScreenState extends State<MapScreen> {
   LatLng get _reportPoint => _currentPosition ?? _center;
 
   void _openChatPanel({String? peerName, String? peerDriverId}) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _superficie(context),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => ChatPanel(
-        driverId: widget.driverId,
-        driverName: widget.driverName,
-        messages: _chatMessages,
-        peerName: peerName,
-        onSend: (message) {
-          final pos = _reportPoint;
-          _socket.sendChatMessage(
-            driverId: widget.driverId,
-            driverName: widget.driverName,
-            message: message,
-            lat: pos.latitude,
-            lon: pos.longitude,
-            targetDriverId: peerDriverId,
-          );
-        },
-      ),
-    );
+    // O chat virou um painel flutuante do mapa (arrastavel, minimizavel e
+    // ocultavel) em vez de uma folha modal que travava o app.
+    setState(() {
+      _chatAberto = true;
+      _chatPeerName = peerName;
+      _chatPeerId = peerDriverId;
+    });
   }
 
   /// Envia minha posição atual pela rede para quem estiver perto.
@@ -1263,7 +1259,7 @@ class _MapScreenState extends State<MapScreen> {
         onSendReaction: (emoji) {
           _socket.sendTruckReaction(
             fromName: widget.driverName,
-            targetDriverId: peer['driverId'],
+            targetDriverId: peer['driverId']?.toString() ?? '',
             emoji: emoji,
           );
           Navigator.pop(sheetContext);
@@ -2142,69 +2138,68 @@ class _MapScreenState extends State<MapScreen> {
   void _mostrarInfoMarcador(MapMarkerModel m) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xF20E1216),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(m.emoji, style: const TextStyle(fontSize: 30)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      m.label ?? m.type,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold),
+      builder: (sheetContext) {
+        final tema = Theme.of(sheetContext);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(m.emoji, style: const TextStyle(fontSize: 30)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        m.label ?? m.type,
+                        style: tema.textTheme.titleMedium,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Posicao: ${m.latitude.toStringAsFixed(4)}, ${m.longitude.toStringAsFixed(4)}',
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        _markerProvider?.removeMarker(m.id);
-                      },
-                      icon: const Icon(Icons.visibility_off, size: 18),
-                      label: const Text('Ocultar'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Posicao: ${m.latitude.toStringAsFixed(4)}, ${m.longitude.toStringAsFixed(4)}',
+                  style: tema.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _markerProvider?.removeMarker(m.id);
+                        },
+                        icon: const Icon(Icons.visibility_off, size: 18),
+                        label: const Text('Ocultar'),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        _markerProvider?.removeMarker(m.id);
-                        _showSnackBar('Marcador apagado.');
-                      },
-                      icon: const Icon(Icons.delete_outline,
-                          size: 18, color: Colors.redAccent),
-                      label: const Text('Apagar',
-                          style: TextStyle(color: Colors.redAccent)),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _markerProvider?.removeMarker(m.id);
+                          _showSnackBar('Marcador apagado.');
+                        },
+                        icon: Icon(Icons.delete_outline,
+                            size: 18, color: tema.colorScheme.error),
+                        label: Text('Apagar',
+                            style: TextStyle(color: tema.colorScheme.error)),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2233,12 +2228,45 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           _buildMapView(),
+          if (ui && _chatAberto)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return FloatingPanel(
+                id: 'chat',
+                initial: Offset(size.width - 340, size.height - 520),
+                width: 320,
+                height: 420,
+                minimizedChild: const Icon(Icons.chat_bubble_outline, size: 20),
+                handle: _buildPuxador('Chat da via', Icons.chat_bubble_outline),
+                child: ChatPanel(
+                  driverId: widget.driverId,
+                  driverName: widget.driverName,
+                  messages: _chatMessages,
+                  peerName: _chatPeerName,
+                  onSend: (message) {
+                    final pos = _reportPoint;
+                    _socket.sendChatMessage(
+                      driverId: widget.driverId,
+                      driverName: widget.driverName,
+                      message: message,
+                      lat: pos.latitude,
+                      lon: pos.longitude,
+                      targetDriverId: _chatPeerId,
+                    );
+                  },
+                ),
+              );
+            }),
           if (ui && !_routePanelClosed && totalParadas > 0)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
-              return DraggablePanel(
+              return FloatingPanel(
                 id: 'route',
                 initial: Offset(size.width - 360, 96),
+                width: 320,
+                height: 240,
+                minimizedChild: const Icon(Icons.table_rows, size: 20),
+                handle: _buildPuxador('Tabela de rotas', Icons.table_rows),
                 child: RouteTablePanel(
                   onShowRoute: _mostrarRota,
                   onShare: _compartilharRota,
@@ -2251,13 +2279,17 @@ class _MapScreenState extends State<MapScreen> {
             }),
           // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
           if (ui && _activeAlerts.isNotEmpty && !_alertsPanelClosed)
-            DraggablePanel(
+            FloatingPanel(
               id: 'alerts',
               initial: Offset(_contentLeft, 96),
+              width: 300,
+              height: 200,
+              minimizedChild: const Icon(Icons.warning_amber_rounded, size: 20),
+              handle: _buildPuxador('Sinais', Icons.warning_amber_rounded),
               child: AlertsPanel(
                 alerts: List<AlertModel>.unmodifiable(_activeAlerts),
                 surface: _superficie(context),
-                  accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
+                accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
                 onClose: () => setState(() => _alertsPanelClosed = true),
               ),
             ),
@@ -2265,9 +2297,13 @@ class _MapScreenState extends State<MapScreen> {
           if (ui && _settingsProvider?.radioFabEnabled != false)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
-              return DraggablePanel(
+              return FloatingPanel(
                 id: 'radio',
                 initial: Offset(size.width - 70, size.height - 300),
+                width: 56,
+                height: 56,
+                dragWholeChild: true,
+                minimizedChild: const Icon(Icons.radio_outlined, size: 20),
                 child: RadioFab(
                   surface: _superficie(context),
                   accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
@@ -2279,18 +2315,25 @@ class _MapScreenState extends State<MapScreen> {
           if (ui)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
-              return DraggablePanel(
+              return FloatingPanel(
                 id: 'assistant',
                 initial: Offset(size.width - 70, size.height - 380),
+                width: 56,
+                height: 56,
+                dragWholeChild: true,
+                minimizedChild: const Icon(Icons.auto_awesome, size: 20),
                 child: _buildAssistantButton(),
               );
             }),
           if (ui)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
-              return DraggablePanel(
+              return FloatingPanel(
                 id: 'speed_hud',
                 initial: Offset(size.width - 220, size.height - 230),
+                width: 200,
+                height: 90,
+                minimizedChild: const Icon(Icons.speed, size: 20),
                 child: SpeedHUD(
                   speedKmh: _speedKmh,
                   limitKmh: _speedLimitKmh,
@@ -2301,34 +2344,86 @@ class _MapScreenState extends State<MapScreen> {
           if (ui && _peerTrucks.isNotEmpty)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
-              return DraggablePanel(
+              return FloatingPanel(
                 id: 'peers',
                 initial: Offset(size.width - 200, size.height - 390),
+                width: 220,
+                height: 160,
+                minimizedChild: const Icon(Icons.local_shipping, size: 20),
                 child: _buildPeerBubble(),
               );
             }),
           if (ui)
-            Positioned(
-              left: 12,
-              top: 120,
-              bottom: 24,
+            FloatingPanel(
+              id: 'toolbar',
+              initial: const Offset(12, 120),
+              width: 168,
+              height: 420,
+              minimizedChild: const Icon(Icons.build_outlined, size: 20),
+              handle: _buildPuxador('Ferramentas', Icons.build_outlined),
               child: _buildSideRail(),
             ),
-          Positioned(
-            top: 44,
-            right: 16,
-            child: Column(
-              children: [
-                _buildUiToggle(),
-                const SizedBox(height: 10),
-                _buildCompass(),
-                const SizedBox(height: 10),
-                _buildLayerToggle(),
-                const SizedBox(height: 10),
-                _buildCentralizar(),
-              ],
+          if (ui)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return FloatingPanel(
+                id: 'topo',
+                initial: Offset(size.width - 80, 44),
+                width: 56,
+                height: 200,
+                dragWholeChild: true,
+                minimizedChild: const Icon(Icons.tune, size: 20),
+                child: Column(
+                  children: [
+                    _buildUiToggle(),
+                    const SizedBox(height: 10),
+                    _buildCompass(),
+                    const SizedBox(height: 10),
+                    _buildLayerToggle(),
+                    const SizedBox(height: 10),
+                    _buildCentralizar(),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  /// Puxador de arraste dos paineis (arrasta e mostra o nome do painel).
+  Widget _buildPuxador(String titulo, IconData icone) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _superficie(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: (_settingsProvider?.overlayColor ?? kEmergencyRed)
+              .withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icone,
+              size: 14, color: _settingsProvider?.overlayColor ?? kEmergencyRed),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              titulo,
+              style: TextStyle(
+                color: overlayTextMuted(context),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 6),
+          Icon(Icons.drag_indicator,
+              size: 14, color: overlayTextMuted(context)),
         ],
       ),
     );
@@ -2520,110 +2615,71 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Barra de ferramentas flutuante: arrastavel, recolhivel e minimizavel
+  /// (arraste para a borda esquerda/direita que ela vira uma tab).
   Widget _buildSideRail() {
-    if (_railHidden) {
-      return Tooltip(
-        message: 'Abrir barra de ferramentas',
-        child: Material(
-          color: _superficie(context),
-          borderRadius: BorderRadius.circular(18),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () => setState(() => _railHidden = false),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Icon(Icons.chevron_right,
-                  color: overlayTextMuted(context), size: 20),
-            ),
-          ),
-        ),
-      );
-    }
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        final v = details.primaryVelocity ?? 0;
-        if (v > 250) {
-          setState(() {
-            if (_railHidden) {
-              _railHidden = false;
-            } else {
-              _sideRailOpen = true;
-            }
-          });
-        } else if (v < -250) {
-          setState(() {
-            if (_sideRailOpen) {
-              _sideRailOpen = false;
-            } else {
-              _railHidden = true;
-            }
-          });
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: _sideRailOpen ? 168 : 56,
-        decoration: BoxDecoration(
-          color: _superficie(context),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-              color: _settingsProvider?.overlayColor ?? kEmergencyRed,
-              width: 1.2),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Tooltip(
-                    message: _sideRailOpen ? 'Recolher' : 'Expandir',
-                    child: InkWell(
-                      onTap: () =>
-                          setState(() => _sideRailOpen = !_sideRailOpen),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 7),
-                        child: Icon(
-                          _sideRailOpen
-                              ? Icons.chevron_left
-                              : Icons.chevron_right,
-                          color: overlayTextMuted(context),
-                          size: 20,
+    final cor = _settingsProvider?.overlayColor ?? kEmergencyRed;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: _sideRailOpen ? 168 : 56,
+      decoration: BoxDecoration(
+        color: _superficie(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cor, width: 1.2),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Tooltip(
+              message: _sideRailOpen ? 'Recolher' : 'Expandir',
+              child: InkWell(
+                onTap: () => setState(() => _sideRailOpen = !_sideRailOpen),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _sideRailOpen
+                            ? Icons.chevron_left
+                            : Icons.chevron_right,
+                        color: overlayTextMuted(context),
+                        size: 20,
+                      ),
+                      if (_sideRailOpen) ...[
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Ferramentas',
+                            style: TextStyle(
+                              color: overlayTextMuted(context),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ),
+                      ],
+                    ],
                   ),
-                  Tooltip(
-                    message: 'Minimizar barra',
-                    child: InkWell(
-                      onTap: () => setState(() => _railHidden = true),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 7),
-                        child: Icon(Icons.close,
-                            color: overlayTextMuted(context), size: 18),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              Divider(
-                  color: overlayTextMuted(context).withValues(alpha: 0.18),
-                  height: 1),
-              _railAction(Icons.settings, 'Tudo', _abrirMenu),
-              // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
-              if (!_isHelper)
-                _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
-              _railAction(Icons.group, 'Grupos', _abrirGrupos),
-              _railAction(Icons.add_location_alt, 'Sinalizar',
-                  _abrirSinalizacoes),
-              // O radio ficou no botao flutuante e nas Configuracoes (sem duplicar).
-              _railAction(Icons.search, 'Buscar',
-                  () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
-            ],
-          ),
+            ),
+            Divider(
+                color: overlayTextMuted(context).withValues(alpha: 0.18),
+                height: 1),
+            _railAction(Icons.settings, 'Tudo', _abrirMenu),
+            // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
+            if (!_isHelper)
+              _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
+            _railAction(Icons.group, 'Grupos', _abrirGrupos),
+            _railAction(Icons.add_location_alt, 'Sinalizar', _abrirSinalizacoes),
+            // O radio ficou no botao flutuante e nas Configuracoes (sem duplicar).
+            _railAction(Icons.search, 'Buscar',
+                () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
+          ],
         ),
       ),
     );

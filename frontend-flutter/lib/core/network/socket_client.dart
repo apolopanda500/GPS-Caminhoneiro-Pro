@@ -258,10 +258,11 @@ class SocketClient {
 
   void sendTruckReaction({
     required String fromName,
-    required String targetDriverId,
     required String emoji,
+    String? targetDriverId,
   }) {
     if (!socket.connected) return;
+    if (targetDriverId == null || targetDriverId.isEmpty) return;
     socket.emit('send_truck_reaction', {
       'fromName': fromName,
       'targetDriverId': targetDriverId,

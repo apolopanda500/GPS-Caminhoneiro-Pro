@@ -29,7 +29,7 @@ Write-Host "Verificando ambiente..." -ForegroundColor Yellow
 flutter doctor
 
 Write-Host "Gerando APK Release (arm64)..." -ForegroundColor Yellow
-flutter build apk --release --target-platform android-arm64
+flutter build apk --release --target-platform android-arm64 --dart-define-from-file=keys.json
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "APK gerado com sucesso!" -ForegroundColor Green
@@ -38,3 +38,4 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Erro ao gerar APK" -ForegroundColor Red
     exit 1
 }
+

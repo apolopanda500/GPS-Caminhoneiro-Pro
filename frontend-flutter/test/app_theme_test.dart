@@ -70,7 +70,7 @@ void main() {
       );
       await tester.pump();
       final container = tester.widget<Container>(find.byKey(_key));
-      expect(rgb(container.color!), 0x101418);
+      expect(rgb(container.color!), 0x1F0808);
     });
 
     testWidgets('overlayText claro usa tinta escura', (tester) async {

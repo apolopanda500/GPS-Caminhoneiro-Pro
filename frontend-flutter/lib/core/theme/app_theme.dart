@@ -25,8 +25,10 @@ Color overlaySurface(
   double opacity = 1.0,
   Color? accent,
 }) {
-  final base = Theme.of(context).brightness == Brightness.dark
-      ? const Color(0xE6101418)
+  final escuro = Theme.of(context).brightness == Brightness.dark;
+  final Color destaque = accent ?? Theme.of(context).colorScheme.primary;
+  final Color base = escuro
+      ? _tint(destaque, kDarkBlack, 0.16)
       : const Color(0xF2FFFFFF);
   return base
       .withValues(alpha: (base.a * opacity.clamp(0.3, 1.0)).clamp(0.05, 1.0));
@@ -35,11 +37,11 @@ Color overlaySurface(
 Color overlayBorder(BuildContext context, {Color? accent}) =>
     accent ??
     (Theme.of(context).brightness == Brightness.dark
-        ? kEmergencyRed
+        ? Theme.of(context).colorScheme.primary
         : const Color(0x33000000));
 
 Color overlayAccent(BuildContext context, {Color? accent}) =>
-    accent ?? kEmergencyRed;
+    accent ?? Theme.of(context).colorScheme.primary;
 
 Color overlayText(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark ? Colors.white : kLightInk;

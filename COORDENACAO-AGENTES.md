@@ -181,6 +181,12 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 02:10 A: causas do aviso "Nenhum provedor de rotas" corrigidas — build-flutter.ps1 agora
+  passa --dart-define-from-file=keys.json (chaves ORS/Google ficavam fora do APK); audit
+  de APIs ao vivo (Open-Meteo/Nominatim/USGS/NHC/ORS-heigit driving-hgv 200 OK; Google
+  Routes 403 app-restrito — usar ORS); APK release reconstruído + instalado no celular
+  (R9XY1016R6V); analyze limpo, testes 109/109.
+
 - 01:50 A: grupos (comboios) completos no app: GroupProvider corrigido (headers auth),
   GroupsSheet criado (meus/públicos, criar, entrar/sair, membros, switch estrito),
   registrado no main.dart; filtro estrito nos peers do mapa; rota compartilhada vai

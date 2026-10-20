@@ -33,11 +33,9 @@ class RouteTablePanel extends StatefulWidget {
 }
 
 class _RouteTablePanelState extends State<RouteTablePanel> {
-  Offset _offset = const Offset(12, 96);
   double _width = 320;
   double _height = 220;
   bool _minimized = false;
-  bool _dragging = false;
 
   /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
   SettingsProvider? _ajustes(BuildContext context) {
@@ -55,48 +53,32 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
     final route = provider.result;
     final stops = provider.stops;
 
-    return Positioned(
-      left: _offset.dx,
-      top: _offset.dy,
+    return SizedBox(
       width: _width,
-      child: GestureDetector(
-        onPanUpdate: _dragging
-            ? null
-            : (details) {
-                setState(() {
-                  _offset = Offset(
-                    _offset.dx + details.delta.dx,
-                    (_offset.dy + details.delta.dy).clamp(8.0, 420.0),
-                  );
-                });
-              },
-        onPanStart: (_) => _dragging = true,
-        onPanEnd: (_) => _dragging = false,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            constraints: BoxConstraints(maxHeight: _height),
-            decoration: BoxDecoration(
-              color: overlaySurface(context,
-                  opacity: settings?.overlayOpacity ?? 1.0,
-                  accent: settings?.overlayColor),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: overlayBorder(context,
-                      accent: settings?.overlayColor),
-                  width: 1.4),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _cabecalho(provider, route),
-                if (!_minimized) ...[
-                  Flexible(child: _tabela(provider, stops)),
-                  _rodape(provider),
-                  _alcaResize(),
-                ],
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: BoxConstraints(maxHeight: _height),
+          decoration: BoxDecoration(
+            color: overlaySurface(context,
+                opacity: settings?.overlayOpacity ?? 1.0,
+                accent: settings?.overlayColor),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: overlayBorder(context,
+                    accent: settings?.overlayColor),
+                width: 1.4),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _cabecalho(provider, route),
+              if (!_minimized) ...[
+                Flexible(child: _tabela(provider, stops)),
+                _rodape(provider),
+                _alcaResize(),
               ],
-            ),
+            ],
           ),
         ),
       ),
