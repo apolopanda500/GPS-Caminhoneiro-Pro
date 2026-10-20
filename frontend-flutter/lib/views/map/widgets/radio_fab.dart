@@ -13,12 +13,14 @@ class RadioFab extends StatefulWidget {
   final Color? surface;
   final Color? accent;
   final VoidCallback onPressed;
+  final VoidCallback? onStop;
 
   const RadioFab({
     super.key,
     this.surface,
     this.accent,
     required this.onPressed,
+    this.onStop,
   });
 
   @override
@@ -69,9 +71,30 @@ class _RadioFabState extends State<RadioFab>
         backgroundColor: superficie,
         foregroundColor: tocando ? cor : Colors.white,
         elevation: 2,
-        child: Icon(
-          tocando ? Icons.graphic_eq : Icons.radio_outlined,
-          size: 22,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              tocando ? Icons.graphic_eq : Icons.radio_outlined,
+              size: 22,
+            ),
+            if (tocando && widget.onStop != null)
+              Positioned(
+                right: -3,
+                bottom: -3,
+                child: GestureDetector(
+                  onTap: widget.onStop,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: superficie,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.stop, size: 11, color: cor),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

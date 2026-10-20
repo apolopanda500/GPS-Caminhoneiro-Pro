@@ -1,24 +1,19 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class EstacaoRadio {
-  final String nome;
-  final String url;
-  EstacaoRadio({required this.nome, required this.url});
+import 'radio_models.dart';
+import 'radio_service.dart';
 
-  factory EstacaoRadio.fromJson(Map<String, dynamic> j) => EstacaoRadio(
-        nome: (j['name'] ?? 'Estação').toString(),
-        url: (j['url'] ?? '').toString(),
-      );
-
-  Map<String, dynamic> toMap() => {'nome': nome, 'url': url};
-}
+export 'radio_models.dart';
+export 'radio_service.dart';
 
 class AudioProvider extends ChangeNotifier {
+  AudioProvider({RadioService? servico}) : _servico = servico ?? RadioService();
+
+  final RadioService _servico;
   final AudioPlayer _player = AudioPlayer();
   final AudioPlayer _radio = AudioPlayer();
 
@@ -28,17 +23,51 @@ class AudioProvider extends ChangeNotifier {
   String radioEstacao = '';
   double _volume = 1.0;
   bool _carregando = false;
+  String _erro = '';
   List<EstacaoRadio> _estacoes = [];
+  List<String> _tags = [];
+  List<EstacaoRadio> _favoritos = [];
+  List<EstacaoRadio> _recentes = [];
+  OrdenacaoRadio _ordenacao = OrdenacaoRadio.popular;
+  FiltroRadio _filtro = FiltroRadio.todas;
+  String _tagSelecionada = '';
 
   List<EstacaoRadio> get estacoes => List.unmodifiable(_estacoes);
+  List<String> get tags => List.unmodifiable(_tags);
+  List<EstacaoRadio> get favoritos => List.unmodifiable(_favoritos);
+  List<EstacaoRadio> get recentes => List.unmodifiable(_recentes);
   bool get carregandoEstacoes => _carregando;
+  String get erroRadio => _erro;
   double get volume => _volume;
   bool get radioAtivo => radioTocando;
+  OrdenacaoRadio get ordenacao => _ordenacao;
+  FiltroRadio get filtro => _filtro;
+  String get tagSelecionada => _tagSelecionada;
+
+  /// Estacao atualmente em reproducao (objeto completo), se houver.
+  EstacaoRadio? get estacaoAtual {
+    if (!radioTocando) return null;
+    for (final e in [..._recentes, ..._favoritos, ..._estacoes]) {
+      if (e.nome == radioEstacao) return e;
+    }
+    return null;
+  }
+
+  bool ehFavorita(EstacaoRadio e) =>
+      _favoritos.any((f) => f.chave == e.chave);
+
+  /// Carrega apenas favoritos e recentes, sem tocar audio.
+  /// Usado em testes, onde o plugin de audio nao esta disponivel.
+  Future<void> carregarFavoritosERecentes() async {
+    await _carregarFavoritos();
+    await _carregarRecentes();
+  }
 
   Future<void> carregarPreferencias() async {
     final prefs = await SharedPreferences.getInstance();
     musicaLigada = prefs.getBool('audio_musica') ?? true;
     estacaoLigada = prefs.getBool('audio_estacao') ?? true;
+    await carregarFavoritosERecentes();
     if (musicaLigada) await tocarMusica();
     notifyListeners();
   }
@@ -72,11 +101,21 @@ class AudioProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Callback que toca o som personalizado de entrada, quando houver.
+  /// Retorna true se tocou (evitando o sino padrao).
+  /// Definido em `main.dart` para amarrar os dois providers.
+  Future<bool> Function()? tocadorEntrada;
+
   /// Som de chegada (sino de estacao) na parada.
   /// Se o radio estiver tocando, abaixa o volume (duck), toca o sino
   /// e devolve o volume do radio em seguida.
   Future<void> tocarChegada() async {
     if (!estacaoLigada) return;
+    final personalizado = tocadorEntrada;
+    if (personalizado != null) {
+      final tocou = await personalizado();
+      if (tocou) return;
+    }
     final salvarVolume = _radio.volume;
     final radioAtivo = radioTocando;
     try {
@@ -109,31 +148,87 @@ class AudioProvider extends ChangeNotifier {
     await prefs.setBool('audio_estacao', ligar);
     notifyListeners();
   }
-
+  /// Carrega as estacoes do Brasil com os filtros/ordenacao atuais.
+  ///
+  /// Retorna true quando a lista foi preenchida com sucesso.
   Future<bool> buscarEstacoes([String? nome]) async {
     _carregando = true;
+    _erro = '';
     notifyListeners();
     try {
-      final q = Uri.encodeQueryComponent(nome ?? '');
-      final resp = await http.get(
-        Uri.parse(
-            'https://de1.api.radio-browser.info/json/stations/search?countrycode=BR&limit=30&hidebroken=true&order=votes&name=$q'),
-        headers: {'User-Agent': 'GPS-Caminhoneiro-Pro/1.0'},
+      final lista = await _servico.buscar(
+        nome: nome ?? '',
+        tag: _tagSelecionada,
+        ordenacao: _ordenacao,
+        limite: 60,
       );
-      if (resp.statusCode == 200) {
-        final list = jsonDecode(resp.body) as List<dynamic>;
-        _estacoes = list
-            .map((e) => EstacaoRadio.fromJson(e as Map<String, dynamic>))
-            .where((e) => e.url.isNotEmpty && e.url.startsWith('http'))
-            .toList();
+      _estacoes = lista;
+      if (_tags.isEmpty) {
+        _tags = await _servico.tagsBrasil();
       }
-    } catch (_) {}
-    _carregando = false;
-    notifyListeners();
-    return _estacoes.isNotEmpty;
+      return _estacoes.isNotEmpty;
+    } on RadioException catch (e) {
+      _erro = e.mensagem;
+      return false;
+    } catch (_) {
+      _erro = 'Falha ao carregar as estacoes de radio.';
+      return false;
+    } finally {
+      _carregando = false;
+      notifyListeners();
+    }
   }
 
-  Future<void> tocarEstacao(EstacaoRadio e) async {
+  /// Busca as estacoes mais clicadas do Brasil (lista inicial).
+  Future<bool> carregarPopulares() async {
+    _carregando = true;
+    _erro = '';
+    notifyListeners();
+    try {
+      _estacoes = await _servico.maisClicadas(limite: 60);
+      if (_tags.isEmpty) {
+        _tags = await _servico.tagsBrasil();
+      }
+      return _estacoes.isNotEmpty;
+    } on RadioException catch (e) {
+      _erro = e.mensagem;
+      return false;
+    } catch (_) {
+      _erro = 'Falha ao carregar as estacoes de radio.';
+      return false;
+    } finally {
+      _carregando = false;
+      notifyListeners();
+    }
+  }
+
+  /// Troca a ordenacao e recarrega a lista.
+  Future<void> setOrdenacao(OrdenacaoRadio ordenacao) async {
+    if (_ordenacao == ordenacao) return;
+    _ordenacao = ordenacao;
+    notifyListeners();
+    await carregarPopulares();
+  }
+
+  /// Seleciona uma tag e recarrega a lista.
+  Future<void> setTag(String tag) async {
+    _tagSelecionada = _tagSelecionada == tag ? '' : tag;
+    _filtro = _tagSelecionada.isEmpty ? FiltroRadio.todas : FiltroRadio.tags;
+    notifyListeners();
+    await carregarPopulares();
+  }
+
+  /// Define o filtro principal da lista.
+  Future<void> setFiltro(FiltroRadio filtro) async {
+    _filtro = filtro;
+    notifyListeners();
+    if (filtro == FiltroRadio.populares || filtro == FiltroRadio.tags) {
+      await carregarPopulares();
+    }
+  }
+
+  /// Toca a estacao informada, salvando-a na lista de recentes.
+  Future<bool> tocarEstacao(EstacaoRadio e) async {
     try {
       await _player.stop();
       await _radio.setUrl(e.url);
@@ -141,12 +236,102 @@ class AudioProvider extends ChangeNotifier {
       await _radio.play();
       radioTocando = true;
       radioEstacao = e.nome;
+      await _registrarRecente(e);
+      unawaited(_servico.reportarClique(e));
       notifyListeners();
+      return true;
     } catch (_) {
       radioTocando = false;
       radioEstacao = '';
+      _erro = 'Nao foi possivel tocar esta estacao.';
       notifyListeners();
+      return false;
     }
+  }
+
+  /// Pausa ou retoma a reproducao atual.
+  Future<void> alternarReproducao() async {
+    if (!radioTocando) return;
+    try {
+      if (_radio.playing) {
+        await _radio.pause();
+        radioTocando = false;
+      } else {
+        await _radio.play();
+        radioTocando = true;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Alterna a estacao entre favorita e normal.
+  Future<void> _registrarRecente(EstacaoRadio e) async {
+    _recentes.removeWhere((r) => r.chave == e.chave);
+    _recentes.insert(0, e);
+    if (_recentes.length > 30) _recentes.removeLast();
+    await _salvarRecentes();
+  }
+
+  Future<void> _carregarFavoritos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bruto = prefs.getString('radio.favoritos');
+      if (bruto == null || bruto.isEmpty) return;
+      _favoritos = _decodificar(bruto);
+    } catch (_) {}
+  }
+
+  Future<void> _salvarFavoritos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('radio.favoritos', _codificar(_favoritos));
+    } catch (_) {}
+  }
+
+  Future<void> _carregarRecentes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bruto = prefs.getString('radio.recentes');
+      if (bruto == null || bruto.isEmpty) return;
+      _recentes = _decodificar(bruto);
+    } catch (_) {}
+  }
+
+  Future<void> _salvarRecentes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('radio.recentes', _codificar(_recentes));
+    } catch (_) {}
+  }
+
+  String _codificar(List<EstacaoRadio> lista) =>
+      lista.map((e) => '${e.chave}\u001f${e.nome}\u001f${e.url}').join('\u001e');
+
+  List<EstacaoRadio> _decodificar(String bruto) {
+    final resultado = <EstacaoRadio>[];
+    for (final linha in bruto.split('\u001e')) {
+      if (linha.isEmpty) continue;
+      final partes = linha.split('\u001f');
+      if (partes.length < 3) continue;
+      resultado.add(EstacaoRadio(
+        nome: partes[1],
+        url: partes[2],
+        uuid: partes[0],
+      ));
+    }
+    return resultado;
+  }
+
+  Future<void> alternarFavorita(EstacaoRadio e) async {
+    final existe = _favoritos.any((f) => f.chave == e.chave);
+    if (existe) {
+      _favoritos.removeWhere((f) => f.chave == e.chave);
+    } else {
+      _favoritos.insert(0, e);
+      if (_favoritos.length > 60) _favoritos.removeLast();
+    }
+    await _salvarFavoritos();
+    notifyListeners();
   }
 
   /// Volume do radio (0 a 1).
@@ -158,7 +343,8 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> pararRadio() async {    await _radio.stop();
+  Future<void> pararRadio() async {
+    await _radio.stop();
     await _radio.setVolume(_volume);
     radioTocando = false;
     radioEstacao = '';
@@ -178,6 +364,8 @@ class AudioProvider extends ChangeNotifier {
   void dispose() {
     _player.dispose();
     _radio.dispose();
+    _servico.dispose();
     super.dispose();
   }
 }
+

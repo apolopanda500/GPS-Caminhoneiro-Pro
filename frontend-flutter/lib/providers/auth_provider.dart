@@ -82,6 +82,8 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    final emailLimpo = email.trim().toLowerCase();
+
     // Tenta autenticar no back-end. Se o servidor não estiver configurado ou
     // falhar por rede, cria sessão local para permitir uso offline/avaliação.
     if (AppConstants.serverConfigured) {
@@ -90,7 +92,7 @@ class AuthProvider extends ChangeNotifier {
             .post(
               Uri.parse('${AppConstants.baseUrl}/api/auth/login'),
               headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'email': email, 'password': password}),
+              body: jsonEncode({'email': emailLimpo, 'password': password}),
             )
             .timeout(const Duration(seconds: 8));
 
@@ -105,20 +107,19 @@ class AuthProvider extends ChangeNotifier {
           notifyListeners();
           return true;
         }
-        if (resp.statusCode == 401) {
-          _error = 'E-mail ou senha inválidos.';
-          _isLoading = false;
-          notifyListeners();
-          return false;
-        }
         if (resp.statusCode == 403) {
-          _pendingEmail = email;
+          _pendingEmail = emailLimpo;
           _requiresVerification = true;
           _error = 'Confirme sua conta com o código enviado por e-mail.';
           _isLoading = false;
           notifyListeners();
           return false;
         }
+        // Erro do servidor (401/400/5xx): mostra a mensagem real.
+        _error = _erroDaResposta(resp) ?? 'Não foi possível entrar. Tente novamente.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
       } catch (_) {
         // Sem conexão: segue para sessão local.
       }
@@ -128,8 +129,8 @@ class AuthProvider extends ChangeNotifier {
     _pendingEmail = null;
     _driver = DriverModel(
       driverId: 'drv_${DateTime.now().millisecondsSinceEpoch}',
-      email: email,
-      name: email.isNotEmpty ? email.split('@').first : 'Motorista',
+      email: emailLimpo,
+      name: emailLimpo.isNotEmpty ? emailLimpo.split('@').first : 'Motorista',
       isPremium: false,
     );
     _isLoading = false;
@@ -137,6 +138,18 @@ class AuthProvider extends ChangeNotifier {
     await _persist();
     notifyListeners();
     return true;
+  }
+
+  /// Extrai a mensagem de erro do corpo da resposta (campo "error").
+  String? _erroDaResposta(http.Response resp) {
+    try {
+      final body = jsonDecode(resp.body);
+      if (body is Map<String, dynamic>) {
+        final erro = body['error'];
+        if (erro is String && erro.isNotEmpty) return erro;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<bool> register({
@@ -151,6 +164,8 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    final emailLimpo = email.trim().toLowerCase();
+
     if (AppConstants.serverConfigured) {
       try {
         final resp = await http
@@ -158,7 +173,7 @@ class AuthProvider extends ChangeNotifier {
               Uri.parse('${AppConstants.baseUrl}/api/auth/register'),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({
-                'email': email,
+                'email': emailLimpo,
                 'password': password,
                 'name': name,
                 'role': role,
@@ -170,7 +185,7 @@ class AuthProvider extends ChangeNotifier {
         if (resp.statusCode == 201) {
           final body = jsonDecode(resp.body) as Map<String, dynamic>;
           if (body['requiresVerification'] == true) {
-            _pendingEmail = email;
+            _pendingEmail = emailLimpo;
             _requiresVerification = true;
             _error = null;
             _isLoading = false;
@@ -180,7 +195,7 @@ class AuthProvider extends ChangeNotifier {
           _driver = DriverModel(
             driverId: body['driverId'] ??
                 'drv_${DateTime.now().millisecondsSinceEpoch}',
-            email: email,
+            email: emailLimpo,
             name: name ?? body['name'],
             isPremium: false,
             role: (body['role'] ?? role).toString(),
@@ -194,12 +209,12 @@ class AuthProvider extends ChangeNotifier {
           notifyListeners();
           return true;
         }
-        if (resp.statusCode == 400) {
-          _error = 'E-mail já cadastrado.';
-          _isLoading = false;
-          notifyListeners();
-          return false;
-        }
+        // Erro do servidor: mostra a mensagem real (não cria sessão local).
+        _error = _erroDaResposta(resp) ??
+            'Não foi possível criar a conta. Tente novamente.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
       } catch (_) {
         // Sem conexão: cria sessão local.
       }
@@ -209,10 +224,10 @@ class AuthProvider extends ChangeNotifier {
     _pendingEmail = null;
     _driver = DriverModel(
       driverId: 'drv_${DateTime.now().millisecondsSinceEpoch}',
-      email: email,
+      email: emailLimpo,
       name: (name != null && name.isNotEmpty)
           ? name
-          : (email.isNotEmpty ? email.split('@').first : 'Motorista'),
+          : (emailLimpo.isNotEmpty ? emailLimpo.split('@').first : 'Motorista'),
       isPremium: false,
       role: role,
       helpType: helpType,
@@ -240,7 +255,10 @@ class AuthProvider extends ChangeNotifier {
           .post(
             Uri.parse('${AppConstants.baseUrl}/api/auth/verify'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email, 'code': code}),
+            body: jsonEncode({
+              'email': email.trim().toLowerCase(),
+              'code': code,
+            }),
           )
           .timeout(const Duration(seconds: 10));
       if (resp.statusCode == 200) {
@@ -272,13 +290,88 @@ class AuthProvider extends ChangeNotifier {
           .post(
             Uri.parse('${AppConstants.baseUrl}/api/auth/resend'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email}),
+            body: jsonEncode({'email': email.trim().toLowerCase()}),
           )
           .timeout(const Duration(seconds: 10));
       return resp.statusCode == 200;
     } catch (_) {
       return false;
     }
+  }
+
+  /// Pede o envio do codigo de redefinicao de senha.
+  Future<bool> requestPasswordReset(String email) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    if (!AppConstants.serverConfigured) {
+      _error = 'Servidor não configurado para recuperar a senha.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/auth/forgot-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email.trim().toLowerCase()}),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      _error = _erroDaResposta(resp) ??
+          'Não foi possível enviar o código de recuperação.';
+    } catch (_) {
+      _error = 'Sem conexão para solicitar a recuperação de senha.';
+    }
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  /// Confirma o codigo e define a nova senha.
+  Future<bool> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    if (!AppConstants.serverConfigured) {
+      _error = 'Servidor não configurado para redefinir a senha.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}/api/auth/reset-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email.trim().toLowerCase(),
+              'code': code.trim(),
+              'password': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      _error = _erroDaResposta(resp) ?? 'Código inválido ou expirado.';
+    } catch (_) {
+      _error = 'Sem conexão para redefinir a senha.';
+    }
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 
   /// Envia foto pessoal (avatar) ou foto do caminhao como dataURL base64.
@@ -327,6 +420,39 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Atualiza o perfil no servidor (empresa, modelo, foto, etc).
+  /// Define o papel do usuario (motorista/ajudante) e o tipo de ajuda.
+  Future<bool> definirPapel({
+    required String role,
+    String? helpType,
+    String? truckIcon,
+  }) async {
+    final d = _driver;
+    if (d == null) return false;
+    _driver = DriverModel(
+      driverId: d.driverId,
+      email: d.email,
+      name: d.name,
+      isPremium: d.isPremium,
+      truckHeight: d.truckHeight,
+      truckWeight: d.truckWeight,
+      axleCount: d.axleCount,
+      hazmat: d.hazmat,
+      avatarUrl: d.avatarUrl,
+      truckPhotoUrl: d.truckPhotoUrl,
+      truckModel: d.truckModel,
+      cargoType: d.cargoType,
+      truckIcon: truckIcon ?? d.truckIcon,
+      role: role,
+      helpType: helpType ?? d.helpType,
+      companyName: d.companyName,
+      companyLat: d.companyLat,
+      companyLon: d.companyLon,
+    );
+    await _persist();
+    notifyListeners();
+    return true;
+  }
+
   Future<bool> updateProfile({
     String? name,
     String? truckModel,

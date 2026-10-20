@@ -31,6 +31,9 @@ class SettingsProvider extends ChangeNotifier {
   static const _kOverlayOpacity = 'settings.overlayOpacity';
   static const _kOverlayAccent = 'settings.overlayAccent';
   static const _kRadioFab = 'settings.radioFab';
+  static const _kRegiao = 'settings.regiao';
+  static const _kPerfilPronto = 'settings.perfilPronto';
+  static const _kCorRota = 'settings.corRota';
 
   /// O mapa de ruas é recarregado a cada 12 h ou na virada do dia.
   static const Duration mapUpdateInterval = Duration(hours: 12);
@@ -56,6 +59,9 @@ class SettingsProvider extends ChangeNotifier {
   double _overlayOpacity = 0.92;
   int _overlayAccent = 0;
   bool _radioFabEnabled = true;
+  String _regiao = 'RJ';
+  bool _perfilPronto = false;
+  String _corRota = '#FF6D00';
   bool _loaded = false;
 
   bool get showFps => _showFps;
@@ -88,6 +94,16 @@ class SettingsProvider extends ChangeNotifier {
 
   /// Mostra o botão flutuante do rádio sobre o mapa.
   bool get radioFabEnabled => _radioFabEnabled;
+
+  /// Estado/regiao onde o motorista atua (ex.: RJ). A busca de enderecos
+  /// prioriza essa regiao e o que esta perto da sua posicao.
+  String get regiao => _regiao;
+
+  /// True quando o perfil (motorista ou ajudante) ja foi configurado.
+  bool get perfilPronto => _perfilPronto;
+
+  /// Cor da linha da rota (hex, ex.: '#FF6D00').
+  String get corRota => _corRota;
 
   String get dayStartedLabel {
     final start = _dayStartedAt;
@@ -199,6 +215,9 @@ class SettingsProvider extends ChangeNotifier {
     _overlayAccent =
         (accent >= 0 && accent < kOverlayAccents.length) ? accent : 0;
     _radioFabEnabled = prefs.getBool(_kRadioFab) ?? true;
+    _regiao = prefs.getString(_kRegiao) ?? 'RJ';
+    _perfilPronto = prefs.getBool(_kPerfilPronto) ?? false;
+    _corRota = prefs.getString(_kCorRota) ?? '#FF6D00';
     final dayStart = prefs.getInt(_kDayStartedAt);
     _dayStartedAt =
         dayStart == null ? null : DateTime.fromMillisecondsSinceEpoch(dayStart);
@@ -326,5 +345,31 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kRadioFab, value);
+  }
+
+  /// Define a cor da linha da rota.
+  Future<void> setCorRota(String hex) async {
+    _corRota = hex;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kCorRota, hex);
+  }
+
+  /// Marca o perfil como configurado (feito uma vez por conta).
+  Future<void> setPerfilConfigurado(bool value) async {
+    _perfilPronto = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPerfilPronto, value);
+  }
+
+  /// Define a regiao de atuacao (usado para priorizar a busca de enderecos).
+  Future<void> setRegiao(String value) async {
+    final v = value.trim().toUpperCase();
+    if (v.isEmpty) return;
+    _regiao = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kRegiao, v);
   }
 }

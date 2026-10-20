@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
@@ -35,6 +36,7 @@ import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
 import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/group_provider.dart';
+import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
 import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/utils/map_icons.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/report_dialog.dart';
@@ -48,10 +50,13 @@ import 'package:gps_camioneiro_pro/views/map/widgets/route_planner_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/assistant_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/map_controls_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/weather_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_fab.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
@@ -683,7 +688,7 @@ class _MapScreenState extends State<MapScreen> {
       await c.addLine(
         ml.LineOptions(
           geometry: geometry,
-          lineColor: '#FF6D00',
+          lineColor: _settingsProvider?.corRota ?? '#FF6D00',
           lineWidth: 5,
           lineOpacity: 0.95,
         ),
@@ -1997,9 +2002,36 @@ class _MapScreenState extends State<MapScreen> {
     if (quality != null && quality != _appliedQuality) {
       _appliedQuality = quality;
       _ensureBuildings3d();
+      // Perfil economico: sem predios 3D e sem camadas pesadas de clima.
+      _aplicarPerfilDeGraficos(quality);
     }
     _syncTracking();
     _renderMarkers();
+  }
+
+  /// Aplica o perfil de graficos escolhido em Configuracoes.
+  ///
+  /// - **Economico**: desliga predios 3D, radar de chuva e nuvens (poupa bateria
+  ///   e dados) e limita os marcadores na tela.
+  /// - **Equilibrado**: padrao do app.
+  /// - **Ultra**: tudo ligado e contadores de FPS sempre ativos.
+  void _aplicarPerfilDeGraficos(RenderQuality quality) {
+    final camadas = context.read<MapLayersProvider>();
+    if (quality == RenderQuality.economy) {
+      if (camadas.radar) camadas.setRadar(false);
+      if (camadas.nuvens) camadas.setNuvens(false);
+      if (camadas.relevo) camadas.setRelevo(false);
+    }
+    if (quality == RenderQuality.ultra) {
+      // Ultra: garante as camadas de clima e o medidor de FPS na tela.
+      if (!camadas.radar) camadas.setRadar(true);
+      if (!camadas.nuvens) camadas.setNuvens(true);
+      final settings = _settingsProvider;
+      if (settings != null && !settings.showFps) {
+        settings.setShowFps(true);
+      }
+    }
+    if (mounted) setState(() {});
   }
 
   void _syncTracking() {
@@ -2033,7 +2065,11 @@ class _MapScreenState extends State<MapScreen> {
     if (!s.soundEnabled) return;
     switch (type) {
       case 'radar':
-        if (s.radarSound) AlertNotifier.triggerRadarWarning();
+        if (s.radarSound) {
+          AlertNotifier.triggerRadarWarning();
+          unawaited(
+              context.read<SonsProvider>().tocar(SlotSom.alertaRadar));
+        }
         break;
       case 'perigo':
       case 'ponte_baixa':
@@ -2302,6 +2338,54 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           _buildMapView(),
+          if (ui && _settingsProvider?.showFps == true)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return FloatingPanel(
+                id: 'fps',
+                initial: Offset(size.width - 150, 96),
+                width: 130,
+                height: 46,
+                dragWholeChild: true,
+                minimizedChild: const Icon(Icons.speed, size: 20),
+                child: FpsOverlay(
+                  targetFps: _settingsProvider?.targetFps ?? 60,
+                ),
+              );
+            }),
+          if (ui)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return FloatingPanel(
+                id: 'clima',
+                initial: Offset(16, size.height - 430),
+                width: 300,
+                height: 390,
+                minimizedChild: const Icon(Icons.cloud_outlined, size: 20),
+                handle: _buildPuxador('Clima e previsão', Icons.cloud_outlined),
+                child: WeatherPanel(
+                  latitude: _currentPosition?.latitude,
+                  longitude: _currentPosition?.longitude,
+                ),
+              );
+            }),
+          if (ui)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return FloatingPanel(
+                id: 'camadas',
+                initial: Offset(size.width - 320, 96),
+                width: 300,
+                height: 520,
+                minimizedChild: const Icon(Icons.tune, size: 20),
+                handle: _buildPuxador('Mapa e gráficos', Icons.tune),
+                child: MapControlsPanel(
+                  onCamada: _definirCamada,
+                  onMostrarUi: (v) => setState(() => _uiExpanded = v),
+                  uiVisivel: _uiExpanded,
+                ),
+              );
+            }),
           if (ui && _chatAberto)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
@@ -2382,6 +2466,7 @@ class _MapScreenState extends State<MapScreen> {
                   surface: _superficie(context),
                   accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
                   onPressed: _abrirRadio,
+                  onStop: () => context.read<AudioProvider>().pararRadio(),
                 ),
               );
             }),
@@ -2449,11 +2534,7 @@ class _MapScreenState extends State<MapScreen> {
                 minimizedChild: const Icon(Icons.tune, size: 20),
                 child: Column(
                   children: [
-                    _buildUiToggle(),
-                    const SizedBox(height: 10),
                     _buildCompass(),
-                    const SizedBox(height: 10),
-                    _buildLayerToggle(),
                     const SizedBox(height: 10),
                     _buildCentralizar(),
                   ],
@@ -2529,31 +2610,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Botao de camada unico: Satelite -> Ruas -> Ruas 3D (premium).
-  Widget _buildLayerToggle() {
-    final icone = _isSatellite
-        ? Icons.layers_outlined
-        : (_isDetailed ? Icons.view_in_ar : Icons.satellite_alt_outlined);
-    final tooltip = _isSatellite
-        ? 'Usar mapa leve (ruas)'
-        : (_isDetailed ? 'Usar imagem de satelite' : 'Usar ruas em 3D');
-    return Material(
-      color: _superficie(context),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: _alternarCamada,
-        child: Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(icone, color: overlayText(context), size: 22),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Botao dedicado: recentra a camera no caminhao (GPS).
   Widget _buildCentralizar() {
     return Material(
@@ -2577,21 +2633,12 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Troca a camada do mapa: satelite -> ruas -> ruas 3D -> satelite.
-  /// O modo 3D e premium (o portao fica no mesmo botao, sem botao duplicado).
-  Future<void> _alternarCamada() async {
-    MapLayerMode novo;
-    if (_isSatellite) {
-      novo = MapLayerMode.streets;
-    } else if (_isDetailed) {
-      novo = MapLayerMode.satellite;
-    } else {
-      if (PremiumPolicy.isLocked(PremiumFeature.detailedMap,
-          isPremium: _isPremium)) {
-        _gatePremium(PremiumFeature.detailedMap, () {});
-        return;
-      }
-      novo = MapLayerMode.detailed;
+  Future<void> _definirCamada(MapLayerMode novo) async {
+    if (novo == MapLayerMode.detailed &&
+        PremiumPolicy.isLocked(PremiumFeature.detailedMap,
+            isPremium: _isPremium)) {
+      _gatePremium(PremiumFeature.detailedMap, () {});
+      return;
     }
     setState(() {
       _layerMode = novo;
@@ -2670,28 +2717,6 @@ class _MapScreenState extends State<MapScreen> {
     } catch (_) {
       return 'clima indisponível';
     }
-  }
-
-  Widget _buildUiToggle() {
-    final icon = _uiExpanded ? Icons.visibility_off : Icons.visibility;
-    final tooltip = _uiExpanded
-        ? 'Ocultar interações e conversas'
-        : 'Mostrar interações e conversas';
-    return Material(
-      color: _superficie(context),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () => setState(() => _uiExpanded = !_uiExpanded),
-        child: Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(icon, color: overlayText(context), size: 22),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _railAction(IconData icon, String label, VoidCallback onTap) {

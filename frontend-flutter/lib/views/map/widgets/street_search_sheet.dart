@@ -1,12 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
 
 /// Folha de busca de rua/cidade. Retorna um [GeoResult] escolhido.
+///
+/// A busca usa a sua posicao como referencia: os resultados vem por
+/// distancia, priorizando a sua cidade e os bairros vizinhos.
 class StreetSearchSheet extends StatefulWidget {
-  const StreetSearchSheet({super.key});
+  final LatLng? near;
+  final String? cityName;
+  final String? stateName;
 
-  static Future<GeoResult?> show(BuildContext context) {
+  const StreetSearchSheet({
+    super.key,
+    this.near,
+    this.cityName,
+    this.stateName,
+  });
+
+  static Future<GeoResult?> show(
+    BuildContext context, {
+    LatLng? near,
+    String? cityName,
+    String? stateName,
+  }) {
     return showModalBottomSheet<GeoResult>(
       context: context,
       isScrollControlled: true,
@@ -14,7 +32,11 @@ class StreetSearchSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => const StreetSearchSheet(),
+      builder: (_) => StreetSearchSheet(
+        near: near,
+        cityName: cityName,
+        stateName: stateName,
+      ),
     );
   }
 
@@ -22,12 +44,29 @@ class StreetSearchSheet extends StatefulWidget {
   State<StreetSearchSheet> createState() => _StreetSearchSheetState();
 }
 
+/// Regioesoffertecidas para o motorista trocar a "casa" da busca.
+const List<String> kRegioesRapidas = [
+  'RJ',
+  'SP',
+  'MG',
+  'PR',
+  'SC',
+  'RS',
+  'BA',
+  'PE',
+  'CE',
+  'GO',
+];
+
 class _StreetSearchSheetState extends State<StreetSearchSheet> {
   final _controller = TextEditingController();
   final _service = GeocodingService();
   List<GeoResult> _results = [];
   bool _loading = false;
   String? _error;
+
+  /// Regiao em uso (pode ser trocada pelos atalhos).
+  late String _regiao = widget.stateName ?? 'RJ';
 
   Future<void> _search() async {
     final q = _controller.text.trim();
@@ -38,7 +77,12 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
       _results = [];
     });
     try {
-      final r = await _service.search(q);
+      final r = await _service.search(
+        q,
+        near: widget.near,
+        cityName: widget.cityName,
+        stateName: _regiao,
+      );
       if (!mounted) return;
       setState(() {
         _results = r;
@@ -85,12 +129,61 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
             style: const TextStyle(color: Colors.white),
             onSubmitted: (_) => _search(),
             decoration: InputDecoration(
-              hintText: 'Ex.: Av. Anhanguera, São Paulo',
+              hintText: widget.near != null
+                  ? 'Ex.: Av. Brasil, proximo a mim'
+                  : 'Ex.: Av. Anhanguera, Rio de Janeiro',
               hintStyle: const TextStyle(color: Colors.grey),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.arrow_forward, color: Colors.redAccent),
                 onPressed: _search,
               ),
+            ),
+          ),
+          if (widget.near != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.near_me, size: 13, color: Colors.white54),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Buscando perto de voce e dentro de $_regiao',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: kRegioesRapidas.map((r) {
+                final ativo = r == _regiao;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(r),
+                    selected: ativo,
+                    onSelected: (_) {
+                      setState(() => _regiao = r);
+                      if (_controller.text.trim().isNotEmpty) _search();
+                    },
+                    labelStyle: TextStyle(
+                      color: ativo ? Colors.white : Colors.white70,
+                      fontSize: 12,
+                    ),
+                    selectedColor: kEmergencyRed,
+                    backgroundColor: Colors.white10,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 8),
@@ -108,7 +201,20 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                 final r = _results[i];
                 return ListTile(
                   leading: const Icon(Icons.place, color: Colors.redAccent),
-                  title: Text(r.displayName, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  title: Text(r.displayName,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 13)),
+                  subtitle: r.distanceKm != null
+                      ? Text(
+                          '${_distanciaTexto(r.distanceKm!)} de voce',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 11),
+                        )
+                      : null,
+                  trailing: r.distanceKm != null
+                      ? Icon(Icons.near_me,
+                          size: 14, color: Colors.white.withValues(alpha: 0.5))
+                      : null,
                   onTap: () => Navigator.pop(context, r),
                 );
               },
@@ -117,5 +223,12 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
         ],
       ),
     );
+  }
+
+  /// Formata a distancia em km/m para exibir no resultado da busca.
+  String _distanciaTexto(double km) {
+    if (km < 1) return '${(km * 1000).round()} m';
+    if (km < 10) return '${km.toStringAsFixed(1)} km';
+    return '${km.round()} km';
   }
 }

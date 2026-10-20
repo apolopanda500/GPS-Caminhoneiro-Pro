@@ -81,6 +81,43 @@ export async function sendVerificationCode(
   return true;
 }
 
+export async function sendPasswordResetCode(
+  to: string,
+  code: string
+): Promise<boolean> {
+  const mail: MailTexto = {
+    subject: 'GPS Caminhoneiro Pro - codigo para redefinir a senha',
+    text: `Seu codigo para redefinir a senha e ${code}. Ele expira em 10 minutos. Se nao foi voce, ignore este e-mail: sua senha nao muda.`,
+    html: `<div style="font-family:Arial,sans-serif">
+      <h2>GPS Caminhoneiro Pro</h2>
+      <p>Você pediu para redefinir a sua senha. Use o código abaixo:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${code}</p>
+      <p>O código expira em 10 minutos. Se não foi você, ignore este e-mail: sua senha não muda.</p>
+    </div>`,
+  };
+
+  if (env.brevoApiKey) {
+    try {
+      return await enviarViaApiBrevo(to, mail);
+    } catch (err) {
+      console.error('[mailer] falha na API HTTP do Brevo:', err);
+    }
+  }
+
+  if (!transporter) {
+    console.log(`[mailer] SMTP nao configurado. Codigo de reset para ${to}: ${code}`);
+    return false;
+  }
+  await transporter.sendMail({
+    from: env.smtpFrom,
+    to,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+  });
+  return true;
+}
+
 export function mailerConfigured(): boolean {
   return env.brevoApiKey !== '' || transporter !== null;
 }

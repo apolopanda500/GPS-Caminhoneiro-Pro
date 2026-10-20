@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/database/local_cache.dart';
 import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
@@ -214,6 +215,7 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           const _Section('SONS E NOTIFICAÇÕES'),
+          const _SonsPersonalizados(),
           const _AudioSwitchMusica(),
           const _AudioSwitchEstacao(),
           const _AudioSwitchVoz(),
@@ -637,5 +639,101 @@ class _AudioSwitchVoz extends StatelessWidget {
         activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
       ),
     );
+  }
+}
+
+/// Secao de sons personalizados: importar do aparelho e atribuir por evento.
+class _SonsPersonalizados extends StatelessWidget {
+  const _SonsPersonalizados();
+
+  @override
+  Widget build(BuildContext context) {
+    final sons = context.watch<SonsProvider>();
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    final muted = ink.withValues(alpha: 0.55);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Text(
+            'Importe um som do celular e escolha quando ele toca.',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+        ),
+        for (final slot in SlotSom.values)
+          _SlotSomTile(slot: slot, sons: sons),
+      ],
+    );
+  }
+}
+
+class _SlotSomTile extends StatelessWidget {
+  final SlotSom slot;
+  final SonsProvider sons;
+
+  const _SlotSomTile({required this.slot, required this.sons});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    final muted = ink.withValues(alpha: 0.55);
+    final atual = sons.som(slot);
+
+    return ListTile(
+      leading: Icon(
+        atual != null ? Icons.library_music : Icons.music_off_outlined,
+        color: atual != null ? kEmergencyRed : muted,
+      ),
+      title: Text(slot.titulo, style: TextStyle(color: ink)),
+      subtitle: Text(
+        atual != null
+            ? '${atual.nome} • ${slot.descricao}'
+            : slot.descricao,
+        style: TextStyle(color: muted, fontSize: 12),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (atual != null)
+            IconButton(
+              tooltip: 'Ouvir',
+              onPressed: () => sons.tocar(slot),
+              icon: const Icon(Icons.play_arrow, color: kEmergencyRed),
+            ),
+          IconButton(
+            tooltip: atual != null ? 'Trocar som' : 'Importar som',
+            onPressed: () => _importar(context),
+            icon: Icon(
+              atual != null ? Icons.swap_horiz : Icons.add,
+              color: muted,
+            ),
+          ),
+          if (atual != null)
+            IconButton(
+              tooltip: 'Remover',
+              onPressed: () => sons.remover(slot),
+              icon: Icon(Icons.delete_outline, color: muted),
+            ),
+        ],
+      ),
+      onTap: atual != null ? () => sons.tocar(slot) : () => _importar(context),
+    );
+  }
+
+  Future<void> _importar(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await sons.importar(slot);
+    if (ok) {
+      await sons.tocar(slot);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Som de ${slot.titulo} importado.')),
+      );
+    }
   }
 }

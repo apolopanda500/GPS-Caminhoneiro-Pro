@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS verification_codes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
+CREATE INDEX IF NOT EXISTS idx_verification_codes_lookup
+    ON verification_codes(email, purpose, consumed, expires_at);
 
 CREATE TABLE IF NOT EXISTS convoy_groups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

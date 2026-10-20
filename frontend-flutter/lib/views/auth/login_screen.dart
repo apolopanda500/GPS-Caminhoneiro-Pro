@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
+import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/config/truck_setup_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/map_screen.dart';
+import 'package:gps_camioneiro_pro/views/onboarding/onboarding_screen.dart';
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -75,22 +77,38 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () async {
                     final auth = context.read<AuthProvider>();
                     final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     final ok = await auth.login(
                       email: _emailController.text,
                       password: _passwordController.text,
                     );
+                    if (!mounted) return;
                     if (ok) {
                       _abrirApp(auth, navigator);
                     } else if (auth.requiresVerification) {
-                      if (!mounted) return;
                       await _verificarEmail(
                           auth.pendingEmail ?? _emailController.text.trim());
+                    } else if (auth.error != null) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(auth.error!)),
+                      );
                     }
                   },
                   child: const Text('ENTRAR'),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.center,
+                child: TextButton(
+                  onPressed: _recuperarSenha,
+                  child: const Text(
+                    'Esqueci minha senha',
+                    style: TextStyle(color: kLightText),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               TextButton(
                 onPressed: _abrirCadastro,
                 child: const Text('Criar conta',
@@ -118,6 +136,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Ajudante entra direto no mapa: nao configura caminhao nem monta rota.
   void _abrirApp(AuthProvider auth, NavigatorState navigator) {
+    final settings = context.read<SettingsProvider>();
+    // Primeira vez: configuracao unica do perfil (motorista ou ajudante).
+    if (!settings.perfilPronto) {
+      navigator.pushReplacement(
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+      return;
+    }
     final driver = auth.driver;
     final isAjudante = driver?.role == 'ajudante';
     if (isAjudante && driver != null) {
@@ -300,6 +326,165 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       messenger.showSnackBar(
         SnackBar(content: Text(auth.error ?? 'Não foi possível cadastrar.')),
+      );
+    }
+  }
+
+  /// Fluxo de recuperacao de senha: e-mail -> codigo -> nova senha.
+  Future<void> _recuperarSenha() async {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    final auth = context.read<AuthProvider>();
+
+    // 1) Pede o e-mail e envia o codigo.
+    final emailOk = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recuperar senha'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Informe o e-mail cadastrado. Enviaremos um código para '
+              'você definir uma nova senha.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'E-mail'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = emailController.text.trim();
+              if (email.isEmpty) {
+                Navigator.pop(dialogContext, false);
+                return;
+              }
+              final sent = await auth.requestPasswordReset(email);
+              if (!dialogContext.mounted) return;
+              Navigator.pop(dialogContext, sent);
+            },
+            child: const Text('ENVIAR CÓDIGO'),
+          ),
+        ],
+      ),
+    );
+
+    if (emailOk != true) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Se o e-mail estiver cadastrado, enviamos o código de recuperação.',
+        ),
+      ),
+    );
+
+    // 2) Pede o codigo e a nova senha.
+    final codeController = TextEditingController();
+    final senhaController = TextEditingController();
+    final senha2Controller = TextEditingController();
+
+    final redefinido = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Nova senha'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Digite o código de 6 dígitos enviado por e-mail e a nova senha.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: codeController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Código de recuperação',
+                    counterText: '',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: senhaController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Nova senha'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: senha2Controller,
+                  obscureText: true,
+                  decoration:
+                      const InputDecoration(labelText: 'Repetir a nova senha'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final code = codeController.text.trim();
+                final senha = senhaController.text;
+                if (code.isEmpty || senha.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Informe o código e a nova senha.'),
+                    ),
+                  );
+                  return;
+                }
+                if (senha != senha2Controller.text) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('As senhas não são iguais.'),
+                    ),
+                  );
+                  return;
+                }
+                if (senha.length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('A senha precisa ter ao menos 6 caracteres.'),
+                    ),
+                  );
+                  return;
+                }
+                final ok = await auth.resetPassword(
+                  email: emailController.text.trim(),
+                  code: code,
+                  newPassword: senha,
+                );
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext, ok);
+              },
+              child: const Text('SALVAR SENHA'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (redefinido == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Senha redefinida. Faça login novamente.')),
       );
     }
   }

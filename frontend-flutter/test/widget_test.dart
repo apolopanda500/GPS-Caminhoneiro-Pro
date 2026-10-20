@@ -6,20 +6,32 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
 import 'package:gps_camioneiro_pro/providers/navigation_provider.dart';
+import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
 import 'package:gps_camioneiro_pro/views/splash/splash_screen.dart';
 import 'package:gps_camioneiro_pro/views/config/truck_setup_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/speed_hud.dart';
 
-Widget _wrap(Widget child) {
+Widget _wrap(Widget child, {SettingsProvider? settings}) {
+  final s = settings ?? SettingsProvider();
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => AuthProvider()),
       ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ChangeNotifierProvider(create: (_) => AlertProvider()),
+      ChangeNotifierProvider.value(value: s),
     ],
     child: MaterialApp(home: child),
   );
+}
+
+/// Cria um SettingsProvider com o perfil ja configurado (login vai direto
+/// para a configuracao do caminhao, sem passar pelo onboarding).
+Future<SettingsProvider> _perfilPronto() async {
+  final s = SettingsProvider();
+  await s.load();
+  await s.setPerfilConfigurado(true);
+  return s;
 }
 
 void main() {
@@ -30,6 +42,7 @@ void main() {
       'primeiro_acesso_v1': true,
       'permissoes_pedidas_v1': 'x',
       'audio_musica': false,
+      'settings.perfilPronto': true,
     });
   });
 
@@ -92,7 +105,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(_wrap(const LoginScreen()));
+    await tester.pumpWidget(_wrap(const LoginScreen(), settings: await _perfilPronto()));
 
     await tester.enterText(find.byType(TextField).at(0), 'motorista@teste.com');
     await tester.enterText(find.byType(TextField).at(1), '123456');
@@ -101,6 +114,15 @@ void main() {
 
     expect(find.text('Configurar Caminhão'), findsOneWidget);
     expect(find.text('Salvar e Iniciar Navegação V2X'), findsOneWidget);
+  });
+
+  testWidgets('LoginScreen abre o diálogo de recuperar senha', (tester) async {
+    await tester.pumpWidget(_wrap(const LoginScreen()));
+    expect(find.text('Esqueci minha senha'), findsOneWidget);
+    await tester.tap(find.text('Esqueci minha senha'));
+    await tester.pumpAndSettle();
+    expect(find.text('Recuperar senha'), findsOneWidget);
+    expect(find.text('ENVIAR CÓDIGO'), findsOneWidget);
   });
 
   testWidgets('TruckSetupScreen renderiza todos os campos e HAZMAT', (tester) async {

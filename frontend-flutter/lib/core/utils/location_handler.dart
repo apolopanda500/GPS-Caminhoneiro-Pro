@@ -7,8 +7,18 @@ class LocationHandler {
     return status.isGranted;
   }
 
+  /// Permissao REAL de localizacao em segundo plano (sempre).
+  /// No Android 10+ o usuario precisa escolher "Permitir o tempo todo".
   static Future<bool> requestBackgroundLocation() async {
-    final status = await Permission.location.request();
+    final local = await Permission.location.request();
+    if (!local.isGranted) return false;
+    final sempre = await Permission.locationAlways.request();
+    return sempre.isGranted;
+  }
+
+  /// Permissao de notificacoes (necessaria para o servico em primeiro plano).
+  static Future<bool> requestNotifications() async {
+    final status = await Permission.notification.request();
     return status.isGranted;
   }
 

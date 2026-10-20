@@ -1,7 +1,7 @@
 ﻿import { Request, Response } from 'express';
 import { Client } from 'pg';
 import crypto from 'crypto';
-import { sendVerificationCode, mailerConfigured } from '../utils/mailer';
+import { sendVerificationCode, sendPasswordResetCode, mailerConfigured } from '../utils/mailer';
 import { criarToken } from '../utils/session';
 
 const CODE_TTL_MINUTES = 10;
@@ -10,10 +10,23 @@ function generateCode(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
+/** Normaliza o e-mail igual em cadastro, login e recuperacao. */
+function normalizarEmail(email: unknown): string {
+  return String(email ?? '').trim().toLowerCase();
+}
+
+function emailValido(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
 export class AuthController {
   constructor(private db: Client) {}
 
-  private async issueCode(email: string, purpose: string): Promise<boolean> {
+  private async issueCode(
+    email: string,
+    purpose: string,
+    remetente: (to: string, code: string) => Promise<boolean> = sendVerificationCode
+  ): Promise<boolean> {
     const code = generateCode();
     await this.db.query(
       `INSERT INTO verification_codes (email, code, purpose, expires_at)
@@ -21,7 +34,7 @@ export class AuthController {
       [email, code, purpose, CODE_TTL_MINUTES]
     );
     try {
-      return await sendVerificationCode(email, code);
+      return await remetente(email, code);
     } catch (err) {
       console.error('[auth] falha ao enviar e-mail:', err);
       return false;
@@ -34,8 +47,8 @@ export class AuthController {
       res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
       return;
     }
-    const emailLimpo = String(email).trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailLimpo)) {
+    const emailLimpo = normalizarEmail(email);
+    if (!emailValido(emailLimpo)) {
       res.status(400).json({ error: 'E-mail inválido.' });
       return;
     }
@@ -87,12 +100,19 @@ export class AuthController {
       res.status(400).json({ error: 'E-mail e código são obrigatórios.' });
       return;
     }
+    const emailLimpo = normalizarEmail(email);
+    const purpose = String(req.body.purpose ?? '').trim();
+    // Sem purpose explicito, aceita os codigos de confirmacao de conta
+    // (cadastro ou login) — o de reset de senha exige purpose = 'reset'.
+    const purposes =
+      purpose === 'reset' ? ['reset'] : ['signup', 'login'];
     try {
       const found = await this.db.query(
         `SELECT id FROM verification_codes
-         WHERE email = $1 AND code = $2 AND consumed = FALSE AND expires_at > NOW()
+         WHERE email = $1 AND code = $2 AND purpose = ANY($3::text[])
+           AND consumed = FALSE AND expires_at > NOW()
          ORDER BY created_at DESC LIMIT 1`,
-        [email, code]
+        [emailLimpo, String(code).trim(), purposes]
       );
       if (found.rows.length === 0) {
         res.status(400).json({ error: 'Código inválido ou expirado.' });
@@ -102,13 +122,18 @@ export class AuthController {
         'UPDATE verification_codes SET consumed = TRUE WHERE id = $1',
         [found.rows[0].id]
       );
+      if (purpose === 'reset') {
+        // A senha nova e o codigo de reset sao tratados em resetPassword.
+        res.json({ success: true, requiresPasswordReset: true });
+        return;
+      }
       await this.db.query(
         'UPDATE drivers SET email_verified = TRUE, verified_at = NOW() WHERE email = $1',
-        [email]
+        [emailLimpo]
       );
       const result = await this.db.query(
         'SELECT driver_id, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type FROM drivers WHERE email = $1',
-        [email]
+        [emailLimpo]
       );
       const d = result.rows[0] ?? {};
       res.json({
@@ -134,10 +159,11 @@ export class AuthController {
       res.status(400).json({ error: 'E-mail é obrigatório.' });
       return;
     }
+    const emailLimpo = normalizarEmail(email);
     try {
       const result = await this.db.query(
         'SELECT driver_id, email_verified FROM drivers WHERE email = $1',
-        [email]
+        [emailLimpo]
       );
       if (result.rows.length === 0) {
         res.status(404).json({ error: 'Conta não encontrada.' });
@@ -147,21 +173,109 @@ export class AuthController {
         res.status(400).json({ error: 'Conta já confirmada.' });
         return;
       }
-      const emailSent = await this.issueCode(email, 'signup');
+      const emailSent = await this.issueCode(emailLimpo, 'signup');
       res.json({ success: true, emailSent, smtpConfigured: mailerConfigured() });
     } catch {
       res.status(500).json({ error: 'Erro ao reenviar o código.' });
     }
   }
 
+  /**
+   * Envia o codigo de redefinicao de senha.
+   * Nao revela se o e-mail existe (sempre responde a mesma coisa).
+   */
+  async requestPasswordReset(req: Request, res: Response): Promise<void> {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'E-mail é obrigatório.' });
+      return;
+    }
+    const emailLimpo = normalizarEmail(email);
+    if (!emailValido(emailLimpo)) {
+      res.status(400).json({ error: 'E-mail inválido.' });
+      return;
+    }
+    if (!mailerConfigured()) {
+      res.status(503).json({
+        error:
+          'Recuperação de senha indisponível no momento. Tente novamente mais tarde.',
+      });
+      return;
+    }
+    try {
+      const result = await this.db.query(
+        'SELECT driver_id FROM drivers WHERE email = $1',
+        [emailLimpo]
+      );
+      if (result.rows.length > 0) {
+        await this.issueCode(emailLimpo, 'reset', sendPasswordResetCode);
+      }
+      res.json({
+        success: true,
+        message:
+          'Se o e-mail estiver cadastrado, enviamos o código de redefinição de senha.',
+      });
+    } catch {
+      res.status(500).json({ error: 'Erro ao solicitar a redefinição de senha.' });
+    }
+  }
+
+  /** Troca a senha depois de confirmar o codigo de redefinicao. */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    const { email, code, password } = req.body;
+    if (!email || !code || !password) {
+      res.status(400).json({ error: 'E-mail, código e nova senha são obrigatórios.' });
+      return;
+    }
+    const emailLimpo = normalizarEmail(email);
+    if (String(password).length < 6) {
+      res.status(400).json({ error: 'A senha precisa ter ao menos 6 caracteres.' });
+      return;
+    }
+    const hash = crypto.createHash('sha256').update(String(password)).digest('hex');
+    try {
+      const found = await this.db.query(
+        `SELECT id FROM verification_codes
+         WHERE email = $1 AND code = $2 AND purpose = 'reset'
+           AND consumed = FALSE AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [emailLimpo, String(code).trim()]
+      );
+      if (found.rows.length === 0) {
+        res.status(400).json({ error: 'Código inválido ou expirado.' });
+        return;
+      }
+      const updated = await this.db.query(
+        'UPDATE drivers SET password_hash = $2 WHERE email = $1',
+        [emailLimpo, hash]
+      );
+      if ((updated.rowCount ?? 0) === 0) {
+        res.status(404).json({ error: 'Conta não encontrada.' });
+        return;
+      }
+      await this.db.query(
+        'UPDATE verification_codes SET consumed = TRUE WHERE id = $1',
+        [found.rows[0].id]
+      );
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Erro ao redefinir a senha.' });
+    }
+  }
+
   async login(req: Request, res: Response): Promise<void> {
     const { email, password } = req.body;
-    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    if (!email || !password) {
+      res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
+      return;
+    }
+    const emailLimpo = normalizarEmail(email);
+    const hash = crypto.createHash('sha256').update(String(password)).digest('hex');
 
     try {
       const result = await this.db.query(
         'SELECT driver_id, email, name, is_premium, avatar_url, truck_photo_url, truck_model, cargo_type, role, help_type, company_name, company_lat, company_lon, email_verified FROM drivers WHERE email = $1 AND password_hash = $2',
-        [email, hash]
+        [emailLimpo, hash]
       );
       if (result.rows.length === 0) {
         res.status(401).json({ error: 'E-mail ou senha inválidos.' });
@@ -169,7 +283,7 @@ export class AuthController {
       }
       if (result.rows[0].email_verified === false) {
         const emailSent = await this.issueCode(
-          result.rows[0].email ?? email,
+          result.rows[0].email ?? emailLimpo,
           'login'
         );
         res.status(403).json({

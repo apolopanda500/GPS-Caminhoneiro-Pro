@@ -69,6 +69,19 @@ void main() {
       await a.register(email: 'joao@teste.com', password: 'x');
       expect(a.driver!.name, 'joao');
     });
+
+    test('login normaliza o e-mail (trim + minúsculas)', () async {
+      final a = AuthProvider();
+      await a.login(email: '  Motorista@Teste.COM ', password: '123456');
+      expect(a.driver!.email, 'motorista@teste.com');
+      expect(a.driver!.name, 'motorista');
+    });
+
+    test('register normaliza o e-mail', () async {
+      final a = AuthProvider();
+      await a.register(email: ' Novo@Teste.COM ', password: '123456');
+      expect(a.driver!.email, 'novo@teste.com');
+    });
   });
 
   group('AlertProvider', () {
