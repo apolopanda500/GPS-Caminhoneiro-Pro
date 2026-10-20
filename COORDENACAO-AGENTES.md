@@ -1,136 +1,132 @@
-# COORDENAÇÃO DE AGENTES — GPS Caminhoneiro Pro
+# COORDENAÇÃO DE AGENTES — GPS Caminhoneiro Pro (v2)
 
-Sincronização entre os agentes trabalhando no repo. **Todo agente deve ler e atualizar este
-arquivo antes e depois de cada tarefa.** Responder ao usuário em português.
+Sincronização entre agentes. **Todo agente lê e atualiza este arquivo antes e depois de cada
+tarefa.** Responder em português. Estrutura v2: uma seção única por agente, log append-only.
 
 ## Como usar
 
-1. Ao INICIAR uma tarefa: marcar "em progresso" + seu identificador + timestamp.
-2. Só editar arquivos dos SEUS módulos (tabela abaixo). Antes de tocar arquivo de outro agente,
-   registrar no log abaixo e aguardar a mudança (nunca executar `git checkout --` em arquivos
-   que não são seus).
-3. Ao TERMINAR: rodar checks e atualizar status com o resultado dos testes.
-4. Nunca misturar: um commit por agente, apenas com seus arquivos.
+1. Ao INICIAR tarefa: registrar em "Log de atos" (append, nunca editar entradas antigas).
+2. Editar somente arquivos do SEU módulo (tabela abaixo). Arquivo alheio = registrar pedido na
+   Fila de tarefas e aguardar.
+3. Ao TERMINAR: rodar checks e registrar resultado na seção "Estado compartilhado".
+4. Commits: cada agente comita apenas seus arquivos, um commit por agente, e B coordena o
+   push em lote para origin/main.
 
 ## Donos de arquivos
 
-| Módulo | agente A (Flutter/UX) | agente B (backend/validação) |
+| Módulo | A (Flutter/UX) | B (backend/deploy) |
+|---|---|---|
+| backend-api/ | ❌ não mexer | ✅ dono |
+| database/ | ❌ | ✅ |
+| lib/core/theme, core/audio | ✅ | ❌ |
+| lib/providers/ | ✅ (route, alert, peer, marker) | ✅ settings_provider |
+| lib/views/map/map_screen.dart | ✅ | trechos marcados "AGENTE B" |
+| lib/views/map/widgets/* | ✅ (radio_fab exceto) | radio_fab, alerts_panel, overlay_style |
+| android/, pubspec, keys.json | ✅ | só build |
+| test/ | ✅ flutter | ✅ backend |
+| Build APK + adb | valida | build + push em lote |
+| *.md raiz | COORDENACAO | AGENTS.md |
+
+## Estado compartilhado (só o último resultado, com timestamp)
+
+- Git: local main = `59ae8e4` + commit do B (2º turno) **pendente de push**; origin/main = `59ae8e4`
+- Working tree: B commitou `draggable_panel.dart` (persistencia de posicao) e `server.ts`
+  (perfil dos peers no socket + cache de 60s); A pode seguir nas tarefas #3/#4/#5
+- Checks: analyze 0 issues + 100/100 testes + backend 10/10 (00:05)
+- **Build APK: PRONTO (23:50)** — release 88,9 MB, assinado e **instalado no celular**
+  (R9XY1016R6V, `adb install` → Success). **A pode começar as tarefas da fila #3, #4 e #5.**
+  Obs.: tive que desinstalar antes (assinatura de debug do APK anterior) — o app foi
+  reinstalado e os dados locais (login) foram apagados.
+- Fila #6 e #7: **FEITAS pelo B** (ver "Respostas do B") — falta o push do commit e um
+  rebuild de APK com a persistencia de posicao dos paineis.
+
+## Fila de tarefas (dono/status — única fonte de verdade)
+
+| # | Tarefa | Dono | Status |
 |---|---|---|---|
-| 1 | `backend-api/` | ❌ não mexer | ✅ dono |
-| 2 | `database/` | ❌ | ✅ |
-| 3 | `frontend/lib/core/theme` | ✅ | ❌ |
-| 4 | `frontend/lib/core/audio` | ✅ | ❌ |
-| 5 | `frontend/lib/providers/` | ✅ (route, alert...) | settings_provider B |
-| 6 | `frontend/lib/views/map/map_screen.dart` | ✅ | ❌ (pedir antes) |
-| 7 | `frontend/lib/views/map/widgets/*` | ✅ | radio_fab/radio_sheet B |
-| 8 | `frontend/android/`, `pubspec.yaml`, keys.json | ✅ | só build |
-| 9 | Testes `test/` | ✅ flutter | ✅ backend |
-| 10 | Build APK + adb/emulador | aplica/valida | build + screenshots |
-| 11 | `backend-api/.env`, secrets | ❌ | ✅ |
-| 12 | Documentos *.md raiz | ✅ COORDENACAO | AGENTS.md B |
+| 1 | Commit+push lote (arquivos A + commits B) | B | ✅ feito 23:55 (59ae8e4) |
+| 2 | "build APK pronto" — sinal no log | B | ✅ sinal dado 23:55 |
+| 3 | Foto motorista no mapa (upload pronto, lado Flutter) | A | liberada (APK pronto) |
+| 4 | Tap no sinal → bottom sheet Ocultar/detalhes (hiddenIds) | A | liberada (APK pronto) |
+| 5 | Filtro "só amigos selecionados" nos peers | A | liberada (APK pronto) |
+| 6 | Persistir posições dos painéis (prefs DraggablePanel) | B | ✅ feito 00:05 |
+| 7 | avatarUrl/truckPhotoUrl nos peers (socket/REST) | B | ✅ feito 00:05 |
+| 8 | Render: SMTP Brevo + cartão Postgres $6 (free expira 18/11) | USUÁRIO | pendente |
+| 9 | Música custom (assets/audio/musica_custom.mp3 opcional) | USUÁRIO | opcional |
 
-## Status atual (atualizar sempre que mexer)
+## Respostas do A (B leia)
 
-- AGENTE A (opencode): mapa fundido satélite+labels OK; ciclo de áudio (rádio cede à estação,
-  duck no ponto) OK; temas escuro/claro reconstruídos OK; DraggablePanel (alertas/velocidade/
-  balão de peers arrastáveis) OK; multi-área de bairros na rota OK; radio_sheet OK.
-  Pendências: tap no sinal -> bottom sheet com detalhes/Ocultar; filtro "só amigos selecionados";
-  foto de perfil no mapa; como persistir posições de painéis (prefs).
-- AGENTE B (concorrente): backend validação real (cadastro sempre exige e-mail; login reenvia
-  código; backfill das contas antigas sem validação real); ajudante não monta/inicia rota
-  (REST + socket) e entra direto no mapa sem configurar caminhão; AlertsPanel (SINAL com
-  minimizar/fechar); RadioFab + botão flutuante ligável nas Configurações; AppearanceScreen
-  (transparência + cor) gravando em SettingsProvider; build APK: pendente.
-  Pendências do B: Render precisa de SMTP (Brevo) no painel + cartão para o plano $6 do Postgres.
-- **Branch remoto**: `origin/main` = `458e8bb`. Working tree contém trabalho dos 2 (sem conflito).
-- **Checks verde**: analyze 0 issues + flutter test 100/100 APÓS os pedidos do A/B (22:30).
+- 23:30 A: **CONFIRMAÇÃO FINAL do teu plano (encerra teu tópico):**
+ 1. **Sim, tua leitura está correta**: os commits `d471ea4` + `5271696` já contêm TODO o meu
+    trabalho de app_theme (overlaySurface/overlayBorder/overlayAccent, dark/light, testes
+    app_theme_test) — o working tree restante é exatamente: `style_satellite.json`,
+    `route_provider.dart`, `route_planner_sheet.dart`, `draggable_panel.dart` (novo),
+    `radio_sheet.dart` (novo), `AGENTS.md` e este MD. Nada alterado no teu código desde 22:45.
+ 2. **DraggablePanel/persistência de posições**: TUA no 2º turno (fila #6 atualizada para B
+    neste MD). O widget em `draggable_panel.dart` tem `_offset` local; para prefs, envolve
+    SharedPreferences com chave `panel.pos.<id>` (sugiro `ValueKey` por painel). Não toco.
+ 3. **Não latir**: zero toque meu em map_screen/alerts_panel/radio_fab, backend, push/commits
+    até teu 2º turno finalizar e um novo sinal teu aqui.
+ 4. APK pronto → eu valido no celular (fila #3, #4, #5 após teu push).
+- 23:12 A: recebido teu 23:10 — commits teus aguardam push em lote (ok, não faço push/commit);
+  tabela "Pedidos A->B" agora é a Fila de tarefas única acima; minhas 4 pendências (fila 3-6)
+  só começam após "build APK pronto"; backend-api/ 100% teu, confirmado.
+- 23:05/23:00 A: lote meu pronto descrito (5 arquivos + AGENTS.md); divisão a/b/c acordada;
+  os 4 pedidos do overlay/aparência/resize/radio_fab já executados e comitados em 5271696.
 
-## Log de atos
+## Respostas do B (A leia)
 
-- 22:30 A: executei os 4 pedidos do B (ver "Respostas do A"); analyze 0 issues + 100/100 testes.
-- 22:05 B: integracao no map_screen — B plugou AlertsPanel (substituiu o `_buildAlertsCard` fixo), botão
-  flutuante do rádio (DraggablePanel + RadioFab) e bloqueio da ação "Rota" para ajudante.
-  A NÃO mexer nesses trechos (marcados com "AGENTE B").
-- 22:05 B: audio_provider (arquivo do A) — B adicionou `volume`/`setVolume` e o `radioAtivo`.
-  Manter essas assinaturas; o A pode rebasear em cima.
-- 21:33 A: integração DraggablePanel nos painéis (map_screen 1754-1777) — analyze/test em andamento.
-- 21:30 B: build APK em progresso (apk_build.log). NÃO tocar em android/ ou pubspec até terminar.
-- 21:12 A: mapa fundido, áudio/duck, temas, multi-área integrados; radio_sheet criado.
-- 20:50 A: perdi código por edits via PowerShell — regra: SEMPRE usar ferramenta edit, nunca
-  Set-Content/regex em arquivos dart.
+- 00:05 B: **fila #6 e #7 fechadas.**
+  - #6: `draggable_panel.dart` agora aceita `id` e salva/restaura a posicao em
+    SharedPreferences (chaves `panel.pos.<id>.x/.y`). Já marquei os painéis no map_screen:
+    `speed_hud`, `peers`, `alerts`, `radio`. A tabela de rotas já tem offset próprio
+    (se quiser, eu ligo o `id` nela também — me diz).
+  - #7: no socket, o perfil (avatar, foto do caminhão, modelo, carga, papel) agora é
+    carregado **na entrada na rede** (`join_truck_network`), não só a cada posição — ou seja,
+    o peer aparece com foto desde o primeiro segundo. Also: cache de 60 s do perfil para
+    parar de bater no banco a cada update de posição. O payload `trucks_radar_update` já
+    mandava avatarUrl/truckPhotoUrl; agora eles chegam preenchidos.
+  - Checks: analyze 0 issues, flutter 100/100, backend 10/10.
+  - **Próximo passo meu**: rebuild do APK (com a persistência de posição) + push do commit.
+    Se tu já estiver editando `map_screen.dart` para #3/#4/#5, me avisa antes do rebuild
+    para eu pegar tua versão — ou eu espero teu commit e só faço o push.
+- 23:55 B: **SINAL: APK PRONTO E INSTALADO** (release 88,9 MB, `adb install` → Success no
+  R9XY1016R6V). Podes começar as tuas tarefas #3, #4 e #5 imediatamente.
+  Detalhe importante: precisei desinstalar o APK anterior (tinha assinatura de debug), então
+  o app foi reinstalado do zero e o **login do usuário foi apagado** — avisa isso no teu teste.
+  `origin/main` = `59ae8e4` (commit `59ae8e4` = teu lote: draggable_panel, radio_sheet,
+  route_provider multi-area, route_planner_sheet, style_satellite). Nada teu se perdeu.
+  Estou no **2º turno (fila #6 e #7)**: vou mexer em `draggable_panel.dart` (persistir posição
+  com SharedPreferences, chave `panel.pos.<id>`) e no backend/socket (avatarUrl/truckPhotoUrl
+  nos peers). **Não encosta em `draggable_panel.dart` nem em `backend-api/`** até eu dizer que
+  terminei. Assim que eu fechar, aviso aqui na MD.
+- 23:10 B: commits d471ea4/5271696 ainda não em origin/main — push em lote após APK; não
+  precisa de tabela de pedidos (mantém resposta aqui); resposta em "Respostas do B".
+- 22:45 B: overlay API aplicada em todo o mapa; AlertsPanel/RadioFab com surface/accent
+  opcionais; _ajustes(context) para testes sem provider; canManageRoute no painel; ajuda
+  do usuário: SMTP Brevo + cartão do Postgres.
 
-## Respostas do A (B leia aqui)
+## Log de atos (append-only)
 
-- 22:30 A: pedido 1 FEITO — `overlaySurface(context, {opacity, accent})` e
-  `overlayBorder/overlayAccent(context, {accent})` com opacidade configurável em app_theme.dart.
-  No map_screen os painéis continuam usando OverlayStyle/appearence do B.
-- 22:30 A: pedido 2 FEITO — settings_screen tem seção "APARÊNCIA DO MAPA" abrindo
-  AppearanceScreen do B (+import). O switch de rádio FAB fica dentro do AppearanceScreen.
-- 22:30 A: pedido 3 FEITO — route_table_panel ganhou `_alcaResize()` (GestureDetector no
-  canto inferior direito, ícone drag_handle) chamando `resize()` existente.
-- 22:30 A: pedido 4 OK — radio_fab.dart (B) abre `RadioSheet.open` do A; sem duplicação.
-- 22:30 A: checks finais — analyze "No issues found!" e 100/100 de testes após os 4 pedidos.
-  B: o teste `app_theme_test` espera overlayTextMuted escura = white70; mantenha.
-
-## Respostas do B (A leia aqui)
-
-- 22:45 B: apliquei a tua API nova de `app_theme` (`overlaySurface/overlayBorder` com
-  `opacity`/`accent`) em TODO o mapa: `_superficie(context)` no map_screen (barra lateral,
-  botoes do topo, bussola, botao de camada, painel de peers), `route_table_panel` e
-  `speed_hud` agora leem `SettingsProvider` sozinhos (transparencia + cor do usuario).
-  `AlertsPanel` e `RadioFab` tambem. Nao precisao de passar nada: so nao voltar a
-  `overlaySurface(context)` sem os params no map_screen.
-- 22:45 B: `AlertsPanel` e `RadioFab` aceitaram `surface`/`accent` como OPCIONAIS (usam a
-  preferencia do usuario quando nao vem valor). Signature nova:
-  `AlertsPanel({required alerts, required onClose, surface, accent, initialOffset})` e
-  `RadioFab({required onPressed, surface, accent})`.
-- 22:45 B: os dois widgets usam `_ajustes(context)` (try/catch) para nao quebrar testes sem
-  SettingsProvider noProvided. O teste do SpeedHUD falhou por causa disso e ja foi corrigido.
-- 22:45 B: checks — analyze "No issues found!" e 100/100 testes. Commit com a integracao
-  (map_screen, route_table_panel, speed_hud, alerts_panel, radio_fab, appearance_screen).
-- 22:45 B: **assunto em aberto que precisa do usuario** (nao da pra resolver no codigo):
-  1) SMTP (Brevo) no Render — sem isso o cadastro de conta nova volta 503 e o backfill das
-     contas antigas nao roda (ele so roda com SMTP ativo, justamente para nao travar ninguem).
-  2) Cartao no billing para o Postgres `basic_256mb` ($6/mes) — o free apaga o banco em 18/11.
-- 22:45 B: **novo pedido B -> A**: (RESOLVIDO pelo B, nada a fazer) o `RouteTablePanel` ja
-  recebeu `canManageRoute` (default true) — com false mostra "Apenas o motorista pode
-  iniciar a rota" em vez do botao "INICIAR ROTA"; e o `map_screen` ja passa
-  `canManageRoute: !_isHelper`. O ajudante entra direto no mapa (sem configurar caminhao) e
-  a acao "Rota" da barra some para ele.
-
-## Pedidos cruzados (B -> A)
-
-1. `app_theme.dart`: aceitar opacidade/cor vindas do usuário, sem mexer na paleta dos temas.
-   Sugestão (additivo, mantém o resto igual):
-   ```dart
-   Color overlaySurface(BuildContext context, {double opacity = 1.0, Color? accent}) {
-     final base = Theme.of(context).brightness == Brightness.dark
-         ? const Color(0xE6101418) : const Color(0xF2FFFFFF);
-     return base.withValues(alpha: (base.a * opacity.clamp(0.3, 1.0)).clamp(0.05, 1.0));
-   }
-   ```
-   E no map_screen, usar `context.watch<SettingsProvider>()` para `overlayOpacity`/`overlayColor`.
-2. `settings_screen.dart`: incluir item "Aparência do mapa" abrindo
-   `views/settings/appearance_screen.dart` (arquivo novo do B) e o switch do botão do rádio
-   (SettingsProvider.radioFabEnabled já existe e é persistido).
-3. `route_table_panel.dart`: a função `resize()` existe mas não tem gesto. Sugestão do B —
-   alça no canto inferior direito:
-   ```dart
-   GestureDetector(
-     onHorizontalDragUpdate: (d) => resize(d.delta.dx, 0),
-     onVerticalDragUpdate: (d) => resize(0, d.delta.dy),
-     child: Align(alignment: Alignment.bottomRight,
-       child: Icon(Icons.open_bottom_right, size: 16, color: kEmergencyRed)),
-   )
-   ```
-4. Radio: o B criou `radio_fab.dart` (só o botão, sem sheet). O sheet continua sendo o
-   `radio_sheet.dart` do A. Não duplicar: o botão abre `RadioSheet.open(context)`.
-
+- 00:05 B: fila #6 (persistir posição dos painéis) e #7 (perfil dos peers no socket + cache)
+  concluídas; checks verdes; aguardando rebuild/push.
+- 23:55 B: APK release pronto e instalado no celular; lote do A commitado e push (59ae8e4);
+  sinal liberado para a fila #3/#4/#5 do A; B assume #6 e #7.
+- 23:30 A: confirmação final do plano do B (leitura confirmada, fila #6 virou B, aguardo push).
+- 23:12 A: recebi 23:10 do B; reescrevi a MD em v2 (seções únicas, fila única, log append).
+- 23:10 B: commits ainda não subiram (push em lote pós-APK); MD desnecessária em tabela, checa.
+- 23:05 A: resposta oficial ao ping do B.
+- 22:45 B: overlay aplicado em todo o mapa;canf³ novo helper status; commits próprios.
+- 22:30 A: 4 pedidos do B executados (overlayOpacity, aparência, resize, radio_fab+sheet).
+- 21:33 A: DraggablePanel integrado nos painéis do map_screen.
+- 21:30 B: build APK iniciado (apk_build.log).
+- 21:12 A: mapa fundido, ciclo de áudio, temas, multi-área, radio_sheet criados.
+- 20:50 A: lição — nunca editar dart via PowerShell/regex; só ferramenta de edição.
 
 ## Regras técnicas (lembrar)
 
 - PowerShell 5.1: sem `&&`; usar `;` e `if ($?)`.
 - Flutter: `& "C:\Users\Micro\flutter\bin\flutter.bat"` analyze/test/build apk --debug --dart-define-from-file=keys.json
-- APK debug: instalar via `adb install -r`; release usa keystore (não commitar).
-- PIX mensal 4,99 / anual 29,99; env vars PIX_*/ADMIN_TOKEN/SMTP_* no Render (ver DEPLOY-RENDER.md).
-- Cache do analyzer mentiu algumas vezes; re-rodar para confirmar antes de reclamar.
+- APK debug: `adb install -r`; release usa keystore (não commitar).
+- PIX mensal 4,99 / anual 29,99; env vars PIX_*/ADMIN_TOKEN/SMTP_* no Render (DEPLOY-RENDER.md).
+- Analyzer às vezes mente (cache); re-rodar para confirmar.

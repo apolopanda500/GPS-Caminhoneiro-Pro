@@ -70,10 +70,27 @@ interface ActiveTruck {
 
 const activeTrucksNetwork = new Map<string, ActiveTruck>();
 
+// Cache simples do perfil do motorista (evita query a cada posicao).
+const perfilCache = new Map<string, { dados: any; expira: number }>();
+const PERFIL_TTL_MS = 60_000;
+
+async function carregarPerfil(driverId: string): Promise<any> {
+  const cached = perfilCache.get(driverId);
+  const agora = Date.now();
+  if (cached && cached.expira > agora) return cached.dados;
+  const resultado = await db.query(
+    'SELECT name, avatar_url, truck_photo_url, truck_model, cargo_type, role FROM drivers WHERE driver_id = $1',
+    [driverId]
+  );
+  const dados = resultado.rows[0] || {};
+  perfilCache.set(driverId, { dados, expira: agora + PERFIL_TTL_MS });
+  return dados;
+}
+
 io.on('connection', (socket: Socket) => {
   console.log(`🚚 Caminhão conectado via Socket.io: ${socket.id}`);
 
-  socket.on('join_truck_network', (data: { driverId: string; name: string; truckIcon?: string; role?: string }) => {
+  socket.on('join_truck_network', async (data: { driverId: string; name: string; truckIcon?: string; role?: string }) => {
     activeTrucksNetwork.set(socket.id, {
       socketId: socket.id,
       driverId: data.driverId,
@@ -83,6 +100,19 @@ io.on('connection', (socket: Socket) => {
       role: data.role || 'motorista',
       truckIcon: data.truckIcon || '🚚',
     });
+    // Carrega o perfil (foto, avatar, modelo) para os peers ja mostrarem.
+    try {
+      const p = await carregarPerfil(data.driverId);
+      const truck = activeTrucksNetwork.get(socket.id);
+      if (p && truck) {
+        truck.name = p.name || truck.name;
+        truck.avatarUrl = p.avatar_url;
+        truck.truckPhotoUrl = p.truck_photo_url;
+        truck.truckModel = p.truck_model;
+        truck.cargoType = p.cargo_type;
+        if (p.role) truck.role = p.role;
+      }
+    } catch { console.error('Erro ao carregar perfil na entrada.'); }
     console.log(`📡 ${data.name} entrou na rede V2X.`);
   });
 
@@ -110,11 +140,7 @@ io.on('connection', (socket: Socket) => {
     } catch { console.error('Erro varredura.'); }
 
     try {
-      const profile = await db.query(
-        'SELECT name, avatar_url, truck_photo_url, truck_model, cargo_type, role FROM drivers WHERE driver_id = $1',
-        [coords.driverId]
-      );
-      const p = profile.rows[0] || {};
+      const p = await carregarPerfil(coords.driverId);
       if (truck) {
         truck.name = p.name || truck.name;
         truck.avatarUrl = p.avatar_url;

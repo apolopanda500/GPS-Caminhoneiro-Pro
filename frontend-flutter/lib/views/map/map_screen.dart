@@ -1780,6 +1780,7 @@ class _MapScreenState extends State<MapScreen> {
           // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
           if (ui && _activeAlerts.isNotEmpty && !_alertsPanelClosed)
             DraggablePanel(
+              id: 'alerts',
               initial: Offset(_contentLeft, 96),
               child: AlertsPanel(
                 alerts: List<AlertModel>.unmodifiable(_activeAlerts),
@@ -1793,6 +1794,7 @@ class _MapScreenState extends State<MapScreen> {
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
               return DraggablePanel(
+                id: 'radio',
                 initial: Offset(size.width - 70, size.height - 300),
                 child: RadioFab(
                   surface: _superficie(context),
@@ -1805,6 +1807,7 @@ class _MapScreenState extends State<MapScreen> {
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
               return DraggablePanel(
+                id: 'speed_hud',
                 initial: Offset(size.width - 220, size.height - 230),
                 child: SpeedHUD(
                   speedKmh: _speedKmh,
@@ -1817,6 +1820,7 @@ class _MapScreenState extends State<MapScreen> {
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
               return DraggablePanel(
+                id: 'peers',
                 initial: Offset(size.width - 200, size.height - 390),
                 child: _buildPeerBubble(),
               );
