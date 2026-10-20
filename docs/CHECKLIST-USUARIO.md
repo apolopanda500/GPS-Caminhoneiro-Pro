@@ -32,6 +32,26 @@ flutter build apk --release --dart-define-from-file=keys.json
 > Para testar antes disso, o SHA-1 da chave de **debug** já está pronto:
 > `22:7C:6B:5A:B5:07:F1:F3:55:BA:00:24:FD:68:6B:F9:3F:F9:D4:FB:E8:B7:C6:CB:2D:9D:41:9B:46:EB:A2:BA`
 
+### ✅ Keystore de release já criado (20/10/2026)
+
+O keystore de release definitivo já foi gerado e o `android/key.properties`
+(configurado no Gradle) está correto — o APK release já sai assinado com ele.
+
+| Item | Valor |
+|---|---|
+| Keystore | `frontend-flutter/android/app/upload-keystore.jks` (fora do git) |
+| Alias | `upload` |
+| Senha | ver `C:\Users\Micro\gps-keystore-senha.txt` (**guarde no gerenciador de senhas**) |
+| SHA-1 | `72:ED:AA:CD:F3:E4:E7:3B:C4:9F:AA:1D:8A:2D:DD:81:80:9C:7D:67:98:C0:E7:16:E7:19:8B:B8:E6:F3:46:15` |
+| SHA-256 | `72EDAACDF3E4E73BC49FAA1D8A2DDD81809C7D6798C0E716E7198BB8E6F34615` |
+
+Esses dois valores vão no **Play Console → seu app → Teste interno → Gerenciar →
+credenciais de assinatura** (upload key). Guarde a senha: sem ela você não
+consegue gerar uma nova chave de upload.
+
+> O keytool desta máquina (Java 8) não imprime o SHA-256; o script exporta o
+> certificado e calcula o hash do DER.
+
 ---
 
 ## 2) Chave do Google (rotas com trânsito em tempo real)
