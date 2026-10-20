@@ -55,6 +55,9 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 7 | avatarUrl/truckPhotoUrl nos peers (socket/REST) | B | ✅ feito 00:05 |
 | 8 | Render: SMTP Brevo + cartão Postgres $6 (free expira 18/11) | USUÁRIO | pendente |
 | 9 | Música custom (assets/audio/musica_custom.mp3 opcional) | USUÁRIO | opcional |
+| 10 | Funde botões duplicados no map_screen: 3D entra no botão de camada (Satélite→Ruas→3D) e "Rádio" sai da barra lateral (fica no FAB + Configurações) | A | pedida pelo usuário |
+| 11 | Confirmação real nos botões do map_screen (usar `core/utils/confirm.dart`): limpar sinais, sair da conta, compartilhar rota, enviar sinal | A | pedida pelo usuário |
+| 12 | 3D: deixar o botão de camada do mapa com os 3 modos e o 3D premium com o portão de premium (sem duplicar com o switch de prédios 3D das Configurações) | A | junto do #10 |
 
 ## Respostas do A (B leia)
 
@@ -78,6 +81,33 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Respostas do B (A leia)
 
+- 01:05 B: **rodada de limpeza (usuário pediu)** — commits `6f2c1d9`:
+  1. **Tema segue a cor escolhida**: `appTheme`/`appLightTheme` viraram funções
+     `appTheme({Color accent})`/`appLightTheme({Color accent})` e o `main.dart` passa
+     `settings.overlayColor`. Agora a cor vale para TODO o app (botões, cartões, appbar,
+     chips, campos, switch, snackbar, bottomsheet) — antes só mexia no mapa.
+     **A**: `app_theme_test.dart` foi atualizado por mim (chama `appTheme()`), confere se
+     teu lado usa `appTheme` como valor em algum lugar.
+  2. **"Ver rua" dentro do app**: removi o "Abrir no Google Maps"/"VER NO GOOGLE MAPS" da
+     `street_view_screen.dart` e os links `googleStreetViewLink`/`googleMapsLink` do
+     serviço. Agora é só a visão de rua dentro do app.
+  3. **Confirmação real**: novo `core/utils/confirm.dart` (`confirmarAcao` /
+     `confirmarEExecutar`). Já usei em: confirmar entrega (tabela de rotas) e gerar PIX
+     (payment_gate). **A**: usa o mesmo helper nos botões do map_screen (fila #11) e em
+     qualquer ação destrutiva.
+  4. **Código morto removido**: `backend-api/src/config/security.ts` (SecurityEngine sem
+     uso), `_RadioSheet` duplicado dentro das Configurações (agora usa o `radio_sheet`
+     único), `googleStreetViewLink`, `googleMapsLink`, `abrirRadioDigital` e a classe
+     `OverlayStyle` (duplicava o `app_theme`).
+  5. **Documentação**: criei `docs/CONVERSAS-A-B.md` com o histórico das nossas
+     conversas e decisões (pedido do usuário: "anotar documentar conversas").
+  6. **Fila nova pra ti** (#10, #11, #12): fundir botões duplicados (3D no botão de
+     camada, rádio fora da barra lateral) e pôr confirmação real nos botões do mapa.
+     Não mexi no `map_screen.dart` porque você está mexendo nele agora (erros de
+     `fromDriverId`/`_abrirMeuPerfil` duplicado no meio da tua edição).
+  7. Aviso: `map_screen.dart` está com 11 erros de análise no meio da tua edição
+     (socket com `fromDriverId`/`fromName` e `_abrirMeuPerfil` duplicado). Me avisa
+     quando fechar que eu rodo analyze/test, buildo o APK e faço o push.
 - 00:40 B: **"corrigir apis" — feito. Agora as APIs exigem identidade real.**
   Antes, qualquer um podia editar o perfil/foto de QUALQUER motorista só mandando o
   `driverId` no corpo. Agora:

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
+import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
 
 class PaymentGateScreen extends StatefulWidget {
   const PaymentGateScreen({super.key, this.driverId = ''});
@@ -24,6 +25,16 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
       _showErro('Servidor não configurado. Não é possível gerar o PIX agora.');
       return;
     }
+    // Confirmação real antes de cobrar: o PIX é irreversível.
+    final resposta = await confirmarAcao(
+      context,
+      titulo: 'Gerar PIX da assinatura',
+      mensagem:
+          'Você vai gerar um PIX de R\$ ${_valor.toStringAsFixed(2)} ($_plano).\n\nO pagamento é feito no seu banco e não pode ser desfeito pelo app. Quer continuar?',
+      textoConfirmar: 'GERAR PIX',
+      icone: Icons.payments_outlined,
+    );
+    if (resposta != Confirmacao.confirmado) return;
     setState(() => _loading = true);
     try {
       final resp = await http.post(
