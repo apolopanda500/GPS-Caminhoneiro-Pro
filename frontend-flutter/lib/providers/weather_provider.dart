@@ -67,6 +67,10 @@ class WeatherProvider extends ChangeNotifier {
   String? _lastAlertKey;
 
   WeatherNow? get now => _now;
+
+  /// Ultima posicao consultada (para abrir o clima de qualquer tela).
+  double? get lastLatitude => _lat;
+  double? get lastLongitude => _lon;
   List<WeatherHour> get hours => List.unmodifiable(_hours);
   List<WeatherDay> get days => List.unmodifiable(_days);
   bool get loading => _loading;

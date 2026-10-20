@@ -49,14 +49,8 @@ import 'package:gps_camioneiro_pro/views/map/widgets/peer_profile_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_planner_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/assistant_sheet.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/map_controls_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/weather_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/radio_fab.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/map_menu_sheet.dart';
 import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
@@ -104,13 +98,9 @@ class _MapScreenState extends State<MapScreen> {
   bool _is3d = false;
   bool _modoEscolherEmpresa = false;
   String _nomeEmpresaPendente = '';
-  bool _uiExpanded = true;
+  final bool _uiExpanded = true;
   bool _alertsPanelClosed = false;
   bool _routePanelClosed = false;
-  bool _chatAberto = false;
-  String? _chatPeerName;
-  String? _chatPeerId;
-  bool _sideRailOpen = false;
 
   MapLayerMode _layerMode = MapLayerMode.satellite;
   final SpeedLimitService _speedLimitService = SpeedLimitService();
@@ -125,7 +115,6 @@ class _MapScreenState extends State<MapScreen> {
   double get _contentLeft => 16;
   bool _settingsApplied = false;
   MapLayerMode? _appliedLayer;
-  bool _peerBubbleOpen = false;
 
   MarkerProvider? _markerProvider;
   RouteProvider? _routeProvider;
@@ -1118,13 +1107,33 @@ class _MapScreenState extends State<MapScreen> {
   LatLng get _reportPoint => _currentPosition ?? _center;
 
   void _openChatPanel({String? peerName, String? peerDriverId}) {
-    // O chat virou um painel flutuante do mapa (arrastavel, minimizavel e
-    // ocultavel) em vez de uma folha modal que travava o app.
-    setState(() {
-      _chatAberto = true;
-      _chatPeerName = peerName;
-      _chatPeerId = peerDriverId;
-    });
+    // O chat nao e mais uma janela flutuante: abre sob demanda (sem poluir a
+    // tela) e continua acessivel pelas Configuracoes.
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _superficie(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => ChatPanel(
+        driverId: widget.driverId,
+        driverName: widget.driverName,
+        messages: _chatMessages,
+        peerName: peerName,
+        onSend: (message) {
+          final pos = _reportPoint;
+          _socket.sendChatMessage(
+            driverId: widget.driverId,
+            driverName: widget.driverName,
+            message: message,
+            lat: pos.latitude,
+            lon: pos.longitude,
+            targetDriverId: peerDriverId,
+          );
+        },
+      ),
+    );
   }
 
   /// Envia minha posição atual pela rede para quem estiver perto.
@@ -2238,10 +2247,6 @@ class _MapScreenState extends State<MapScreen> {
     RoutePlannerSheet.show(context, origin: _currentPosition);
   }
 
-  /// Radio digital: abre o player (agenda com volume e agora tocando).
-  void _abrirRadio() {
-    _gatePremium(PremiumFeature.radio, () => RadioSheet.open(context));
-  }
 
   /// Superficie dos paineis com a transparencia e a cor escolhidas pelo
   /// usuario na tela de Aparencia.
@@ -2274,6 +2279,8 @@ class _MapScreenState extends State<MapScreen> {
       onLogout: _sairDaConta,
       onStreetView: _verRua,
       onCompany: _marcarEmpresa,
+      onGrupos: _abrirGrupos,
+      onSinalizar: _abrirSinalizacoes,
     );
   }
 
@@ -2372,6 +2379,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final ui = _uiExpanded;
+    final size = MediaQuery.of(context).size;
     // O painel de rotas so aparece quando existe rota de verdade: painel
     // vazio sobre o mapa so atrapalhava.
     final totalParadas = context.watch<RouteProvider>().totalStops;
@@ -2380,83 +2388,46 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           _buildMapView(),
-          if (ui && _settingsProvider?.showFps == true)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'fps',
-                initial: Offset(size.width - 150, 96),
-                width: 130,
-                height: 46,
-                dragWholeChild: true,
-                minimizedChild: const Icon(Icons.speed, size: 20),
-                child: FpsOverlay(
-                  targetFps: _settingsProvider?.targetFps ?? 60,
-                ),
-              );
-            }),
+          // AGENTE B: na tela do mapa ficam SO os 5 elementos pedidos:
+          // km/h, centralizar camera, rota, buscar e sinais.
+          // Tudo o mais (clima, camadas/graficos, radio, IA, chat, caminhoes
+          // proximos) foi para as Configuracoes.
           if (ui)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'clima',
-                initial: Offset(16, size.height - 430),
-                width: 300,
-                height: 390,
-                minimizedChild: const Icon(Icons.cloud_outlined, size: 20),
-                handle: _buildPuxador('Clima e previsão', Icons.cloud_outlined),
-                child: WeatherPanel(
-                  latitude: _currentPosition?.latitude,
-                  longitude: _currentPosition?.longitude,
-                ),
-              );
-            }),
+            FloatingPanel(
+              id: 'speed_hud',
+              initial: Offset(size.width - 220, size.height - 230),
+              width: 200,
+              height: 90,
+              minimizedChild: const Icon(Icons.speed, size: 20),
+              child: SpeedHUD(
+                speedKmh: _speedKmh,
+                limitKmh: _speedLimitKmh,
+                streetName: _streetName,
+              ),
+            ),
           if (ui)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'camadas',
-                initial: Offset(size.width - 320, 96),
-                width: 300,
-                height: 520,
-                minimizedChild: const Icon(Icons.tune, size: 20),
-                handle: _buildPuxador('Mapa e gráficos', Icons.tune),
-                child: MapControlsPanel(
-                  onCamada: _definirCamada,
-                  onMostrarUi: (v) => setState(() => _uiExpanded = v),
-                  uiVisivel: _uiExpanded,
-                ),
-              );
-            }),
-          if (ui && _chatAberto)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'chat',
-                initial: Offset(size.width - 340, size.height - 520),
-                width: 320,
-                height: 420,
-                minimizedChild: const Icon(Icons.chat_bubble_outline, size: 20),
-                handle: _buildPuxador('Chat da via', Icons.chat_bubble_outline),
-                child: ChatPanel(
-                  driverId: widget.driverId,
-                  driverName: widget.driverName,
-                  messages: _chatMessages,
-                  peerName: _chatPeerName,
-                  onSend: (message) {
-                    final pos = _reportPoint;
-                    _socket.sendChatMessage(
-                      driverId: widget.driverId,
-                      driverName: widget.driverName,
-                      message: message,
-                      lat: pos.latitude,
-                      lon: pos.longitude,
-                      targetDriverId: _chatPeerId,
-                    );
-                  },
-                ),
-              );
-            }),
+            FloatingPanel(
+              id: 'acoes',
+              initial: const Offset(16, 120),
+              width: 56,
+              height: 190,
+              dragWholeChild: true,
+              minimizedChild: const Icon(Icons.apps, size: 20),
+              showToggle: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _botaoFlutuante(Icons.search, 'Buscar rua', _buscarRua),
+                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.center_focus_strong, 'Centralizar camera',
+                      _recentralizarNoCaminhao),
+                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
+                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.settings, 'Configuracoes e menu', _abrirMenu),
+                ],
+              ),
+            ),
           if (ui && !_routePanelClosed && totalParadas > 0)
             Builder(builder: (ctx) {
               final size = MediaQuery.of(ctx).size;
@@ -2493,7 +2464,7 @@ class _MapScreenState extends State<MapScreen> {
                 onClose: () => setState(() => _alertsPanelClosed = true),
               ),
             ),
-          // AGENTE B: painel fechado mas com sinais ativos: badge para reabrir.
+          // Sinais recebidos com o painel fechado: badge para reabrir.
           if (ui && _activeAlerts.isNotEmpty && _alertsPanelClosed)
             FloatingPanel(
               id: 'alerts_badge',
@@ -2509,106 +2480,30 @@ class _MapScreenState extends State<MapScreen> {
                 backgroundColor: _superficie(context),
                 foregroundColor: Colors.amber,
                 elevation: 2,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, size: 22),
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: kEmergencyRed,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '${_activeAlerts.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                child: const Icon(Icons.warning_amber_rounded, size: 22),
               ),
             ),
-          // AGENTE B: botao flutuante do radio (liga/desliga nas Configuracoes).
-          if (ui && _settingsProvider?.radioFabEnabled != false)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'radio',
-                initial: Offset(size.width - 70, size.height - 300),
-                width: 56,
-                height: 56,
-                dragWholeChild: true,
-                minimizedChild: const Icon(Icons.radio_outlined, size: 20),
-                child: RadioFab(
-                  surface: _superficie(context),
-                  accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
-                  onPressed: _abrirRadio,
-                  onStop: () => context.read<AudioProvider>().pararRadio(),
-                ),
-              );
-            }),
-          // AGENTE B: assistente da estrada (IA em todas as camadas).
-          if (ui)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'assistant',
-                initial: Offset(size.width - 70, size.height - 380),
-                width: 56,
-                height: 56,
-                dragWholeChild: true,
-                minimizedChild: const Icon(Icons.auto_awesome, size: 20),
-                child: _buildAssistantButton(),
-              );
-            }),
-          if (ui)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'speed_hud',
-                initial: Offset(size.width - 220, size.height - 230),
-                width: 200,
-                height: 90,
-                minimizedChild: const Icon(Icons.speed, size: 20),
-                child: SpeedHUD(
-                  speedKmh: _speedKmh,
-                  limitKmh: _speedLimitKmh,
-                  streetName: _streetName,
-                ),
-              );
-            }),
-          if (ui && _peerTrucks.isNotEmpty)
-            Builder(builder: (ctx) {
-              final size = MediaQuery.of(ctx).size;
-              return FloatingPanel(
-                id: 'peers',
-                initial: Offset(size.width - 200, size.height - 390),
-                width: 220,
-                height: 160,
-                minimizedChild: const Icon(Icons.local_shipping, size: 20),
-                child: _buildPeerBubble(),
-              );
-            }),
-          if (ui)
-            FloatingPanel(
-              id: 'toolbar',
-              initial: const Offset(12, 120),
-              width: 168,
-              height: 420,
-              minimizedChild: const Icon(Icons.build_outlined, size: 20),
-              handle: _buildPuxador('Ferramentas', Icons.build_outlined),
-              child: _buildSideRail(),
-            ),
         ],
+      ),
+    );
+  }
+
+  /// Botao flutuante pequeno (usado na coluna de acoes do mapa).
+  Widget _botaoFlutuante(IconData icone, String dica, VoidCallback onTap) {
+    return Tooltip(
+      message: dica,
+      child: Material(
+        color: _superficie(context),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icone,
+                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 21),
+          ),
+        ),
       ),
     );
   }
@@ -2651,267 +2546,13 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Abre o assistente (IA que le rota, alertas, limite e clima).
-  void _abrirAssistente() {
-    unawaited(_abrirAssistenteComContexto());
-  }
 
-  Future<void> _abrirAssistenteComContexto() async {
-    final pos = _currentPosition;
-    if (pos != null) {
-      await context
-          .read<WeatherProvider>()
-          .refresh(lat: pos.latitude, lon: pos.longitude);
-    }
-    if (!mounted) return;
-    AssistantSheet.show(
-      context,
-      snapshotAoVivo: () => {
-        'velocidade': '${_speedKmh.toStringAsFixed(0)} km/h agora'
-            '${_speedLimitKmh != null ? ' (limite $_speedLimitKmh km/h'
-                '${_speedKmh > _speedLimitKmh! + 8 ? ', excesso!' : ''})' : ''}',
-        'clima': _resumoClimaIA(),
-        'rua': _streetName ?? 'logradouro não identificado',
-      },
-    );
-  }
 
-  String _resumoClimaIA() {
-    try {
-      final clima = context.read<WeatherProvider>();
-      final n = clima.now;
-      final dicas = clima.dicasIA();
-      if (n == null) return 'sem informação de clima (sem rede/GPS)';
-      return '${clima.emojiForCode(n.code)} ${n.tempC.toStringAsFixed(0)}°C, '
-          'vento ${n.windKmh.toStringAsFixed(0)} km/h'
-          '${dicas.isNotEmpty ? ' | ${dicas.join(' | ')}' : ''}';
-    } catch (_) {
-      return 'clima indisponível';
-    }
-  }
 
-  /// Botao do assistente (IA) sobre o mapa.
-  Widget _buildAssistantButton() {
-    return Tooltip(
-      message: 'Assistente da estrada',
-      child: Material(
-        color: _superficie(context),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _abrirAssistente,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(Icons.auto_awesome,
-                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 22),
-          ),
-        ),
-      ),
-    );
-  }
 
-  /// Troca a camada do mapa (satelite/ruas/3D).
-  Future<void> _definirCamada(MapLayerMode novo) async {
-    if (novo == MapLayerMode.detailed &&
-        PremiumPolicy.isLocked(PremiumFeature.detailedMap,
-            isPremium: _isPremium)) {
-      _gatePremium(PremiumFeature.detailedMap, () {});
-      return;
-    }
-    setState(() {
-      _layerMode = novo;
-      _appliedLayer = novo;
-    });
-    await _settingsProvider?.setLayer(novo);
-    final style = _styleAtual;
-    if (style.isNotEmpty) {
-      _mapController?.setStyle(style);
-    }
-    if (novo == MapLayerMode.detailed) {
-      _ensureBuildings3d();
-      final target = _currentPosition ?? _center;
-      _moverCamera(target, zoom: _zoom, bearing: 25, tilt: 50);
-    }
-    _showSnackBar(switch (novo) {
-      MapLayerMode.satellite => 'Imagem de satelite ativada.',
-      MapLayerMode.streets => 'Mapa leve de ruas ativado.',
-      MapLayerMode.detailed => 'Ruas em 3D ativadas.',
-    });
-  }
 
-  Widget _railAction(IconData icon, String label, VoidCallback onTap) {
-    final corIcone =
-        _settingsProvider?.overlayColor ?? Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Row(
-          children: [
-            Icon(icon, color: corIcone, size: 20),
-            if (_sideRailOpen) ...[
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                      color: overlayTextMuted(context), fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
-  /// Barra de ferramentas flutuante: arrastavel, recolhivel e minimizavel
-  /// (arraste para a borda esquerda/direita que ela vira uma tab).
-  Widget _buildSideRail() {
-    final cor = _settingsProvider?.overlayColor ?? kEmergencyRed;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      width: _sideRailOpen ? 168 : 56,
-      decoration: BoxDecoration(
-        color: _superficie(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cor, width: 1.2),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Tooltip(
-              message: _sideRailOpen ? 'Recolher' : 'Expandir',
-              child: InkWell(
-                onTap: () => setState(() => _sideRailOpen = !_sideRailOpen),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _sideRailOpen
-                            ? Icons.chevron_left
-                            : Icons.chevron_right,
-                        color: overlayTextMuted(context),
-                        size: 20,
-                      ),
-                      if (_sideRailOpen) ...[
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Ferramentas',
-                            style: TextStyle(
-                              color: overlayTextMuted(context),
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Divider(
-                color: overlayTextMuted(context).withValues(alpha: 0.18),
-                height: 1),
-              _railAction(Icons.settings, 'Tudo', _abrirMenu),
-              // AGENTE B: bussola e centralizar foram fundidos na barra
-              // (antes eram dois botoes flutuantes soltos na tela).
-              _railAction(Icons.center_focus_strong, 'Centralizar',
-                  _recentralizarNoCaminhao),
-            // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
-            if (!_isHelper)
-              _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
-            _railAction(Icons.group, 'Grupos', _abrirGrupos),
-            _railAction(Icons.add_location_alt, 'Sinalizar', _abrirSinalizacoes),
-            // O radio ficou no botao flutuante e nas Configuracoes (sem duplicar).
-            _railAction(Icons.search, 'Buscar',
-                () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildPeerBubble() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_peerBubbleOpen)
-          Container(
-            width: 220,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _superficie(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: _settingsProvider?.overlayColor ?? kEmergencyRed),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.local_shipping,
-                        color: Colors.redAccent, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_peerTrucks.length} caminhões por perto',
-                      style: TextStyle(
-                          color: overlayText(context),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ..._peerTrucks.take(4).map(
-                      (p) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _peerBubbleOpen = false);
-                            _openPeerProfile(p);
-                          },
-                          child: Text(
-                            '🚚 ${p['name'] ?? 'Caminhoneiro'}',
-                            style: TextStyle(
-                                color: overlayTextMuted(context), fontSize: 12),
-                          ),
-                        ),
-                      ),
-                    ),
-              ],
-            ),
-          ),
-        FloatingActionButton(
-          heroTag: 'fab_peers',
-          mini: true,
-          backgroundColor: _superficie(context),
-          onPressed: () => setState(() => _peerBubbleOpen = !_peerBubbleOpen),
-          child: Badge(
-            label: Text('${_peerTrucks.length}'),
-            child: Icon(
-              _peerBubbleOpen
-                  ? Icons.keyboard_arrow_down
-                  : Icons.local_shipping,
-              color: Colors.redAccent,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildMapView() {
     if (_styleJsonSat == null || _styleJsonStreetsLight == null) {

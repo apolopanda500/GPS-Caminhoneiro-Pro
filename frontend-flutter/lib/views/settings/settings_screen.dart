@@ -13,10 +13,80 @@ import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/weather_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/map_controls_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/assistant_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/chat_panel.dart';
+import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
+import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  /// Abre o painel de clima (as coordenadas vem da ultima leitura do GPS).
+  void _abrirClima(BuildContext context) {
+    final clima = context.read<WeatherProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => WeatherPanel(
+        latitude: clima.lastLatitude,
+        longitude: clima.lastLongitude,
+      ),
+    );
+  }
+
+  /// Abre o painel de camadas do mapa (chuva, nuvens, relevo, 3D, cor da rota).
+  void _abrirCamadas(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => MapControlsPanel(
+        onCamada: (modo) => settings.setLayer(modo),
+        onMostrarUi: (_) {},
+        uiVisivel: true,
+      ),
+    );
+  }
+
+  /// Abre o chat da rede.
+  void _abrirChat(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    final clima = context.read<WeatherProvider>();
+    final driver = auth.driver;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => ChatPanel(
+        driverId: driver?.driverId ?? '',
+        driverName: driver?.name ?? 'Motorista',
+        messages: const [],
+        onSend: (message) {
+          SocketClient().sendChatMessage(
+            driverId: driver?.driverId ?? '',
+            driverName: driver?.name ?? 'Motorista',
+            message: message,
+            lat: clima.lastLatitude ?? 0,
+            lon: clima.lastLongitude ?? 0,
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +309,59 @@ class SettingsScreen extends StatelessWidget {
               style: TextStyle(color: muted, fontSize: 12),
             ),
             trailing: Icon(Icons.chevron_right, color: muted),
+          ),
+          const _Section('MAPA E FERRAMENTAS'),
+          // AGENTE B: o mapa ficou com 5 elementos (km/h, centralizar, rota,
+          // buscar, sinais). Tudo o mais mora aqui.
+          ListTile(
+            leading: const Icon(Icons.cloud_outlined, color: Colors.redAccent),
+            title: Text('Clima e previsão', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Tempo real, próximas horas, 5 dias, sol e lua',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => _abrirClima(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune, color: Colors.redAccent),
+            title: Text('Camadas do mapa', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Chuva, nuvens, relevo, prédios 3D e cor da linha da rota',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => _abrirCamadas(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.radio_outlined, color: Colors.redAccent),
+            title: Text('Rádio da estrada', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Estações FM ao vivo (abre o player)',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => RadioSheet.open(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome, color: Colors.redAccent),
+            title: Text('Assistente (IA)', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Pergunte sobre rota, sinais, limite de velocidade e clima',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => AssistantSheet.show(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.chat_bubble_outline, color: Colors.redAccent),
+            title: Text('Chat da via', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Conversa com os caminhoneiros da rede',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => _abrirChat(context),
           ),
           const _Section('APARÊNCIA DO MAPA'),
           ListTile(
