@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+﻿import crypto from 'crypto';
 import { env } from '../config/env';
 
 export interface Sessao {
@@ -6,7 +6,7 @@ export interface Sessao {
   expiraEm: number;
 }
 
-const VALIDADE_MS = 30 * 24 * 60 * 60 * 1000;
+const VALIDADE_MS = 90 * 24 * 60 * 60 * 1000;
 
 function assinatura(payload: string): string {
   return crypto
@@ -58,3 +58,4 @@ export function tokenDaRequisicao(req: {
   if (typeof alternativo === 'string') return alternativo.trim();
   return undefined;
 }
+
