@@ -253,6 +253,14 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 17:55 B: **Mini janela flutuante corrigida: auto-entra no HOME em ciclo.**
+  O `onUserLeaveHint` sozinho nao era confiavel ao voltar do mini. Agora usa
+  a API oficial do Android 12+ (`setAutoEnterEnabled(true)`), que e o
+  caminho que o YouTube Premium usa: o sistema entra na mini janela
+  quando o usuario aperta HOME e repete a cada ciclo.
+  **Testado no aparelho: 3 ciclos seguidos** (HOME -> mini -> abrir o app ->
+  HOME -> mini), todos em Picture-in-Picture com o transito ao vivo.
+
 - 17:40 B: **Mini janela flutuante (Picture-in-Picture) + edicao de rotas + filtro de estado.**
   1. **Mini janela**: a mesma tecnologia do YouTube Premium (Picture-in-Picture).
      Janela flutuante arrastavel, redimensionavel e minimizavel sobre os

@@ -65,7 +65,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _radioFabEnabled = true;
   String _regiao = 'RJ';
   bool _perfilPronto = false;
-  String _corRota = '#FF6D00';
+  String _corRota = '#1D4ED8';
   bool _loaded = false;
 
   bool get showFps => _showFps;
@@ -76,6 +76,19 @@ class SettingsProvider extends ChangeNotifier {
   bool get highAccuracy => _highAccuracy;
   bool get backgroundLocation => _backgroundLocation;
   bool get batterySaver => _batterySaver;
+
+  /// Intervalo real do GPS: com a economia de bateria ligada o app pede
+  /// bem menos posicoes (o caminhoneiro economiza a bateria do celular).
+  int get intervaloGpsReal {
+    if (!_batterySaver) return _gpsIntervalSeconds;
+    final maior = _gpsIntervalSeconds * 3;
+    return maior < 8 ? 8 : maior;
+  }
+
+  /// Com a economia ligada o clima e atualizado de menos em menos.
+  Duration get intervaloClima =>
+      _batterySaver ? const Duration(minutes: 10) : const Duration(minutes: 2);
+
   bool get showTrucks => _showTrucks;
   bool get trafficLayer => _trafficLayer;
   bool get radarSound => _radarSound;
@@ -233,7 +246,7 @@ class SettingsProvider extends ChangeNotifier {
     _radioFabEnabled = prefs.getBool(_kRadioFab) ?? true;
     _regiao = prefs.getString(_kRegiao) ?? 'RJ';
     _perfilPronto = prefs.getBool(_kPerfilPronto) ?? false;
-    _corRota = prefs.getString(_kCorRota) ?? '#FF6D00';
+    _corRota = prefs.getString(_kCorRota) ?? '#1D4ED8';
     final dayStart = prefs.getInt(_kDayStartedAt);
     _dayStartedAt =
         dayStart == null ? null : DateTime.fromMillisecondsSinceEpoch(dayStart);

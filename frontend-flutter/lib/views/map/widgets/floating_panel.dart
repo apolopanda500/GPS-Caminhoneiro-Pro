@@ -126,18 +126,25 @@ class _FloatingPanelState extends State<FloatingPanel> {
     } catch (_) {}
   }
 
-  double get _larguraMin => widget.width * 0.6;
-  double get _larguraMax => widget.width * 2.2;
-  double get _alturaMin => 64.0;
-  double get _alturaMax => widget.height * 2.2;
+  /// Sem limite: o painel pode ficar do tamanho que o motorista quiser.
+  double get _larguraMin => 40;
+  double get _larguraMax => 6000;
+  double get _alturaMin => 40;
+  double get _alturaMax => 6000;
 
-  /// Redimensiona o painel arrastando a alca no canto inferior direito.
-  void _redimensionar(DragUpdateDetails d) {
+  /// Redimensiona o painel arrastando uma das alcas dos cantos.
+  void _redimensionar(DragUpdateDetails d, {required int lado}) {
     setState(() {
-      _largura = ((_largura ?? widget.width) + d.delta.dx)
-          .clamp(_larguraMin, _larguraMax);
-      _altura = ((_altura ?? widget.height) + d.delta.dy)
-          .clamp(_alturaMin, _alturaMax);
+      var largura = _largura ?? widget.width;
+      var altura = _altura ?? widget.height;
+      // lado: 0 = inferior direito, 1 = inferior esquerdo,
+      //       2 = superior direito, 3 = superior esquerdo
+      final dx = lado == 1 || lado == 3 ? -d.delta.dx : d.delta.dx;
+      final dy = lado >= 2 ? -d.delta.dy : d.delta.dy;
+      largura = (largura + dx).clamp(_larguraMin, _larguraMax);
+      altura = (altura + dy).clamp(_alturaMin, _alturaMax);
+      _largura = largura;
+      _altura = altura;
     });
   }
 
@@ -249,24 +256,40 @@ class _FloatingPanelState extends State<FloatingPanel> {
               ],
             ),
           ),
-          if (widget.resizable)
-            Positioned(
-              right: 2,
-              bottom: 2,
-              child: GestureDetector(
-                onPanUpdate: _redimensionar,
-                onPanEnd: (_) => _salvar(),
-                child: Tooltip(
-                  message: 'Arraste para redimensionar',
-                  child: Icon(
-                    Icons.open_in_full,
-                    size: 13,
-                    color: overlayTextMuted(context).withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ),
+          if (widget.resizable) ...[
+            _alcaResize(0), // inferior direito
+            _alcaResize(1), // inferior esquerdo
+            _alcaResize(2), // superior direito
+            _alcaResize(3), // superior esquerdo
+          ],
         ],
+      ),
+    );
+  }
+
+  /// Alca de redimensionamento em um dos cantos.
+  Widget _alcaResize(int lado) {
+    final alinhamento = switch (lado) {
+      0 => Alignment.bottomRight,
+      1 => Alignment.bottomLeft,
+      2 => Alignment.topRight,
+      _ => Alignment.topLeft,
+    };
+    return Positioned.fill(
+      child: Align(
+        alignment: alinhamento,
+        child: GestureDetector(
+          onPanUpdate: (d) => _redimensionar(d, lado: lado),
+          onPanEnd: (_) => _salvar(),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(
+              Icons.open_in_full,
+              size: 12,
+              color: overlayTextMuted(context).withValues(alpha: 0.6),
+            ),
+          ),
+        ),
       ),
     );
   }

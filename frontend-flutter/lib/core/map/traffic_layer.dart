@@ -37,15 +37,16 @@ class CamadaTrafego {
     1.0, '#1B5E20',
   ];
 
-  /// Largura da linha conforme o zoom.
+  /// Largura da linha conforme o zoom (fina: o transito e um aviso, nao
+  /// pode cobrir a via).
   static final List<Object> _largura = [
     'interpolate',
     ['linear'],
     ['zoom'],
-    8, 1.0,
-    12, 2.0,
-    15, 4.0,
-    18, 8.0,
+    8, 0.6,
+    12, 1.2,
+    15, 2.0,
+    18, 3.5,
   ];
 
   /// Liga (ou desliga) a camada de transito no mapa.
@@ -78,7 +79,7 @@ class CamadaTrafego {
         ml.LineLayerProperties(
           lineColor: _cores,
           lineWidth: _largura,
-          lineOpacity: 0.85,
+          lineOpacity: 0.75,
         ),
         sourceLayer: camadaDoTile,
       );

@@ -468,12 +468,28 @@ class RouteProvider extends ChangeNotifier {
   }
 
   String get nextStopLabel {    final i = nextStopIndex;
-    if (i == null) return 'Rota concluÃ­da';
+    if (i == null) return 'Rota conclu��da';
     final s = _stops[i];
     final who = s.customer.isNotEmpty ? s.customer : s.label;
-    final bairro = s.neighborhood.isNotEmpty ? ' â€¢ ${s.neighborhood}' : '';
+    final bairro = s.neighborhood.isNotEmpty ? ' �?� ${s.neighborhood}' : '';
     return '${i + 1}. $who$bairro';
   }
+
+  /// Numero da proxima parada (1, 2, 3...) para a voz do app.
+  int? get proximoNumero {
+    final i = nextStopIndex;
+    if (i == null) return null;
+    return i + 1;
+  }
+
+  /// Nome do cliente da proxima parada (para a voz do app).
+  String? get proximoNome {
+    final i = nextStopIndex;
+    if (i == null) return null;
+    final s = _stops[i];
+    return s.customer.isNotEmpty ? s.customer : s.label;
+  }
+
 
   double get progress => totalStops == 0 ? 0 : deliveredCount / totalStops;
 

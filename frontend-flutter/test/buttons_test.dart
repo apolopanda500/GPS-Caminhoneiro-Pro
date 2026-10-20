@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
+import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
 import 'package:gps_camioneiro_pro/providers/marker_provider.dart';
 import 'package:gps_camioneiro_pro/providers/navigation_provider.dart';
 import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
@@ -96,6 +97,7 @@ Widget _app(Widget child) {
       ChangeNotifierProvider(create: (_) => RouteProvider()),
       ChangeNotifierProvider(create: (_) => TripProvider()),
       ChangeNotifierProvider(create: (_) => AudioProvider()),
+      ChangeNotifierProvider(create: (_) => MapLayersProvider()),
     ],
     child: MaterialApp(home: child),
   );

@@ -1,6 +1,34 @@
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Como a voz anuncia as paradas.
+enum ModoFalaParada {
+  /// "Chegou na parada numero 2 de 5"
+  numero,
+
+  /// "Chegou na empresa do cliente Joao"
+  nomeCliente,
+}
+
+/// Uma voz disponivel no aparelho.
+class VozDisponivel {
+  final String nome;
+  final String local;
+  final String? genero;
+
+  const VozDisponivel({
+    required this.nome,
+    required this.local,
+    this.genero,
+  });
+
+  String get rotulo {
+    final g = (genero ?? '').toLowerCase();
+    final tipo = g.startsWith('f') ? 'feminina' : (g.startsWith('m') ? 'masculina' : '');
+    return tipo.isEmpty ? nome : '$nome ($tipo)';
+  }
+}
+
 class VoiceService {
   VoiceService._();
   static final VoiceService instance = VoiceService._();
@@ -8,6 +36,14 @@ class VoiceService {
   final FlutterTts _tts = FlutterTts();
   bool _iniciado = false;
   bool ligada = true;
+
+  /// Como falar as paradas: numero ou nome do cliente.
+  ModoFalaParada modoFalaParada = ModoFalaParada.numero;
+
+  /// Voz escolhida (nome) e tom da fala.
+  String? vozEscolhida;
+  double velocidade = 0.48;
+  double tom = 1.0;
 
   /// Chamado antes/depois de falar para abaixar o radio (duck) e devolver o
   /// volume. Definido pelo app no main.dart.
@@ -17,6 +53,67 @@ class VoiceService {
   Future<void> carregarPreferencia() async {
     final prefs = await SharedPreferences.getInstance();
     ligada = prefs.getBool('audio_voz') ?? true;
+    modoFalaParada = (prefs.getString('audio_vozModo') ?? 'numero') == 'nome'
+        ? ModoFalaParada.nomeCliente
+        : ModoFalaParada.numero;
+    vozEscolhida = prefs.getString('audio_vozNome');
+    velocidade = prefs.getDouble('audio_vozVelocidade') ?? 0.48;
+    tom = prefs.getDouble('audio_vozTom') ?? 1.0;
+  }
+
+  /// Escolhe o modo de falar as paradas (numero ou nome do cliente).
+  Future<void> definirModoFala(ModoFalaParada modo) async {
+    modoFalaParada = modo;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('audio_vozModo', modo == ModoFalaParada.nomeCliente ? 'nome' : 'numero');
+  }
+
+  /// Troca a voz do aparelho.
+  Future<void> definirVoz(String? nome, {String local = 'pt-BR'}) async {
+    vozEscolhida = nome;
+    final prefs = await SharedPreferences.getInstance();
+    if (nome == null) {
+      await prefs.remove('audio_vozNome');
+    } else {
+      await prefs.setString('audio_vozNome', nome);
+    }
+    _iniciado = false;
+    await _garantir();
+  }
+
+  /// Ajusta a velocidade e o tom da fala.
+  Future<void> definirVozAjustes({double? velocidade, double? tom}) async {
+    if (velocidade != null) this.velocidade = velocidade;
+    if (tom != null) this.tom = tom;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('audio_vozVelocidade', this.velocidade);
+    await prefs.setDouble('audio_vozTom', this.tom);
+    _iniciado = false;
+    await _garantir();
+  }
+
+  /// Vozes de fala em portugues disponibles no aparelho.
+  Future<List<VozDisponivel>> listarVozes() async {
+    try {
+      final bruta = await _tts.getVoices;
+      if (bruta is! List) return const [];
+      final lista = <VozDisponivel>[];
+      for (final v in bruta) {
+        if (v is Map) {
+          final local = v['locale']?.toString() ?? '';
+          if (!local.toLowerCase().startsWith('pt')) continue;
+          lista.add(VozDisponivel(
+            nome: v['name']?.toString() ?? '',
+            local: local,
+            genero: v['gender']?.toString(),
+          ));
+        }
+      }
+      lista.sort((a, b) => a.nome.compareTo(b.nome));
+      return lista;
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<void> alternar(bool ativar) async {
@@ -34,9 +131,13 @@ class VoiceService {
     if (_iniciado) return;
     try {
       await _tts.setLanguage('pt-BR');
-      await _tts.setSpeechRate(0.48);
-      await _tts.setPitch(1.0);
+      await _tts.setSpeechRate(velocidade);
+      await _tts.setPitch(tom);
       await _tts.awaitSpeakCompletion(true);
+      final voz = vozEscolhida;
+      if (voz != null && voz.isNotEmpty) {
+        await _tts.setVoice({'name': voz, 'locale': 'pt-BR'});
+      }
       _iniciado = true;
     } catch (_) {}
   }
@@ -56,37 +157,76 @@ class VoiceService {
     } catch (_) {}
   }
 
-  /// "Chegou no ponto 1... chegou no ponto 2..." ate o ultimo cliente.
+  /// "Chegou na parada numero 1... chegou na parada numero 2..." ate o
+  /// ultimo cliente, dizendo sempre a proxima parada com o numero certo.
+  ///
+  /// O motorista escolhe no app se a voz fala o **numero** da parada ou o
+  /// **nome do cliente** ([modoFalaParada]).
   Future<void> chegadaNaParada(
     int numero,
     int total, {
-    String? proxima,
+    int? proximoNumero,
+    String? proximoNome,
     double? distanciaProximaKm,
   }) async {
     final buf = StringBuffer();
+    final porNome = modoFalaParada == ModoFalaParada.nomeCliente;
+
     if (numero >= total) {
-      buf.write('Rota concluída. Volte para a empresa.');
+      buf.write('Ultima entrega concluida. Agora volte para a empresa.');
+    } else if (porNome && proximoNome != null && proximoNome.trim().isNotEmpty) {
+      buf.write('Chegou em $proximoNome. ');
+      buf.write(_fraseProxima(proximoNumero, proximoNome, distanciaProximaKm, true));
     } else {
-      buf.write('Chegou no ponto $numero de $total. ');
-      if (proxima != null && proxima.trim().isNotEmpty) {
-        buf.write('Próxima parada: $proxima');
-        if (distanciaProximaKm != null && distanciaProximaKm > 0) {
-          if (distanciaProximaKm < 1) {
-            buf.write(', a menos de 1 quilômetro.');
-          } else {
-            buf.write(', a ${distanciaProximaKm.toStringAsFixed(1)} quilômetros.');
-          }
-        } else {
-          buf.write('.');
-        }
-      } else {
-        buf.write('A próxima parada está esperando por você.');
-      }
+      buf.write('Chegou na parada numero $numero de $total. ');
+      buf.write(_fraseProxima(proximoNumero, proximoNome, distanciaProximaKm, porNome));
     }
     await falar(buf.toString());
   }
 
+  /// Frase com a proxima parada (numero, nome e distancia).
+  String _fraseProxima(
+    int? proximoNumero,
+    String? proximoNome,
+    double? distanciaProximaKm,
+    bool porNome,
+  ) {
+    final buf = StringBuffer();
+    if (proximoNumero != null) {
+      buf.write('Proxima parada');
+      if (porNome && proximoNome != null && proximoNome.trim().isNotEmpty) {
+        buf.write(', $proximoNome');
+      } else {
+        buf.write(', numero $proximoNumero');
+      }
+    } else if (proximoNome != null && proximoNome.trim().isNotEmpty) {
+      buf.write('Proxima parada, $proximoNome');
+    } else {
+      buf.write('A proxima parada esta esperando por voce.');
+      return buf.toString();
+    }
+    if (distanciaProximaKm != null && distanciaProximaKm > 0) {
+      if (distanciaProximaKm < 0.1) {
+        buf.write(', logo ali');
+      } else if (distanciaProximaKm < 1) {
+        buf.write(', a menos de um quilometro');
+      } else {
+        buf.write(', a ${distanciaProximaKm.toStringAsFixed(0)} quilometros');
+      }
+    } else {
+      buf.write('.');
+    }
+    return buf.toString();
+  }
+
+  /// "Chegou na empresa, viagem concluida com sucesso!"
+  Future<void> chegadaNaEmpresa() async {
+    await falar(
+      'Voce chegou na empresa. Viagem concluida com sucesso. Bom trabalho!',
+    );
+  }
+
   Future<void> viagemConcluida() async {
-    await falar('Viagem concluída. Bom trabalho, caminhoneiro!');
+    await falar('Viagem concluida. Bom trabalho, caminhoneiro!');
   }
 }

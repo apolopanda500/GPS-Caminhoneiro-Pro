@@ -14,11 +14,14 @@ import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
-import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
 import 'package:gps_camioneiro_pro/core/map/traffic_layer.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/onda_aviso.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/rede_screen.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/weather_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/map_controls_panel.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
@@ -52,13 +55,10 @@ import 'package:gps_camioneiro_pro/views/map/widgets/peer_profile_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_planner_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
-import 'package:gps_camioneiro_pro/views/history/travel_history_screen.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
 import 'package:gps_camioneiro_pro/views/settings/settings_screen.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
-import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 
 class MapScreen extends StatefulWidget {
   final String driverId;
@@ -161,6 +161,12 @@ class _MapScreenState extends State<MapScreen> {
 
   /// O app esta na mini janela flutuante?
   bool _emPip = false;
+
+  /// A camera segue o caminhao automaticamente.
+  bool _seguirVeiculo = true;
+
+  /// A ultima movimentacao de camera foi do app (nao do motorista).
+  bool _cameraProgramatica = false;
 
   Future<void> _atualizarMapaSeNecessario() async {
     if (!mounted) return;
@@ -461,8 +467,8 @@ class _MapScreenState extends State<MapScreen> {
     }
     if (_positionSubscription != null) return;
     _positionSubscription = LocationHandler.positionStream(
-      intervalSeconds: settings.gpsIntervalSeconds,
-      highAccuracy: settings.highAccuracy,
+      intervalSeconds: settings.intervaloGpsReal,
+      highAccuracy: true,
     ).listen((pos) {
       final newPos = LatLng(pos.latitude, pos.longitude);
       final isFirst = _currentPosition == null;
@@ -472,6 +478,10 @@ class _MapScreenState extends State<MapScreen> {
         _speedKmh = pos.speed >= 0 ? pos.speed * 3.6 : 0;
         if (_center == _fallbackCenter) _center = newPos;
       });
+      // As camadas de previsao (chuva, vento, temperatura) sao calculadas
+      // sobre a posicao do caminhao.
+      if (!mounted) return;
+      context.read<MapLayersProvider>().definirPosicao(newPos);
       _socket.sendLocationUpdate(
           lat: newPos.latitude, lon: newPos.longitude, driverId: widget.driverId);
       _validarEntregas(newPos);
@@ -485,6 +495,10 @@ class _MapScreenState extends State<MapScreen> {
       if (isFirst) {
         _moverCamera(newPos, zoom: 15, bearing: 0, tilt: 0);
       } else {
+        // A camera segue o caminhao (ate o motorista mexer no mapa).
+        if (_seguirVeiculo) {
+          _moverCamera(newPos, zoom: _zoom < 14 ? 15 : _zoom, bearing: _bearing, tilt: 0);
+        }
         _renderMarkers();
       }
     });
@@ -585,14 +599,7 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Abre a mini janela flutuante (Picture-in-Picture): a mesma tecnologia
   /// que o YouTube Premium usa para continuar em segundo plano. A janela
-  /// pode ser arrastada, redimensionada e minimizada pelo usuario.
-  Future<void> _abrirMiniJanela() async {
-    final ok = await ServicoRastreio.instancia.entrarNoPip();
-    if (!ok) {
-      _showSnackBar('Este aparelho nao suporta mini janela.');
-    }
-  }
-
+  /// pode ser arrastada, redimensionada e minimizada pelo usuario.
   /// Adiciona uma parada na rota depois que ela ja foi montada ou iniciada.
   /// Estado (UF) onde o caminhao esta agora. A busca e o filtro usam isso:
   /// nunca aparece resultado de outro estado.
@@ -629,6 +636,61 @@ class _MapScreenState extends State<MapScreen> {
     if (!ok) {
       _showSnackBar('Não foi possível recalcular a rota.');
     }
+  }
+
+  /// Abre o painel unico "Mapa e graficos" (camada, transito, clima,
+  /// qualidade, FPS, cor da linha e aparencia).
+  void _abrirMapaGraficos() {
+    final settings = context.read<SettingsProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => MapControlsPanel(
+        onCamada: (modo) => settings.setLayer(modo),
+        onMostrarUi: (_) {},
+        uiVisivel: true,
+      ),
+    );
+  }
+
+  /// Rede de caminhoneiros: chat, grupos, contatos e empresa.
+  void _abrirRede() {
+    final auth = context.read<AuthProvider>();
+    RedeScreen.show(
+      context,
+      driverId: auth.driver?.driverId ?? widget.driverId,
+      driverName: auth.driver?.name ?? 'Motorista',
+      authHeaders: auth.authHeaders,
+      onContatos: _abrirContatosEstrada,
+      onEmpresa: _marcarEmpresa,
+      onSinalizar: _abrirSinalizacoes,
+    );
+  }
+
+  /// Radio da estrada (agora direto no mapa).
+  void _abrirRadio() {
+    RadioSheet.open(context);
+  }
+
+  /// Clima e previsao (agora direto no mapa).
+  void _abrirClima() {
+    final clima = context.read<WeatherProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => WeatherPanel(
+        latitude: clima.lastLatitude,
+        longitude: clima.lastLongitude,
+      ),
+    );
   }
 
   /// Onda de aviso em curso (posicao na tela + cor).
@@ -686,6 +748,7 @@ class _MapScreenState extends State<MapScreen> {
       {required double zoom, double bearing = 0, double tilt = 0}) {
     final c = _mapController;
     if (c == null || !_styleLoaded) return;
+    _cameraProgramatica = true;
     c.animateCamera(
       ml.CameraUpdate.newCameraPosition(
         ml.CameraPosition(
@@ -906,7 +969,7 @@ class _MapScreenState extends State<MapScreen> {
       await c.addLine(
         ml.LineOptions(
           geometry: geometry,
-          lineColor: _settingsProvider?.corRota ?? '#FF6D00',
+          lineColor: _settingsProvider?.corRota ?? '#1D4ED8',
           lineWidth: 5,
           lineOpacity: 0.95,
         ),
@@ -1900,15 +1963,14 @@ class _MapScreenState extends State<MapScreen> {
 
   void _recentralizarNoCaminhao() {
     final target = _currentPosition ?? _fallbackCenter;
-    setState(() => _is3d = false);
+    setState(() {
+      _is3d = false;
+      // Centralizar tambem religa o跟随 automatico do caminhao.
+      _seguirVeiculo = true;
+    });
     _moverCamera(target, zoom: 15, bearing: 0, tilt: 0);
   }
-
-  void _abrirHistoricoViagens() {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (context) => const TravelHistoryScreen()));
-  }
-
+
   Future<void> _abrirContatosEstrada() async {
     final result = await Navigator.push<LatLng>(
       context,
@@ -2010,7 +2072,8 @@ class _MapScreenState extends State<MapScreen> {
     await VoiceService.instance.chegadaNaParada(
       numero,
       total,
-      proxima: route.nextStopLabel.isEmpty ? null : route.nextStopLabel,
+      proximoNumero: route.proximoNumero,
+      proximoNome: route.proximoNome,
       distanciaProximaKm: route.distanciaProximaParadaKm,
     );
   }
@@ -2023,7 +2086,8 @@ class _MapScreenState extends State<MapScreen> {
     await VoiceService.instance.chegadaNaParada(
       route.deliveredCount,
       total,
-      proxima: route.nextStopLabel.isEmpty ? null : route.nextStopLabel,
+      proximoNumero: route.proximoNumero,
+      proximoNome: route.proximoNome,
       distanciaProximaKm: route.distanciaProximaParadaKm,
     );
   }
@@ -2148,7 +2212,7 @@ class _MapScreenState extends State<MapScreen> {
     HapticFeedback.heavyImpact();
     SystemSound.play(SystemSoundType.alert);
     unawaited(context.read<AudioProvider>().tocarChegada());
-    unawaited(VoiceService.instance.viagemConcluida());
+    unawaited(VoiceService.instance.chegadaNaEmpresa());
     _showSnackBar('✅ VIAGEM CONCLUÍDA COM SUCESSO.');
   }
 
@@ -2569,63 +2633,9 @@ class _MapScreenState extends State<MapScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => SettingsScreen(
-          onCompany: _marcarEmpresa,
-          onGrupos: _abrirGrupos,
-          onContatos: () =>
-              _gatePremium(PremiumFeature.roadContacts, _abrirContatosEstrada),
-          onSinalizar: _abrirSinalizacoes,
-          onHistorico: () =>
-              _gatePremium(PremiumFeature.tripHistory, _abrirHistoricoViagens),
-          onSairDaConta: _sairDaConta,
           onLimparSinais: _limparSinaisDoMapa,
+          onSairDaConta: _sairDaConta,
         ),
-      ),
-    );
-  }
-
-  void _abrirPaymentGate() {
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) =>
-                PaymentGateScreen(driverId: widget.driverId)));
-  }
-
-  bool get _isPremium =>
-      context.read<AuthProvider>().driver?.isPremium ?? false;
-
-  void _gatePremium(PremiumFeature feature, VoidCallback action) {
-    if (!PremiumPolicy.isLocked(feature, isPremium: _isPremium)) {
-      action();
-      return;
-    }
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151515),
-        title: const Text('Recurso Premium',
-            style: TextStyle(color: Colors.white)),
-        content: Text(
-          '${feature.label} está disponível apenas na versão Premium.\n\n'
-          'No plano Free você navega com o mapa e as rotas. '
-          'Assine o Premium para liberar alertas, sinais, rádio, '
-          'outros caminhoneiros, ruas 3D e histórico.',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Agora não'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: kEmergencyRed),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _abrirPaymentGate();
-            },
-            child: const Text('Ver Premium'),
-          ),
-        ],
       ),
     );
   }
@@ -2694,16 +2704,7 @@ class _MapScreenState extends State<MapScreen> {
   bool get _isHelper =>
       context.read<AuthProvider>().driver?.isHelper ?? false;
 
-  /// Painel de grupos (comboios) + modo estrito de visibilidade.
-  void _abrirGrupos() {
-    final auth = context.read<AuthProvider>();
-    GroupsSheet.show(
-      context,
-      driverId: widget.driverId,
-      authHeaders: auth.authHeaders,
-    );
-  }
-
+  /// Painel de grupos (comboios) + modo estrito de visibilidade.
   void _mostrarInfoMarcador(MapMarkerModel m) {
     showModalBottomSheet(
       context: context,
@@ -2833,35 +2834,32 @@ class _MapScreenState extends State<MapScreen> {
             FloatingPanel(
               id: 'acoes',
               initial: const Offset(16, 120),
-              width: 56,
-              height: 250,
+              width: 124,
+              height: 320,
               dragWholeChild: true,
               resizable: false,
               minimizedChild: const Icon(Icons.apps, size: 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                alignment: WrapAlignment.start,
                 children: [
                   _botaoFlutuante(Icons.search, 'Buscar rua', _buscarRua),
-                  const SizedBox(height: 8),
-                  _botaoFlutuante(Icons.center_focus_strong, 'Centralizar camera',
+                  _botaoFlutuante(
+                      Icons.center_focus_strong, 'Centralizar camera',
                       _recentralizarNoCaminhao),
-                  const SizedBox(height: 8),
                   _botaoFlutuante(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
-                  const SizedBox(height: 8),
-                  _botaoCamada(),
-                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.tune, 'Mapa e graficos', _abrirMapaGraficos),
                   _botaoFlutuante(Icons.warning_amber_rounded, 'Sinais da estrada',
                       () => setState(() => _alertsPanelClosed = false)),
-                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.group, 'Rede de caminhoneiros', _abrirRede),
+                  _botaoFlutuante(Icons.radio_outlined, 'Radio da estrada',
+                      _abrirRadio),
+                  _botaoFlutuante(Icons.cloud_outlined, 'Clima e previsao',
+                      _abrirClima),
                   _botaoFlutuante(Icons.campaign, 'Compartilhar posicao com a rede',
                       _compartilharLocalizacao),
-                  const SizedBox(height: 8),
-                  _botaoFlutuante(Icons.picture_in_picture_alt,
-                      'Mini janela (continua por cima do app)',
-                      _abrirMiniJanela),
-                  const SizedBox(height: 8),
                   _botaoFlutuante(Icons.settings, 'Configuracoes', _abrirConfiguracoes),
-                  const SizedBox(height: 8),
                   _botaoParar(),
                 ],
               ),
@@ -2951,47 +2949,8 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Botao de camada do mapa: alterna Satelite -> Ruas -> 3D (detalhado) com
-  /// um toque. O icone mostra em qual modo o mapa esta.
-  Widget _botaoCamada() {
-    final (icone, dica) = switch (_layerMode) {
-      MapLayerMode.satellite => (Icons.satellite_alt, 'Camada: satelite (toque para ruas)'),
-      MapLayerMode.streets => (Icons.map_outlined, 'Camada: ruas (toque para 3D)'),
-      MapLayerMode.detailed => (Icons.view_in_ar, 'Camada: 3D (toque para satelite)'),
-    };
-    return Tooltip(
-      message: dica,
-      child: Material(
-        color: _superficie(context),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _trocarCamada,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(icone,
-                color: _settingsProvider?.overlayColor ?? kEmergencyRed, size: 21),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Troca a camada do mapa (satelite -> ruas -> 3D) e avisa o usuario.
-  void _trocarCamada() {
-    final proxima = switch (_layerMode) {
-      MapLayerMode.satellite => MapLayerMode.streets,
-      MapLayerMode.streets => MapLayerMode.detailed,
-      MapLayerMode.detailed => MapLayerMode.satellite,
-    };
-    final nome = switch (proxima) {
-      MapLayerMode.satellite => 'Satelite',
-      MapLayerMode.streets => 'Ruas',
-      MapLayerMode.detailed => '3D detalhado',
-    };
-    context.read<SettingsProvider>().setLayer(proxima);
-    _showSnackBar('Mapa: $nome');
-  }
-
+  /// um toque. O icone mostra em qual modo o mapa esta.
+  /// Troca a camada do mapa (satelite -> ruas -> 3D) e avisa o usuario.
   /// Botao vermelho de encerrar a viagem: fica sempre a vista na coluna de
   /// acoes do mapa (no menu ele ficava longe e era facil esquecer).
   ///
@@ -3126,6 +3085,15 @@ class _MapScreenState extends State<MapScreen> {
         if ((camera.bearing - _bearing).abs() > 0.5) {
           setState(() => _bearing = camera.bearing);
         }
+      },
+      onCameraIdle: () {
+        // Se a ultima movimentacao foi do app, continua seguindo o caminhao.
+        // Se o motorista mexeu no mapa, para de seguir ate "centralizar".
+        if (_cameraProgramatica) {
+          _cameraProgramatica = false;
+          return;
+        }
+        if (_seguirVeiculo) setState(() => _seguirVeiculo = false);
       },
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
         Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),

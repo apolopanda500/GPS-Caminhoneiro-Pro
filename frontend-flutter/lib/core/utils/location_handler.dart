@@ -45,8 +45,10 @@ class LocationHandler {
   }) {
     return Geolocator.getPositionStream(
       locationSettings: AndroidSettings(
-        accuracy: highAccuracy ? LocationAccuracy.high : LocationAccuracy.medium,
-        distanceFilter: 10,
+        accuracy: highAccuracy
+            ? LocationAccuracy.bestForNavigation
+            : LocationAccuracy.medium,
+        distanceFilter: 3,
         intervalDuration: Duration(seconds: intervalSeconds),
         forceLocationManager: false,
       ),

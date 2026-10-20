@@ -79,7 +79,8 @@ class MapControlsPanel extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -154,20 +155,93 @@ class MapControlsPanel extends StatelessWidget {
             settings.setBuildings3d,
           ),
 
-          // Camadas de clima
+          // ------------------------------------------------- clima
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+            child: Text('Clima em tempo real',
+                style: TextStyle(
+                    color: muted, fontSize: 10, fontWeight: FontWeight.bold)),
+          ),
           linha(
             Icons.grain,
             'Radar de chuva',
-            'Tempo real, atualiza a cada 10 min',
+            camadas.animando
+                ? 'Animando • ${camadas.rotuloFrame} (${camadas.totalFrames} frames)'
+                : '1200+ radares • ${camadas.rotuloFrame.isEmpty ? 'carregando' : camadas.rotuloFrame}',
             camadas.radar,
             camadas.setRadar,
+          ),
+          if (camadas.radar && camadas.totalFrames > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: camadas.animando ? 'Pausar' : 'Animar',
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: camadas.alternarAnimacao,
+                    icon: Icon(
+                      camadas.animando ? Icons.pause : Icons.play_arrow,
+                      color: overlayAccent(context),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Voltar ao início',
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: camadas.recomecarRadar,
+                    icon: Icon(Icons.replay,
+                        color: overlayAccent(context)),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Passado e previsão • ${camadas.rotuloFrame}',
+                      style: TextStyle(color: muted, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          linha(
+            Icons.water_drop_outlined,
+            'Precipitação',
+            'Chance de chuva (previsão)',
+            camadas.precipitacao,
+            camadas.setPrecipitacao,
+          ),
+          linha(
+            Icons.air,
+            'Vento',
+            'Velocidade do vento na região',
+            camadas.vento,
+            camadas.setVento,
+          ),
+          linha(
+            Icons.thermostat,
+            'Temperatura',
+            'Calor e frio na região',
+            camadas.temperatura,
+            camadas.setTemperatura,
           ),
           linha(
             Icons.cloud_outlined,
             'Nuvens',
-            'Tops das nuvens por satélite',
+            'Satélite em tempo real',
             camadas.nuvens,
             camadas.setNuvens,
+          ),
+          linha(
+            Icons.cloud_queue,
+            'Cobertura de nuvens',
+            'Previsão de nuvens',
+            camadas.nuvensPrevistas,
+            camadas.setNuvensPrevistas,
           ),
           linha(
             Icons.terrain,
@@ -272,6 +346,7 @@ class MapControlsPanel extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
