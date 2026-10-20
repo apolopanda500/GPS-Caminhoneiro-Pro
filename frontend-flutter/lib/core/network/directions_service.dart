@@ -141,30 +141,39 @@ class DirectionsService {
     int? axleCount,
     required bool hazmat,
   }) async {
-    final locais = [
-      '${origin.longitude},${origin.latitude}',
-      for (final w in waypoints) '${w.longitude},${w.latitude}',
-      '${destination.longitude},${destination.latitude}',
-    ].join('|');
-
-    final params = <String, String>{
-      'key': AppConstants.tomTomTrafficApiKey,
-      'travelMode': 'TRUCK',
-      'traffic': 'true',
-      'language': 'pt-BR',
-      'computeTravelTimeForAll': 'true',
-      if (truckHeight != null) 'vehicleHeight': truckHeight.toString(),
-      if (truckWeight != null) 'vehicleWeight': truckWeight.toString(),
-      if (truckWidth != null) 'vehicleWidth': truckWidth.toString(),
-      if (truckLength != null) 'vehicleLength': truckLength.toString(),
-      if (axleCount != null) 'axleCount': axleCount.toString(),
+    final body = <String, dynamic>{
+      'routePlanningLocations': {
+        'origin': jsonDecode(_pontoTomTom(origin)),
+        'destination': jsonDecode(_pontoTomTom(destination)),
+        if (waypoints.isNotEmpty)
+          'waypoints': {
+            'type': 'MultiPoint',
+            'coordinates': [
+              for (final w in waypoints) [w.longitude, w.latitude],
+            ],
+          },
+      },
+      'travelMode': 'car',
+      'traffic': 'live',
+      'routeType': 'fast',
+      'avoids': const ['ferries'],
+      if (truckWeight != null)
+        'vehicleWeightInKilograms': (truckWeight * 1000).round(),
     };
 
-    final uri = Uri.https('api.tomtom.com', '/routing/1/calculateRoute',
-        params..['locations'] = locais);
-
-    final resp =
-        await _client.get(uri).timeout(const Duration(seconds: 20));
+    final resp = await _client
+        .post(
+          Uri.parse(
+              'https://api.tomtom.com/maps/orbis/routing/routes/calculate?apiVersion=3'),
+          headers: {
+            'Content-Type': 'application/json',
+            'TomTom-Api-Key': AppConstants.tomTomTrafficApiKey,
+            'TomTom-Api-Version': '3',
+            'Attributes': 'routes',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 25));
     if (resp.statusCode != 200) {
       throw Exception('Falha ao calcular rota no TomTom (HTTP ${resp.statusCode}).');
     }
@@ -176,59 +185,42 @@ class DirectionsService {
     }
     final rota = rotas.first as Map<String, dynamic>;
     final pernas = rota['legs'] as List<dynamic>? ?? const [];
-    final pontos = <String>[];
+    final polyline = <LatLng>[];
     for (final perna in pernas) {
-      final p = (perna as Map)['points'] as String? ?? '';
-      pontos.add(p);
+      final path = (perna as Map)['path'] as Map?;
+      final coords = (path?['coordinates'] as List?) ?? const [];
+      for (final c in coords) {
+        if (c is List && c.length >= 2) {
+          polyline.add(
+              LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()));
+        }
+      }
     }
-    final polyline = _decodeTomTom(pontos.join(''));
+    if (polyline.isEmpty) {
+      throw Exception('TomTom nao devolveu o desenho da rota.');
+    }
     final resumo = (rota['summary'] as Map?)?.cast<String, dynamic>() ?? {};
     final distance = (resumo['lengthInMeters'] as num?)?.toDouble() ?? 0;
-    final duration = (resumo['travelTimeInSeconds'] as num?)?.toDouble() ?? 0;
-    final durationSemTrafego =
-        (resumo['noTrafficTravelTimeInSeconds'] as num?)?.toDouble() ?? duration;
+    final duration =
+        (resumo['travelDurationInSeconds'] as num?)?.toDouble() ?? 0;
+    final atraso =
+        (resumo['trafficDelayDurationInSeconds'] as num?)?.toDouble() ?? 0;
 
     return RouteResult(
       polyline: polyline,
       distanceMeters: distance,
       durationSeconds: duration,
-      staticDurationSeconds: durationSemTrafego,
-      summary: hazmat
-          ? 'Rota de caminhao com transito ao vivo (cargas perigosas)'
-          : 'Rota de caminhao com transito ao vivo',
-      provider: 'tomtom-truck',
-      heavyVehicle: true,
+      staticDurationSeconds: (duration - atraso).clamp(0, double.infinity),
+      summary: atraso >= 60
+          ? 'Rota com transito ao vivo (+${(atraso / 60).round()} min de atraso)'
+          : 'Rota com transito ao vivo',
+      provider: 'tomtom-orbis',
+      heavyVehicle: truckWeight != null,
     );
   }
 
-  /// Polilinha do TomTom (formato proprio, base64 com ponto de 5 decimais).
-  static List<LatLng> _decodeTomTom(String encoded) {
-    final points = <LatLng>[];
-    var index = 0;
-    while (index < encoded.length) {
-      final lat = _decodeTomTomValue(encoded, index);
-      index += 6;
-      if (index > encoded.length) break;
-      final lon = _decodeTomTomValue(encoded, index);
-      index += 6;
-      points.add(LatLng(lat, lon));
-    }
-    return points;
-  }
-
-  static double _decodeTomTomValue(String encoded, int index) {
-    var value = 0;
-    var shift = 0;
-    var i = index;
-    while (i < encoded.length) {
-      final b = encoded.codeUnitAt(i++) - 63;
-      value |= (b & 0x1f) << shift;
-      shift += 5;
-      if (b < 0x20) break;
-    }
-    final lat = (value >> 1) ^ -(value & 1);
-    return lat / 100000.0;
-  }
+  static String _pontoTomTom(LatLng p) =>
+      '{"type":"Point","coordinates":[${p.longitude},${p.latitude}]}';
 
   Future<RouteResult> _routeHgv({
     required LatLng origin,
