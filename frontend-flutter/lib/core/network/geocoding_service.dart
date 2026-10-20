@@ -157,8 +157,7 @@ class GeocodingService {
       final params = <String, String>{
         'q': termos,
         'limit': '$limit',
-        'lang': 'pt',
-        'osm_tag': 'place',
+        'lang': 'default',
         'addressdetails': '1',
       };
       if (near != null) {
@@ -218,9 +217,8 @@ class GeocodingService {
         'f': 'json',
         'singleLine': termos,
         'maxLocations': '$limit',
-        'outFields': 'Match_addr,Addr_type,City,Region,Postal',
+        'outFields': 'Match_addr,Addr_type,City,Region,Neighborhood,Postal',
         'countryCode': 'BRA',
-        'category': 'Address',
       };
       if (near != null) {
         params['location'] = '${near.longitude},${near.latitude}';
