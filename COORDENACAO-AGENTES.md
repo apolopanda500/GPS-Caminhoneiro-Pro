@@ -253,6 +253,30 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 17:40 B: **Mini janela flutuante (Picture-in-Picture) + edicao de rotas + filtro de estado.**
+  1. **Mini janela**: a mesma tecnologia do YouTube Premium (Picture-in-Picture).
+     Janela flutuante arrastavel, redimensionavel e minimizavel sobre os
+     outros apps, com GPS, rede e vozes em tempo real. Entra pelo botao
+     (Picture-in-Picture) na coluna do mapa **e automaticamente ao apertar
+     HOME** (igual o YouTube). Interface compacta na mini janela:
+     velocidade + proxima parada + botao de expandir. **Testado no
+     aparelho**: mini janela sobre o launcher com o transito ao vivo
+     colorindo as vias.
+  2. **Tela sem trava**: `FLAG_KEEP_SCREEN_ON` durante a viagem (o
+     motorista nao precisa destravar a tela), liberada quando o GPS para.
+  3. **Editar rotas ja montadas/iniciadas**: botao Editar na Tabela de rotas
+     (mover parada, remover, adicionar parada nova e RECALCULAR). Botao da
+     **cor da linha da rota** na propria tabela (1 toque troca, toque
+     longo abre a lista) - lista de cores compartilhada com o painel.
+  4. **Busca presa no estado local**: novo `estadoUf.dart` descobre a UF
+     pela posicao do GPS (sem internet). Busca do mapa, busca de clientes do
+     planejador e adicao de parada usam o estado atual: **nada de outros
+     estados** aparece.
+  5. **Sons**: novo slot "Proxima parada" (toca na aproximacao) e
+     "Entrada na parada" virando "Sino de chegada".
+  6. **Botao vermelho** agora PARA o GPS de verdade: cancela o fluxo de
+     posicao, encerra o expediente e desliga o servico em primeiro plano.
+
 - 13:10 B: **Testado no aparelho (R9XY1016R6V) e 3 bugs corrigidos.**
   1. **Botoes mortos**: "Mapa e graficos" e "Qualidade grafica" tinham
      chevron (pareciam clicaveis) mas **nenhum onTap** - tocar nao fazia
