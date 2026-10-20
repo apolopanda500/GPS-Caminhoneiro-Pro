@@ -191,7 +191,8 @@ class SettingsScreen extends StatelessWidget {
           ),
           _Switch(
             title: 'Modo noturno',
-            subtitle: 'Cores suaves para dirigir à noite',
+            subtitle:
+                'Escurece apenas barras e botões — o mapa continua claro para enxergar a via',
             icon: Icons.brightness_4,
             value: s.nightMode,
             onChanged: s.setNightMode,

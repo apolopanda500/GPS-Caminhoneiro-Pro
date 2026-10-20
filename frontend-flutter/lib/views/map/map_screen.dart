@@ -23,6 +23,7 @@ import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
 import 'package:gps_camioneiro_pro/data/models/map_marker_model.dart';
 import 'package:gps_camioneiro_pro/data/models/trip_model.dart';
 import 'package:gps_camioneiro_pro/core/utils/location_handler.dart';
+import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
 import 'package:gps_camioneiro_pro/core/database/local_cache.dart';
 import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
 import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
@@ -77,8 +78,9 @@ class _MapScreenState extends State<MapScreen> {
 
   String? _styleJsonSat;
   String? _styleJsonStreetsLight;
-  String? _styleJsonStreetsDark;
   bool _styleLoaded = false;
+  Set<String> _hiddenIdsSnapshot = {};
+  bool _alertProviderHooked = false;
   final Set<String> _imagesAdded = {};
 
   LatLng _center = _fallbackCenter;
@@ -93,6 +95,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _is3d = false;
   bool _uiExpanded = true;
   bool _alertsPanelClosed = false;
+  bool _routePanelClosed = false;
   bool _sideRailOpen = false;
   bool _railHidden = false;
   MapLayerMode _layerMode = MapLayerMode.satellite;
@@ -151,29 +154,24 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _carregarEstilos() async {
     final sat = await rootBundle.loadString(AppConstants.styleSatellite);
     final light = await rootBundle.loadString(AppConstants.styleStreetsLight);
-    final dark = await rootBundle.loadString(AppConstants.styleStreetsDark);
     if (!mounted) return;
     setState(() {
       _styleJsonSat = sat;
       _styleJsonStreetsLight = light;
-      _styleJsonStreetsDark = dark;
     });
   }
 
   String get _styleAtual {
+    // O mapa SEMPRE fica claro: o modo noturno affects so a interface
+    // (barras, botoes e paineis), nunca o mapa.
     if (_isSatellite) return _styleJsonSat ?? '';
     if (_isDetailed) {
       final settings = context.read<SettingsProvider>();
-      final base = settings.nightMode
-          ? AppConstants.styleStreetsUrl
-          : AppConstants.styleStreetsLightUrl;
       final version = settings.mapCacheVersion;
+      const base = AppConstants.styleStreetsLightUrl;
       return version == 0 ? base : '$base?v=$version';
     }
-    final settings = context.read<SettingsProvider>();
-    return settings.nightMode
-        ? (_styleJsonStreetsDark ?? '')
-        : (_styleJsonStreetsLight ?? '');
+    return _styleJsonStreetsLight ?? '';
   }
 
   String get _truckIcon =>
@@ -684,15 +682,17 @@ class _MapScreenState extends State<MapScreen> {
 
     await _addImageOnce('icon_alert', await MapIcons.alert());
     final alertasSnapshot = List<AlertModel>.from(_activeAlerts);
+    final hiddenIds = _hiddenIdsSnapshot;
     for (final a
         in alertasSnapshot.where((a) => a.latitude != 0 && a.longitude != 0)) {
+      if (hiddenIds.contains(a.id)) continue;
       await c.addSymbol(
         ml.SymbolOptions(
           geometry: ml.LatLng(a.latitude, a.longitude),
           iconImage: 'icon_alert',
           iconSize: 0.42,
         ),
-        {'kind': 'alert', 'type': a.type, 'message': a.message},
+        {'kind': 'alert', 'id': a.id, 'type': a.type, 'message': a.message},
       );
     }
 
@@ -828,6 +828,9 @@ class _MapScreenState extends State<MapScreen> {
     final data = symbol.data;
     if (data == null) return;
     switch (data['kind']) {
+      case 'me':
+        _abrirMeuPerfil();
+        break;
       case 'peer':
         final peer = data['peer'];
         if (peer is Map) _openPeerProfile(Map<String, dynamic>.from(peer));
@@ -843,12 +846,148 @@ class _MapScreenState extends State<MapScreen> {
         if (index != null) _confirmarParada(index);
         break;
       case 'alert':
-        _showSnackBar(
-            '[${(data['type'] ?? 'aviso').toString().toUpperCase()}] ${data['message'] ?? ''}');
+        _abrirDetalhesSinal(data);
         break;
       default:
         break;
     }
+  }
+
+  /// Bottom sheet com detalhes em tempo real do sinal tocado no mapa.
+  void _abrirDetalhesSinal(Map<dynamic, dynamic> data) {
+    final id = data['id']?.toString() ?? '';
+    final tipo = data['type']?.toString() ?? 'texto_livre';
+    final emoji = AppConstants.emojiForType(tipo);
+    final mensagem = data['message']?.toString() ?? '';
+    final alert = _activeAlerts.where((a) => a.id == id).toList();
+    final lat = alert.isNotEmpty ? alert.first.latitude : null;
+    final lon = alert.isNotEmpty ? alert.first.longitude : null;
+    final criado = alert.isNotEmpty ? alert.first.createdAt : null;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kDarkRedTransition,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      tipo.replaceAll('_', ' ').toUpperCase(),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (mensagem.isNotEmpty)
+                Text(mensagem,
+                    style: const TextStyle(color: Colors.white, fontSize: 14))
+              else
+                const Text('Sem mensagem no sinal.',
+                    style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 8),
+              Text(' tempo: ${_formatarTempo(criado)}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              if (lat != null && lon != null)
+                Text('${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Fechar'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      if (id.isNotEmpty) {
+                        context.read<AlertProvider>().hide(id);
+                        _showSnackBar('Sinal ocultado.');
+                      }
+                    },
+                    icon: const Icon(Icons.visibility_off, size: 18),
+                    label: const Text('Ocultar'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _limparSinal(id);
+                    },
+                    icon: const Icon(Icons.delete_sweep, size: 18),
+                    label: const Text('Limpar'),
+                  ),
+                ],
+              ),
+              if (lat != null && lon != null) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final c = _mapController;
+                      Navigator.pop(sheetContext);
+                      c?.animateCamera(
+                        ml.CameraUpdate.newCameraPosition(
+                          ml.CameraPosition(
+                            target: ml.LatLng(lat, lon),
+                            zoom: 16.5,
+                          ),
+                        ),
+                        duration: const Duration(milliseconds: 700),
+                      );
+                    },
+                    icon: const Icon(Icons.center_focus_strong, size: 18),
+                    label: const Text('Ir até o ponto'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatarTempo(DateTime? criado) {
+    if (criado == null) return 'agora';
+    final d = DateTime.now().difference(criado);
+    if (d.inMinutes < 1) return 'agora';
+    if (d.inMinutes < 60) return '${d.inMinutes} min';
+    if (d.inHours < 24) return '${d.inHours} h';
+    return '${d.inDays} d';
+  }
+
+  /// Remove o sinal do dono em todo mundo e limpa localmente.
+  void _limparSinal(String id) {
+    final matches = _activeAlerts.where((a) => a.id == id).toList();
+    final original = matches.isNotEmpty ? matches.first : null;
+    _activeAlerts.removeWhere((a) => a.id == id);
+    context.read<AlertProvider>().clearAlert(id);
+    if (original != null) {
+      _socket.clearAlert(
+        alertId: id,
+        driverId: widget.driverId,
+        lat: original.latitude,
+        lon: original.longitude,
+      );
+    }
+    _renderMarkers();
   }
 
   void _showSnackBar(String message) {
@@ -909,6 +1048,147 @@ class _MapScreenState extends State<MapScreen> {
             targetDriverId: peerDriverId,
           );
         },
+      ),
+    );
+  }
+
+  /// Envia minha posição atual pela rede para quem estiver perto.
+  void _compartilharMinhaPosicao() {
+    final pos = _currentPosition;
+    if (pos == null) {
+      _showSnackBar('GPS ainda sem posição.');
+      return;
+    }
+    _socket.sharePlace(
+      fromDriverId: widget.driverId,
+      fromName: widget.driverName,
+      lat: pos.latitude,
+      lon: pos.longitude,
+      label: 'Estou aqui',
+    );
+    _showSnackBar('Posição compartilhada na rede.');
+  }
+
+  /// Cartão de perfil do próprio motorista (tap no caminhão no mapa).
+  void _abrirMeuPerfil() {
+    final driver = context.read<AuthProvider>().driver;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _superficie(context),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: CircleAvatar(
+                  radius: 34,
+                  backgroundColor: const Color(0xFF1C0303),
+                  backgroundImage: (driver?.avatarUrl ?? '').isNotEmpty
+                      ? NetworkImage(driver!.avatarUrl!)
+                      : null,
+                  child: (driver?.avatarUrl ?? '').isEmpty
+                      ? Text((driver?.truckIcon ?? '🚚'),
+                          style: const TextStyle(fontSize: 30))
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: Text(
+                  driver?.name ?? 'Motorista',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+              Center(
+                child: Text(
+                  (driver?.isPremium ?? false)
+                      ? 'PREMIUM ATIVO'
+                      : 'PLANO GRATUITO',
+                  style: TextStyle(
+                    color: (driver?.isPremium ?? false)
+                        ? Colors.greenAccent
+                        : Colors.white54,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _linhaPerfil('E-mail', driver?.email ?? '—'),
+              _linhaPerfil('Papel',
+                  (driver?.isHelper ?? false) ? 'Ajudante' : 'Motorista'),
+              _linhaPerfil('Caminhão', driver?.truckModel ?? 'Não informado'),
+              _linhaPerfil('Carga', driver?.cargoType ?? 'Carga geral'),
+              _linhaPerfil(
+                  'Dimensões',
+                  'Altura ${(driver?.truckHeight ?? 0).toStringAsFixed(2)} m • '
+                      'Peso ${(driver?.truckWeight ?? 0).toStringAsFixed(2)} t • '
+                      '${driver?.axleCount ?? 0} eixos'),
+              if (driver?.hazmat ?? false) _linhaPerfil('HAZMAT', 'Sim'),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text('EDITAR PERFIL'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (_currentPosition != null)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: kEmergencyRed),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _compartilharMinhaPosicao();
+                    },
+                    icon: const Icon(Icons.my_location, size: 18),
+                    label: const Text('COMPARTILHAR POSIÇÃO'),
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _linhaPerfil(String rotulo, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(rotulo,
+                style: const TextStyle(color: Colors.white54, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(valor,
+                style: const TextStyle(color: Colors.white, fontSize: 13)),
+          ),
+        ],
       ),
     );
   }
@@ -1272,12 +1552,23 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _sairDaConta() {
-    final navigator = Navigator.of(context);
-    context.read<AuthProvider>().logout();
-    context.read<PeerProvider>().clear();
-    navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
+    confirmarEExecutar(
+      context,
+      titulo: 'Sair da conta',
+      mensagem:
+          'Voce vai sair da conta neste aparelho.\n\nA sessao do servidor continua valida, mas sera preciso entrar de novo.',
+      textoConfirmar: 'SAIR',
+      destrutivo: true,
+      icone: Icons.logout,
+      acao: () async {
+        final navigator = Navigator.of(context);
+        context.read<AuthProvider>().logout();
+        context.read<PeerProvider>().clear();
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      },
     );
   }
 
@@ -1362,14 +1653,23 @@ class _MapScreenState extends State<MapScreen> {
       _showSnackBar('Adicione clientes antes de compartilhar a rota.');
       return;
     }
-    _socket.shareRoute(
-      fromDriverId: widget.driverId,
-      fromName: widget.driverName,
-      routeJson: route.exportRouteJson(),
+    confirmarEExecutar(
+      context,
+      titulo: 'Compartilhar rota',
+      mensagem:
+          'Sua rota com ${route.totalStops} parada(s) sera enviada para os caminhoes da rede V2X.\n\nTodos veem onde voce esta e para onde vai.',
+      textoConfirmar: 'COMPARTILHAR',
+      icone: Icons.share_location,
+      acao: () async {
+        _socket.shareRoute(
+          fromDriverId: widget.driverId,
+          fromName: widget.driverName,
+          routeJson: route.exportRouteJson(),
+        );
+        _showSnackBar('Rota compartilhada com os caminhões da rede.');
+      },
     );
-    _showSnackBar('Rota compartilhada com os caminhões da rede.');
   }
-
   void _iniciarRota() {
     final provider = context.read<RouteProvider>();
     final driver = context.read<AuthProvider>().driver;
@@ -1530,11 +1830,25 @@ class _MapScreenState extends State<MapScreen> {
       _markerProvider!.addListener(_onDataChanged);
       _routeProvider!.addListener(_onDataChanged);
       _settingsProvider!.addListener(_onDataChanged);
+      if (!_alertProviderHooked) {
+        _alertProviderHooked = true;
+        final alertProvider = context.read<AlertProvider>();
+        alertProvider.addListener(_onAlertsChanged);
+        _hiddenIdsSnapshot = alertProvider.hiddenIds.toSet();
+      }
 
       _carregarAlertsOffline();
       _iniciarMonitorDeRede();
       _settingsApplied = true;
     }
+  }
+
+  void _onAlertsChanged() {
+    if (!mounted) return;
+    setState(() {
+      _hiddenIdsSnapshot = context.read<AlertProvider>().hiddenIds.toSet();
+    });
+    _renderMarkers();
   }
 
   void _onDataChanged() {
@@ -1598,7 +1912,18 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _limparSinaisDoMapa() {
-    _limparMapaCompleto();
+    confirmarEExecutar(
+      context,
+      titulo: 'Limpar sinais do mapa',
+      mensagem:
+          'Todos os sinais e marcadores deste mapa serao apagados.\n\nOs avisos ja enviados para a rede continuam valendo.',
+      textoConfirmar: 'LIMPAR',
+      destrutivo: true,
+      icone: Icons.delete_sweep_outlined,
+      acao: () async {
+        _limparMapaCompleto();
+      },
+    );
   }
 
   void _abrirConfiguracoes() {
@@ -1768,15 +2093,22 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           _buildMapView(),
-          if (ui)
-            RouteTablePanel(
-              onShowRoute: _mostrarRota,
-              onShare: _compartilharRota,
-              onStart: _iniciarRota,
-              onConfirmNext: _confirmarEntregaAtual,
-              onClose: () => context.read<RouteProvider>().clearRoute(),
-              canManageRoute: !_isHelper,
-            ),
+          if (ui && !_routePanelClosed)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return DraggablePanel(
+                id: 'route',
+                initial: Offset(size.width - 360, 96),
+                child: RouteTablePanel(
+                  onShowRoute: _mostrarRota,
+                  onShare: _compartilharRota,
+                  onStart: _iniciarRota,
+                  onConfirmNext: _confirmarEntregaAtual,
+                  onClose: () => setState(() => _routePanelClosed = true),
+                  canManageRoute: !_isHelper,
+                ),
+              );
+            }),
           // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
           if (ui && _activeAlerts.isNotEmpty && !_alertsPanelClosed)
             DraggablePanel(
@@ -1876,12 +2208,14 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Botao de camada: alterna entre Satelite (imagem real) e mapa leve de ruas.
+  /// Botao de camada unico: Satelite -> Ruas -> Ruas 3D (premium).
   Widget _buildLayerToggle() {
-    final isSat = _isSatellite;
-    final icone = isSat ? Icons.layers_outlined : Icons.satellite_alt_outlined;
-    final tooltip =
-        isSat ? 'Usar mapa leve (ruas)' : 'Usar imagem de satelite';
+    final icone = _isSatellite
+        ? Icons.layers_outlined
+        : (_isDetailed ? Icons.view_in_ar : Icons.satellite_alt_outlined);
+    final tooltip = _isSatellite
+        ? 'Usar mapa leve (ruas)'
+        : (_isDetailed ? 'Usar imagem de satelite' : 'Usar ruas em 3D');
     return Material(
       color: _superficie(context),
       shape: const CircleBorder(),
@@ -1899,10 +2233,22 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Troca a camada do mapa entre satelite e ruas, mantendo a preferencia salva.
+  /// Troca a camada do mapa: satelite -> ruas -> ruas 3D -> satelite.
+  /// O modo 3D e premium (o portao fica no mesmo botao, sem botao duplicado).
   Future<void> _alternarCamada() async {
-    final novo =
-        _isSatellite ? MapLayerMode.streets : MapLayerMode.satellite;
+    MapLayerMode novo;
+    if (_isSatellite) {
+      novo = MapLayerMode.streets;
+    } else if (_isDetailed) {
+      novo = MapLayerMode.satellite;
+    } else {
+      if (PremiumPolicy.isLocked(PremiumFeature.detailedMap,
+          isPremium: _isPremium)) {
+        _gatePremium(PremiumFeature.detailedMap, () {});
+        return;
+      }
+      novo = MapLayerMode.detailed;
+    }
     setState(() {
       _layerMode = novo;
       _appliedLayer = novo;
@@ -1912,9 +2258,16 @@ class _MapScreenState extends State<MapScreen> {
     if (style.isNotEmpty) {
       _mapController?.setStyle(style);
     }
-    _showSnackBar(novo == MapLayerMode.satellite
-        ? 'Imagem de satelite ativada.'
-        : 'Mapa leve de ruas ativado.');
+    if (novo == MapLayerMode.detailed) {
+      _ensureBuildings3d();
+      final target = _currentPosition ?? _center;
+      _moverCamera(target, zoom: _zoom, bearing: 25, tilt: 50);
+    }
+    _showSnackBar(switch (novo) {
+      MapLayerMode.satellite => 'Imagem de satelite ativada.',
+      MapLayerMode.streets => 'Mapa leve de ruas ativado.',
+      MapLayerMode.detailed => 'Ruas em 3D ativadas.',
+    });
   }
 
   Widget _buildUiToggle() {
@@ -2047,7 +2400,7 @@ class _MapScreenState extends State<MapScreen> {
                 _railAction(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
               _railAction(Icons.add_location_alt, 'Sinalizar',
                   _abrirSinalizacoes),
-              _railAction(Icons.radio, 'Rádio', _abrirRadio),
+              // O radio ficou no botao flutuante e nas Configuracoes (sem duplicar).
               _railAction(Icons.search, 'Buscar',
                   () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
               _railAction(Icons.gps_fixed, 'Aqui', _recentralizarNoCaminhao),
@@ -2132,13 +2485,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildMapView() {
-    if (_styleJsonSat == null ||
-        _styleJsonStreetsLight == null ||
-        _styleJsonStreetsDark == null) {
+    if (_styleJsonSat == null || _styleJsonStreetsLight == null) {
+      // O mapa e sempre claro: o loading tambem.
       return const ColoredBox(
-        color: Color(0xFF0A0A0A),
+        color: Color(0xFFF5F2EE),
         child:
-            Center(child: CircularProgressIndicator(color: Colors.redAccent)),
+            Center(child: CircularProgressIndicator(color: Color(0xFF8B0000))),
       );
     }
     return ml.MapLibreMap(
