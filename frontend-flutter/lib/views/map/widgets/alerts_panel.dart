@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/utils/overlay_style.dart';
 import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
+import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
 /// Painel flutuante de sinais e alertas da estrada.
 ///
@@ -9,16 +11,16 @@ import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
 /// (some com a lista e deixa só o contador) e fechado pelo usuário.
 class AlertsPanel extends StatefulWidget {
   final List<AlertModel> alerts;
-  final Color surface;
-  final Color accent;
+  final Color? surface;
+  final Color? accent;
   final VoidCallback onClose;
   final Offset initialOffset;
 
   const AlertsPanel({
     super.key,
     required this.alerts,
-    required this.surface,
-    required this.accent,
+    this.surface,
+    this.accent,
     required this.onClose,
     this.initialOffset = const Offset(16, 96),
   });
@@ -34,10 +36,23 @@ class _AlertsPanelState extends State<AlertsPanel> {
   static const double _maxHeight = 260;
   static const double _width = 300;
 
+  /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
+  SettingsProvider? _ajustes(BuildContext context) {
+    try {
+      return context.watch<SettingsProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final alerts = widget.alerts;
     final texto = OverlayStyle.text(context);
+    final settings = _ajustes(context);
+    final cor = widget.accent ?? settings?.overlayColor ?? kOverlayAccents.first;
+    final superficie = widget.surface ??
+        OverlayStyle.surface(context, settings?.overlayOpacity ?? 1.0);
 
     return Positioned(
       left: _offset.dx,
@@ -48,10 +63,10 @@ class _AlertsPanelState extends State<AlertsPanel> {
         child: Container(
           constraints: const BoxConstraints(maxHeight: _maxHeight),
           decoration: BoxDecoration(
-            color: widget.surface,
+            color: superficie,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: OverlayStyle.border(context, widget.accent),
+              color: OverlayStyle.border(context, cor),
               width: 1.4,
             ),
             boxShadow: [
@@ -65,7 +80,7 @@ class _AlertsPanelState extends State<AlertsPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _cabecalho(alerts.length, texto),
+              _cabecalho(alerts.length, texto, cor),
               if (!_minimized && alerts.isNotEmpty)
                 Flexible(child: _lista(alerts, texto)),
             ],
@@ -75,7 +90,7 @@ class _AlertsPanelState extends State<AlertsPanel> {
     );
   }
 
-  Widget _cabecalho(int total, Color texto) {
+  Widget _cabecalho(int total, Color texto, Color cor) {
     return GestureDetector(
       onPanUpdate: (details) {
         setState(() {
@@ -88,12 +103,12 @@ class _AlertsPanelState extends State<AlertsPanel> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
         decoration: BoxDecoration(
-          color: widget.accent.withValues(alpha: 0.18),
+          color: cor.withValues(alpha: 0.18),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
         ),
         child: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: widget.accent, size: 18),
+            Icon(Icons.warning_amber_rounded, color: cor, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

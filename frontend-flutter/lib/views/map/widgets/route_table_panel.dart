@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
+import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
 /// Painel "Tabela de rotas": lista as paradas com status, permite arrastar,
 /// redimensionar e minimizar sem cobrir o mapa.
@@ -13,6 +14,9 @@ class RouteTablePanel extends StatefulWidget {
   final VoidCallback onConfirmNext;
   final VoidCallback onClose;
 
+  /// Ajudante apenas acompanha: nao monta nem inicia rota.
+  final bool canManageRoute;
+
   const RouteTablePanel({
     super.key,
     required this.onShowRoute,
@@ -20,6 +24,7 @@ class RouteTablePanel extends StatefulWidget {
     required this.onStart,
     required this.onConfirmNext,
     required this.onClose,
+    this.canManageRoute = true,
   });
 
   @override
@@ -33,9 +38,19 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
   bool _minimized = false;
   bool _dragging = false;
 
+  /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
+  SettingsProvider? _ajustes(BuildContext context) {
+    try {
+      return context.watch<SettingsProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<RouteProvider>();
+    final settings = _ajustes(context);
     final route = provider.result;
     final stops = provider.stops;
 
@@ -61,9 +76,14 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
           child: Container(
             constraints: BoxConstraints(maxHeight: _height),
             decoration: BoxDecoration(
-              color: overlaySurface(context),
+              color: overlaySurface(context,
+                  opacity: settings?.overlayOpacity ?? 1.0,
+                  accent: settings?.overlayColor),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: overlayBorder(context), width: 1.4),
+              border: Border.all(
+                  color: overlayBorder(context,
+                      accent: settings?.overlayColor),
+                  width: 1.4),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -72,6 +92,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                 if (!_minimized) ...[
                   Flexible(child: _tabela(provider, stops)),
                   _rodape(provider),
+                  _alcaResize(),
                 ],
               ],
             ),
@@ -300,7 +321,15 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
             ),
           ),
           const SizedBox(width: 10),
-          if (!provider.started)
+          if (!widget.canManageRoute)
+            Text(
+              'Apenas o motorista pode iniciar a rota.',
+              style: TextStyle(
+                color: overlayTextMuted(context),
+                fontSize: 11,
+              ),
+            )
+          else if (!provider.started)
             ElevatedButton(
               onPressed: widget.onStart,
               style: ElevatedButton.styleFrom(
@@ -329,5 +358,20 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
       _width = (_width + deltaWidth).clamp(240.0, 420.0);
       _height = (_height + deltaHeight).clamp(150.0, 420.0);
     });
+  }
+
+  Widget _alcaResize() {
+    return GestureDetector(
+      onHorizontalDragUpdate: (d) => resize(d.delta.dx, 0),
+      onVerticalDragUpdate: (d) => resize(0, d.delta.dy),
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 4, bottom: 4),
+          child: Icon(Icons.drag_handle,
+              size: 16, color: kEmergencyRed.withValues(alpha: 0.8)),
+        ),
+      ),
+    );
   }
 }

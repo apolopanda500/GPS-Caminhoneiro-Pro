@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 
 /// Botao flutuante do radio digital sobre o mapa.
@@ -9,14 +11,14 @@ import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 /// Usa FloatingActionButton padrao (heroTag unico) para nao conflitar com
 /// o sistema de paineis arrastaveis do mapa.
 class RadioFab extends StatefulWidget {
-  final Color surface;
-  final Color accent;
+  final Color? surface;
+  final Color? accent;
   final VoidCallback onPressed;
 
   const RadioFab({
     super.key,
-    required this.surface,
-    required this.accent,
+    this.surface,
+    this.accent,
     required this.onPressed,
   });
 
@@ -37,9 +39,24 @@ class _RadioFabState extends State<RadioFab>
     super.dispose();
   }
 
+  /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
+  SettingsProvider? _ajustes(BuildContext context) {
+    try {
+      return context.watch<SettingsProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tocando = context.select<AudioProvider, bool>((a) => a.radioTocando);
+    final settings = _ajustes(context);
+    final cor = widget.accent ?? settings?.overlayColor ?? kEmergencyRed;
+    final superficie = widget.surface ??
+        overlaySurface(context,
+            opacity: settings?.overlayOpacity ?? 1.0,
+            accent: settings?.overlayColor);
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, child) {
@@ -50,8 +67,8 @@ class _RadioFabState extends State<RadioFab>
         heroTag: 'fab_radio',
         tooltip: tocando ? 'Rádio tocando' : 'Abrir rádio',
         onPressed: widget.onPressed,
-        backgroundColor: widget.surface,
-        foregroundColor: tocando ? widget.accent : Colors.white,
+        backgroundColor: superficie,
+        foregroundColor: tocando ? cor : Colors.white,
         elevation: 2,
         child: Icon(
           tocando ? Icons.graphic_eq : Icons.radio_outlined,

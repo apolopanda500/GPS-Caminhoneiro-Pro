@@ -12,6 +12,7 @@ import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
+import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -292,6 +293,21 @@ class SettingsScreen extends StatelessWidget {
               onSelectionChanged: (v) => s.setTargetFps(v.first),
               showSelectedIcon: false,
               style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            ),
+          ),
+          const _Section('APARÊNCIA DO MAPA'),
+          ListTile(
+            leading: const Icon(Icons.palette_outlined, color: Colors.redAccent),
+            title: Text('Aparência do mapa', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Transparência e cor dos painéis, botão flutuante do rádio',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AppearanceScreen(),
+              ),
             ),
           ),
           const _Section('PERMISSÕES DO ANDROID'),

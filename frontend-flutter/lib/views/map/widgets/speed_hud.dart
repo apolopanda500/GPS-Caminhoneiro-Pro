@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
 class SpeedHUD extends StatelessWidget {
   final double speedKmh;
@@ -16,16 +18,30 @@ class SpeedHUD extends StatelessWidget {
   bool get _overLimit =>
       limitKmh != null && speedKmh > (limitKmh! + 8);
 
+  /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
+  SettingsProvider? _ajustes(BuildContext context) {
+    try {
+      return context.watch<SettingsProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final limit = limitKmh;
+    final settings = _ajustes(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: overlaySurface(context),
+        color: overlaySurface(context,
+            opacity: settings?.overlayOpacity ?? 1.0,
+            accent: settings?.overlayColor),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: _overLimit ? const Color(0xFFFF5252) : kEmergencyRed,
+          color: _overLimit
+              ? const Color(0xFFFF5252)
+              : (settings?.overlayColor ?? kEmergencyRed),
           width: 1.5,
         ),
       ),

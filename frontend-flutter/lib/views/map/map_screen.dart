@@ -889,7 +889,7 @@ class _MapScreenState extends State<MapScreen> {
   void _openChatPanel({String? peerName, String? peerDriverId}) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: overlaySurface(context),
+      backgroundColor: _superficie(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -916,7 +916,7 @@ class _MapScreenState extends State<MapScreen> {
   void _openPeerProfile(Map<String, dynamic> peer) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: overlaySurface(context),
+      backgroundColor: _superficie(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -1017,7 +1017,7 @@ class _MapScreenState extends State<MapScreen> {
   void _abrirSinalizacoes() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: overlaySurface(context),
+      backgroundColor: _superficie(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1707,6 +1707,17 @@ class _MapScreenState extends State<MapScreen> {
     _gatePremium(PremiumFeature.radio, () => RadioSheet.open(context));
   }
 
+  /// Superficie dos paineis com a transparencia e a cor escolhidas pelo
+  /// usuario na tela de Aparencia.
+  Color _superficie(BuildContext context) {
+    final settings = _settingsProvider;
+    return overlaySurface(
+      context,
+      opacity: settings?.overlayOpacity ?? 1.0,
+      accent: settings?.overlayColor,
+    );
+  }
+
   /// AGENTE B: ajudante acompanha a rede e envia sinais, mas nao monta rota.
   bool get _isHelper =>
       context.read<AuthProvider>().driver?.isHelper ?? false;
@@ -1764,6 +1775,7 @@ class _MapScreenState extends State<MapScreen> {
               onStart: _iniciarRota,
               onConfirmNext: _confirmarEntregaAtual,
               onClose: () => context.read<RouteProvider>().clearRoute(),
+              canManageRoute: !_isHelper,
             ),
           // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
           if (ui && _activeAlerts.isNotEmpty && !_alertsPanelClosed)
@@ -1771,8 +1783,8 @@ class _MapScreenState extends State<MapScreen> {
               initial: Offset(_contentLeft, 96),
               child: AlertsPanel(
                 alerts: List<AlertModel>.unmodifiable(_activeAlerts),
-                surface: overlaySurface(context),
-                accent: kEmergencyRed,
+                surface: _superficie(context),
+                  accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
                 onClose: () => setState(() => _alertsPanelClosed = true),
               ),
             ),
@@ -1783,8 +1795,8 @@ class _MapScreenState extends State<MapScreen> {
               return DraggablePanel(
                 initial: Offset(size.width - 70, size.height - 300),
                 child: RadioFab(
-                  surface: overlaySurface(context),
-                  accent: kEmergencyRed,
+                  surface: _superficie(context),
+                accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
                   onPressed: _abrirRadio,
                 ),
               );
@@ -1837,7 +1849,7 @@ class _MapScreenState extends State<MapScreen> {
   /// Bussola propria: fica logo abaixo do botao de modo e volta ao norte.
   Widget _buildCompass() {
     return Material(
-      color: overlaySurface(context),
+      color: _superficie(context),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -1867,7 +1879,7 @@ class _MapScreenState extends State<MapScreen> {
     final tooltip =
         isSat ? 'Usar mapa leve (ruas)' : 'Usar imagem de satelite';
     return Material(
-      color: overlaySurface(context),
+      color: _superficie(context),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -1907,7 +1919,7 @@ class _MapScreenState extends State<MapScreen> {
         ? 'Ocultar interações e conversas'
         : 'Mostrar interações e conversas';
     return Material(
-      color: overlaySurface(context),
+      color: _superficie(context),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -1950,7 +1962,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildSideRail() {
     if (_railHidden) {
       return Material(
-        color: overlaySurface(context),
+        color: _superficie(context),
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -1987,9 +1999,11 @@ class _MapScreenState extends State<MapScreen> {
         duration: const Duration(milliseconds: 180),
         width: _sideRailOpen ? 168 : 56,
         decoration: BoxDecoration(
-          color: overlaySurface(context),
+          color: _superficie(context),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: kEmergencyRed, width: 1.2),
+          border: Border.all(
+              color: _settingsProvider?.overlayColor ?? kEmergencyRed,
+              width: 1.2),
         ),
         child: SingleChildScrollView(
           child: Column(
@@ -2051,9 +2065,10 @@ class _MapScreenState extends State<MapScreen> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: overlaySurface(context),
+              color: _superficie(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kEmergencyRed),
+              border: Border.all(
+                  color: _settingsProvider?.overlayColor ?? kEmergencyRed),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2096,7 +2111,7 @@ class _MapScreenState extends State<MapScreen> {
         FloatingActionButton(
           heroTag: 'fab_peers',
           mini: true,
-          backgroundColor: overlaySurface(context),
+          backgroundColor: _superficie(context),
           onPressed: () => setState(() => _peerBubbleOpen = !_peerBubbleOpen),
           child: Badge(
             label: Text('${_peerTrucks.length}'),
