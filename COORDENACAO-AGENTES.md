@@ -82,6 +82,32 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Respostas do B (A leia)
 
+- 02:50 B: **tudo minimizável, arrastável, ocultável e otimizado** (commit `f01167d`):
+  1. Novo `floating_panel.dart` (`FloatingPanel`): qualquer painel do mapa pode ser
+     arrastado, **minimizado solto na borda esquerda/direita** (vira uma tab compacta
+     que volta tocando nela) e a posição/estado ficam salvos (`panel.pos.<id>`).
+     O clique do conteúdo continua funcionando — o arrasto é do painel, o clique é do
+     botão.
+  2. Tudo virou painel flutuante: `route` (tabela de rotas), `toolbar` (barra de
+     ferramentas, reconstruída com puxador), `alerts` (sinais), `chat`, `speed_hud`,
+     `peers`, `radio`, `assistant` e `topo` (botões do topo).
+  3. **Tabela de rotas e barra de ferramentas reconstruídas**: a barra saiu do
+     `Positioned` fixo (não ocupa mais a lateral), e a tabela voltou a ser um widget
+     normal dentro do painel (com puxador, minimizar, fechar e redimensionar).
+  4. **Chat não quebra mais**: era folha modal; agora é painel flutuante. O crash real
+     era o `sendTruckReaction` exigir `targetDriverId` não-nulo e receber `null` do
+     peer (TypeError) — corrigido no socket e no map_screen.
+  5. `DraggablePanel` foi removido (código morto, substituído pelo `FloatingPanel`).
+  6. APK release **89,8 MB compilado COM as chaves** (`--dart-define-from-file=keys.json`)
+     e instalado no celular. Isso era a causa do "erro ao calcular rotas".
+  7. Rotas corrigidas: host do OpenRouteService estava errado (`api.heigit.org` = v1
+     descontinuado → `api.openrouteservice.org`), entrou **OSRM como fallback sem
+     chave** e a chave do Google (restrita a Android) passa a enviar
+     `X-Android-Package`/`X-Android-Cert` se você colocar o SHA-1 em `keys.json`.
+  8. IA: `core/ai/assistant_engine.dart` (respostas locais) + botão flutuante no mapa
+     que chama `POST /api/assistant/ask` (com LLM opcional por `OPENAI_API_KEY`/
+     `ANTHROPIC_API_KEY` no Render) e cai para a resposta local sem internet; a voz do
+     app lê a resposta. Testado no ar: o endpoint exige token (401 sem sessão).
 - 01:35 B: **"modo noturno escurecia o mapa" — corrigido.** O mapa agora é **sempre claro**:
   - `_styleAtual` nunca mais usa o estilo escuro (nem o JSON local `style_streets_dark` nem o
     estilo `dark` do CDN — o 3D usa sempre o `bright`);
@@ -180,6 +206,20 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   do usuário: SMTP Brevo + cartão do Postgres.
 
 ## Log de atos (append-only)
+
+- 02:50 B: FloatingPanel (arrastar/minimizar nos dois lados/ocultar/persistir) em todos os
+  paineis; tabela de rotas e barra de ferramentas reconstruidas; chat deixa de ser modal e
+  o crash do reaction corrigido; rotas com ORS correto + fallback OSRM; assistente (IA) no
+  mapa e no backend; APK 4 instalado COM as chaves (f01167d).
+- 02:40 A: fotos pessoais no perfil (image_picker galeria/camera → POST /auth/photo
+  avatar|truck, limite 640KB, feedback) guardadas no driver localmente; ícone "me" do
+  mapa vira fotoBadge com a foto pessoal; botão recém-centralizado único lampião
+  ('Aqui' removido do rail — só 1 botão focus); app_theme: overlaySurface/Border/Accent
+  agora derivam do accent do tema (sincronia de cores em todo o sistema); login com
+  branding (caminhão + nome do app) e cores do tema; markers/grupo sheets theme-based;
+  teste app_theme atualizado (0x1F0808). analyze: No issues; testes 120/120; APK
+  release 53,7MB com chaves reinstalado (Success). B: commit 8fcbdb5 (OSRM fallback,
+  Assistente da Estrada) adotado; floating_panel/chat_panel são do B.
 
 - 02:10 A: causas do aviso "Nenhum provedor de rotas" corrigidas — build-flutter.ps1 agora
   passa --dart-define-from-file=keys.json (chaves ORS/Google ficavam fora do APK); audit
