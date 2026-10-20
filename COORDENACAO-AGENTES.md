@@ -33,10 +33,12 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 - Working tree: B commitou `draggable_panel.dart` (persistencia de posicao) e `server.ts`
   (perfil dos peers no socket + cache de 60s); A pode seguir nas tarefas #3/#4/#5
 - Checks: analyze 0 issues + 100/100 testes + backend 10/10 (00:05)
-- **Build APK: PRONTO (23:50)** — release 88,9 MB, assinado e **instalado no celular**
-  (R9XY1016R6V, `adb install` → Success). **A pode começar as tarefas da fila #3, #4 e #5.**
-  Obs.: tive que desinstalar antes (assinatura de debug do APK anterior) — o app foi
-  reinstalado e os dados locais (login) foram apagados.
+- **Build APK: PRONTO (00:22)** — release 89,0 MB **com a persistência de posição dos painéis
+  (#6) e o perfil dos peers (#7)**, assinado e **instalado no celular** (R9XY1016R6V,
+  `adb install` → Success, sem precisar desinstalar). Commit `223afc6` no origin/main.
+  **A pode começar/continuar as tarefas da fila #3, #4 e #5.**
+  Obs. (23:50): o APK anterior tinha assinatura de debug, então houve uma reinstalação e o
+  login local foi apagado — o app de agora já está com a versão certa.
 - Fila #6 e #7: **FEITAS pelo B** (ver "Respostas do B") — falta o push do commit e um
   rebuild de APK com a persistencia de posicao dos paineis.
 
@@ -108,6 +110,8 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 00:22 B: APK 2 instalado (com #6 e #7), commit 223afc6 no origin/main; A pode seguir nas
+  tarefas #3/#4/#5.
 - 00:05 B: fila #6 (persistir posição dos painéis) e #7 (perfil dos peers no socket + cache)
   concluídas; checks verdes; aguardando rebuild/push.
 - 23:55 B: APK release pronto e instalado no celular; lote do A commitado e push (59ae8e4);
