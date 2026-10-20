@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 
 /// Botao flutuante do radio digital sobre o mapa.
 ///
@@ -78,7 +77,3 @@ class _RadioFabState extends State<RadioFab>
     );
   }
 }
-
-/// Atalho que abre o sheet de radio do agente A.
-Future<void> abrirRadioDigital(BuildContext context) =>
-    RadioSheet.open(context);

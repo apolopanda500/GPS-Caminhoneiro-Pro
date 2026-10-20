@@ -90,11 +90,4 @@ class StreetViewService {
     final dLon = (photo.lon! - lon) * 111320 * 0.75;
     return (dLat * dLat + dLon * dLon);
   }
-
-  /// Link do Street View oficial do Google (fallback sem token).
-  static String googleStreetViewLink(double lat, double lon) =>
-      'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=$lat,$lon';
-
-  static String googleMapsLink(double lat, double lon) =>
-      'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
 }

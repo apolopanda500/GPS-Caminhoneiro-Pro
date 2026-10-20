@@ -14,6 +14,11 @@ const Color kAppBarLight = Color(0xFFFFFFFF);
 const Color kDividerDark = Color(0x33FFFFFF);
 const Color kDividerLight = Color(0x1F000000);
 
+/// Mistura a cor de destaque com o fundo, para os cartoes/bottomsheets
+/// acompanharem a cor escolhida pelo usuario.
+Color _tint(Color accent, Color base, double forca) =>
+    Color.alphaBlend(accent.withValues(alpha: forca), base);
+
 // --------------------------------------------------- Superficies no mapa
 Color overlaySurface(
   BuildContext context, {
@@ -48,242 +53,265 @@ Color overlayTextSoft(BuildContext context) =>
         : kLightInk.withValues(alpha: 0.7);
 
 // ---------------------------------------------------------------- ESCURO
-final ThemeData appTheme = ThemeData(
-  useMaterial3: true,
-  brightness: Brightness.dark,
-  scaffoldBackgroundColor: kDarkBlack,
-  canvasColor: kDarkBlack,
-  primaryColor: kEmergencyRed,
-  colorScheme: const ColorScheme.dark(
-    primary: kEmergencyRed,
-    onPrimary: Colors.white,
-    secondary: kEmergencyRed,
-    onSecondary: Colors.white,
-    surface: kDarkRedTransition,
-    onSurface: kLightText,
-    error: Color(0xFFFF6B6B),
-    onError: Colors.black,
-    outline: kDividerDark,
-    outlineVariant: kDividerDark,
-  ),
-  splashFactory: InkSplash.splashFactory,
-  appBarTheme: const AppBarTheme(
-    backgroundColor: kAppBarDark,
-    foregroundColor: Colors.white,
-    elevation: 0,
-    centerTitle: true,
-    iconTheme: IconThemeData(color: Colors.white),
-  ),
-  cardTheme: const CardThemeData(
-    color: kDarkRedTransition,
-    elevation: 0,
-    margin: EdgeInsets.zero,
-  ),
-  dialogTheme: const DialogThemeData(
-    backgroundColor: kDarkRedTransition,
-    titleTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-    contentTextStyle: TextStyle(color: kLightText),
-  ),
-  bottomSheetTheme: const BottomSheetThemeData(
-    backgroundColor: kDarkRedTransition,
-    modalBackgroundColor: kDarkRedTransition,
-  ),
-  listTileTheme: const ListTileThemeData(
-    iconColor: kLightText,
-    textColor: kLightText,
-  ),
-  floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor: kEmergencyRed,
-    foregroundColor: Colors.white,
-    elevation: 2,
-  ),
-  chipTheme: const ChipThemeData(
-    backgroundColor: kDarkRedTransition,
-    labelStyle: TextStyle(color: kLightText),
-    side: BorderSide(color: kDividerDark),
-  ),
-  segmentedButtonTheme: const SegmentedButtonThemeData(
-    style: ButtonStyle(
-      backgroundColor: WidgetStatePropertyAll(kDarkRedTransition),
-      foregroundColor: WidgetStatePropertyAll(kLightText),
-      side: WidgetStatePropertyAll(BorderSide(color: kDividerDark)),
+/// Tema escuro. [accent] e a cor escolhida pelo usuario na tela de Aparencia
+/// e vale para TODO o app: botoes, cartoes, appbar, chips, campos e icones.
+ThemeData appTheme({Color accent = kEmergencyRed}) {
+  final surface = _tint(accent, kDarkBlack, 0.16);
+  final appBar = _tint(accent, kDarkBlack, 0.22);
+  return ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: kDarkBlack,
+    canvasColor: kDarkBlack,
+    primaryColor: accent,
+    colorScheme: ColorScheme.dark(
+      primary: accent,
+      onPrimary: Colors.white,
+      secondary: accent,
+      onSecondary: Colors.white,
+      surface: surface,
+      onSurface: kLightText,
+      error: const Color(0xFFFF6B6B),
+      onError: Colors.black,
+      outline: kDividerDark,
+      outlineVariant: kDividerDark,
     ),
-  ),
-  dividerTheme: const DividerThemeData(color: kDividerDark, space: 1, thickness: 1),
-  switchTheme: SwitchThemeData(
-    thumbColor: WidgetStateProperty.resolveWith(
-      (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
-    ),
-    trackColor: WidgetStateProperty.resolveWith(
-      (states) => states.contains(WidgetState.selected) ? kEmergencyRed : Colors.white24,
-    ),
-  ),
-  textTheme: const TextTheme(
-    bodyLarge: TextStyle(color: kLightText, fontSize: 16),
-    bodyMedium: TextStyle(color: kLightText, fontSize: 14),
-    bodySmall: TextStyle(color: Colors.white70, fontSize: 12),
-    titleLarge: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-    titleMedium: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-    labelLarge: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-  ),
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: kEmergencyRed,
+    splashFactory: InkSplash.splashFactory,
+    appBarTheme: AppBarTheme(
+      backgroundColor: appBar,
       foregroundColor: Colors.white,
-      textStyle: const TextStyle(fontWeight: FontWeight.bold),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 0,
+      centerTitle: true,
+      iconTheme: const IconThemeData(color: Colors.white),
     ),
-  ),
-  filledButtonTheme: FilledButtonThemeData(
-    style: FilledButton.styleFrom(
-      backgroundColor: kEmergencyRed,
+    cardTheme: CardThemeData(
+      color: surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: surface,
+      titleTextStyle:
+          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      contentTextStyle: const TextStyle(color: kLightText),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: surface,
+      modalBackgroundColor: surface,
+    ),
+    listTileTheme: const ListTileThemeData(
+      iconColor: kLightText,
+      textColor: kLightText,
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: accent,
       foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 2,
     ),
-  ),
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: kEmergencyRed,
-      side: const BorderSide(color: kEmergencyRed, width: 1.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    chipTheme: ChipThemeData(
+      backgroundColor: surface,
+      labelStyle: const TextStyle(color: kLightText),
+      side: const BorderSide(color: kDividerDark),
     ),
-  ),
-  textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(foregroundColor: kEmergencyRed),
-  ),
-  snackBarTheme: const SnackBarThemeData(
-    backgroundColor: kDarkRedTransition,
-    contentTextStyle: TextStyle(color: Colors.white),
-    behavior: SnackBarBehavior.floating,
-  ),
-  inputDecorationTheme: const InputDecorationTheme(
-    filled: true,
-    fillColor: kDarkRedTransition,
-    hintStyle: TextStyle(color: Colors.grey),
-    labelStyle: TextStyle(color: kLightText),
-    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.redAccent)),
-    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFD32F2F))),
-  ),
-);
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll(surface),
+        foregroundColor: const WidgetStatePropertyAll(kLightText),
+        side: const WidgetStatePropertyAll(BorderSide(color: kDividerDark)),
+      ),
+    ),
+    dividerTheme:
+        const DividerThemeData(color: kDividerDark, space: 1, thickness: 1),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? accent : Colors.white24,
+      ),
+    ),
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: kLightText, fontSize: 16),
+      bodyMedium: TextStyle(color: kLightText, fontSize: 14),
+      bodySmall: TextStyle(color: Colors.white70, fontSize: 12),
+      titleLarge:
+          TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+      titleMedium:
+          TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+      labelLarge:
+          TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: accent,
+        side: BorderSide(color: accent, width: 1.4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: accent),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: appBar,
+      contentTextStyle: const TextStyle(color: Colors.white),
+      behavior: SnackBarBehavior.floating,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surface,
+      hintStyle: const TextStyle(color: Colors.grey),
+      labelStyle: const TextStyle(color: kLightText),
+      enabledBorder:
+          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+      focusedBorder:
+          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+    ),
+  );
+}
 
 // ------------------------------------------------------------------ CLARO
-final ThemeData appLightTheme = ThemeData(
-  useMaterial3: true,
-  brightness: Brightness.light,
-  scaffoldBackgroundColor: kLightBackground,
-  canvasColor: kLightBackground,
-  primaryColor: kEmergencyRed,
-  colorScheme: const ColorScheme.light(
-    primary: kEmergencyRed,
-    onPrimary: Colors.white,
-    secondary: kEmergencyRed,
-    onSecondary: Colors.white,
-    surface: kLightSurface,
-    onSurface: kLightInk,
-    error: Color(0xFFB71C1C),
-    onError: Colors.white,
-    outline: kDividerLight,
-    outlineVariant: kDividerLight,
-  ),
-  appBarTheme: const AppBarTheme(
-    backgroundColor: kAppBarLight,
-    foregroundColor: kLightInk,
-    elevation: 0,
-    centerTitle: true,
-    iconTheme: IconThemeData(color: kLightInk),
-  ),
-  cardTheme: const CardThemeData(
-    color: kLightSurface,
-    elevation: 0,
-    margin: EdgeInsets.zero,
-  ),
-  dialogTheme: const DialogThemeData(
-    backgroundColor: kLightSurface,
-    titleTextStyle: TextStyle(
-      color: kLightInk,
-      fontWeight: FontWeight.bold,
-      fontSize: 18,
+/// Tema claro. [accent] e a cor escolhida pelo usuario e vale para todo o app.
+ThemeData appLightTheme({Color accent = kEmergencyRed}) {
+  final surface = _tint(accent, kLightSurface, 0.10);
+  return ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: kLightBackground,
+    canvasColor: kLightBackground,
+    primaryColor: accent,
+    colorScheme: ColorScheme.light(
+      primary: accent,
+      onPrimary: Colors.white,
+      secondary: accent,
+      onSecondary: Colors.white,
+      surface: surface,
+      onSurface: kLightInk,
+      error: const Color(0xFFB71C1C),
+      onError: Colors.white,
+      outline: kDividerLight,
+      outlineVariant: kDividerLight,
     ),
-    contentTextStyle: TextStyle(color: Color(0xFF3A3A3A)),
-  ),
-  bottomSheetTheme: const BottomSheetThemeData(
-    backgroundColor: kLightSurface,
-    modalBackgroundColor: kLightSurface,
-  ),
-  listTileTheme: const ListTileThemeData(
-    iconColor: kLightInk,
-    textColor: kLightInk,
-  ),
-  floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor: kEmergencyRed,
-    foregroundColor: Colors.white,
-    elevation: 2,
-  ),
-  chipTheme: const ChipThemeData(
-    backgroundColor: kLightSurface,
-    labelStyle: TextStyle(color: kLightInk),
-    side: BorderSide(color: kDividerLight),
-  ),
-  segmentedButtonTheme: const SegmentedButtonThemeData(
-    style: ButtonStyle(
-      backgroundColor: WidgetStatePropertyAll(kLightSurface),
-      foregroundColor: WidgetStatePropertyAll(kLightInk),
-      side: WidgetStatePropertyAll(BorderSide(color: kDividerLight)),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: kAppBarLight,
+      foregroundColor: kLightInk,
+      elevation: 0,
+      centerTitle: true,
+      iconTheme: IconThemeData(color: kLightInk),
     ),
-  ),
-  dividerTheme: const DividerThemeData(color: kDividerLight, space: 1, thickness: 1),
-  switchTheme: SwitchThemeData(
-    thumbColor: WidgetStateProperty.resolveWith(
-      (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+    cardTheme: CardThemeData(
+      color: surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
     ),
-    trackColor: WidgetStateProperty.resolveWith(
-      (states) => states.contains(WidgetState.selected) ? kEmergencyRed : Colors.black26,
+    dialogTheme: DialogThemeData(
+      backgroundColor: surface,
+      titleTextStyle: const TextStyle(
+        color: kLightInk,
+        fontWeight: FontWeight.bold,
+        fontSize: 18,
+      ),
+      contentTextStyle: const TextStyle(color: Color(0xFF3A3A3A)),
     ),
-  ),
-  textTheme: const TextTheme(
-    bodyLarge: TextStyle(color: kLightInk, fontSize: 16),
-    bodyMedium: TextStyle(color: Color(0xFF3A3A3A), fontSize: 14),
-    bodySmall: TextStyle(color: Color(0xFF3A3A3A), fontSize: 12),
-    titleLarge: TextStyle(color: kLightInk, fontSize: 20, fontWeight: FontWeight.bold),
-    titleMedium: TextStyle(color: kLightInk, fontSize: 16, fontWeight: FontWeight.w600),
-    labelLarge: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-  ),
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: kEmergencyRed,
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: surface,
+      modalBackgroundColor: surface,
+    ),
+    listTileTheme: const ListTileThemeData(
+      iconColor: kLightInk,
+      textColor: kLightInk,
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: accent,
       foregroundColor: Colors.white,
-      textStyle: const TextStyle(fontWeight: FontWeight.bold),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 2,
     ),
-  ),
-  filledButtonTheme: FilledButtonThemeData(
-    style: FilledButton.styleFrom(
-      backgroundColor: kEmergencyRed,
-      foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    chipTheme: ChipThemeData(
+      backgroundColor: surface,
+      labelStyle: const TextStyle(color: kLightInk),
+      side: const BorderSide(color: kDividerLight),
     ),
-  ),
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: kEmergencyRed,
-      side: const BorderSide(color: kEmergencyRed, width: 1.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll(surface),
+        foregroundColor: const WidgetStatePropertyAll(kLightInk),
+        side: const WidgetStatePropertyAll(BorderSide(color: kDividerLight)),
+      ),
     ),
-  ),
-  textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(foregroundColor: kEmergencyRed),
-  ),
-  snackBarTheme: const SnackBarThemeData(
-    backgroundColor: kLightInk,
-    contentTextStyle: TextStyle(color: Colors.white),
-    behavior: SnackBarBehavior.floating,
-  ),
-  inputDecorationTheme: const InputDecorationTheme(
-    filled: true,
-    fillColor: kLightSurface,
-    hintStyle: TextStyle(color: Colors.black45),
-    labelStyle: TextStyle(color: kLightInk),
-    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.black26)),
-    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFD32F2F))),
-  ),
-);
+    dividerTheme:
+        const DividerThemeData(color: kDividerLight, space: 1, thickness: 1),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? accent : Colors.black26,
+      ),
+    ),
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: kLightInk, fontSize: 16),
+      bodyMedium: TextStyle(color: Color(0xFF3A3A3A), fontSize: 14),
+      bodySmall: TextStyle(color: Color(0xFF3A3A3A), fontSize: 12),
+      titleLarge:
+          TextStyle(color: kLightInk, fontSize: 20, fontWeight: FontWeight.bold),
+      titleMedium:
+          TextStyle(color: kLightInk, fontSize: 16, fontWeight: FontWeight.w600),
+      labelLarge:
+          TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: accent,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: accent,
+        side: BorderSide(color: accent, width: 1.4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: accent),
+    ),
+    snackBarTheme: const SnackBarThemeData(
+      backgroundColor: kLightInk,
+      contentTextStyle: TextStyle(color: Colors.white),
+      behavior: SnackBarBehavior.floating,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surface,
+      hintStyle: const TextStyle(color: Colors.black45),
+      labelStyle: const TextStyle(color: kLightInk),
+      enabledBorder:
+          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+      focusedBorder:
+          UnderlineInputBorder(borderSide: BorderSide(color: accent)),
+    ),
+  );
+}

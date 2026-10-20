@@ -9,24 +9,40 @@ const _key = Key('surfaceBox');
 
 void main() {
   group('AppTheme', () {
-    test('tema escuro usa superficies escuras e vermelho', () {
-      expect(appTheme.brightness, Brightness.dark);
-      expect(appTheme.scaffoldBackgroundColor, kDarkBlack);
-      expect(appTheme.colorScheme.primary, kEmergencyRed);
-      expect(appTheme.snackBarTheme.backgroundColor, kDarkRedTransition);
+    test('tema escuro usa superficies escuras e a cor escolhida', () {
+      final tema = appTheme();
+      expect(tema.brightness, Brightness.dark);
+      expect(tema.scaffoldBackgroundColor, kDarkBlack);
+      expect(tema.colorScheme.primary, kEmergencyRed);
+      expect(tema.snackBarTheme.backgroundColor, isNotNull);
     });
 
-    test('tema claro usa superficies claras e mesmo vermelho', () {
-      expect(appLightTheme.brightness, Brightness.light);
-      expect(appLightTheme.scaffoldBackgroundColor, kLightBackground);
-      expect(appLightTheme.colorScheme.primary, kEmergencyRed);
-      expect(appLightTheme.textButtonTheme.style, isNotNull);
+    test('tema claro usa superficies claras e a cor escolhida', () {
+      final tema = appLightTheme();
+      expect(tema.brightness, Brightness.light);
+      expect(tema.scaffoldBackgroundColor, kLightBackground);
+      expect(tema.colorScheme.primary, kEmergencyRed);
+      expect(tema.textButtonTheme.style, isNotNull);
+    });
+
+    test('a cor do usuario vale para todo o tema', () {
+      const azul = Color(0xFF1D4ED8);
+      final escuro = appTheme(accent: azul);
+      final claro = appLightTheme(accent: azul);
+      expect(escuro.colorScheme.primary, azul);
+      expect(claro.colorScheme.primary, azul);
+      expect(escuro.floatingActionButtonTheme.backgroundColor, azul);
+      expect(claro.floatingActionButtonTheme.backgroundColor, azul);
+      expect(
+        escuro.elevatedButtonTheme.style?.backgroundColor?.resolve({}),
+        azul,
+      );
     });
 
     testWidgets('overlaySurface claro e branca translúcida', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: appLightTheme,
+          theme: appLightTheme(),
           home: Builder(
             builder: (context) => Container(
               key: _key,
@@ -43,7 +59,7 @@ void main() {
     testWidgets('overlaySurface escura e preta translúcida', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: appTheme,
+          theme: appTheme(),
           home: Builder(
             builder: (context) => Container(
               key: _key,
@@ -60,7 +76,7 @@ void main() {
     testWidgets('overlayText claro usa tinta escura', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: appLightTheme,
+          theme: appLightTheme(),
           home: Builder(
             builder: (context) {
               expect(rgb(overlayText(context)), rgb(kLightInk));
@@ -76,7 +92,7 @@ void main() {
     testWidgets('overlayText escuro usa branco', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: appTheme,
+          theme: appTheme(),
           home: Builder(
             builder: (context) {
               expect(rgb(overlayText(context)), 0xFFFFFF);

@@ -76,13 +76,6 @@ class _StreetViewScreenState extends State<StreetViewScreen> {
       appBar: AppBar(
         title: const Text('Ver a rua'),
         backgroundColor: kDarkBlack,
-        actions: [
-          IconButton(
-            tooltip: 'Abrir no Google Maps',
-            icon: const Icon(Icons.open_in_new),
-            onPressed: () => _abrirGoogle(),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -104,9 +97,10 @@ class _StreetViewScreenState extends State<StreetViewScreen> {
                                 style: const TextStyle(color: Colors.white70),
                               ),
                               const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _abrirGoogle,
-                                child: const Text('VER NO GOOGLE MAPS'),
+                              ElevatedButton.icon(
+                                onPressed: _carregar,
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('TENTAR DE NOVO'),
                               ),
                             ],
                           ),
@@ -189,38 +183,4 @@ class _StreetViewScreenState extends State<StreetViewScreen> {
     );
   }
 
-  void _abrirGoogle() {
-    final url = StreetViewService.googleStreetViewLink(
-      widget.latitude,
-      widget.longitude,
-    );
-    final uri = Uri.parse(url);
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Abrir fora do app'),
-        content: Text(url),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fechar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _abrirExterno(uri);
-            },
-            child: const Text('ABRIR'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _abrirExterno(Uri uri) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(content: Text('Abrindo: ${uri.host}')),
-    );
-  }
 }

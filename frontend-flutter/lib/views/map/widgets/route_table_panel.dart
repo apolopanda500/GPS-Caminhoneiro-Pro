@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
@@ -231,9 +232,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                           ? 'PRÓXIMA'
                           : 'PENDENTE';
               return InkWell(
-                onTap: () => context
-                    .read<RouteProvider>()
-                    .confirmDelivery(index),
+                onTap: () => _confirmarEntrega(index),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
@@ -301,6 +300,27 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
         ),
       ],
     );
+  }
+
+  /// Confirmacao real antes de marcar a entrega.
+  Future<void> _confirmarEntrega(int index) async {
+    final provider = context.read<RouteProvider>();
+    final stops = provider.stops;
+    if (index < 0 || index >= stops.length) return;
+    final stop = stops[index];
+    final cliente =
+        stop.customer.isNotEmpty ? stop.customer : (stop.label.isNotEmpty ? stop.label : 'parada ${index + 1}');
+    final resposta = await confirmarAcao(
+      context,
+      titulo: 'Confirmar entrega',
+      mensagem:
+          'Confirmar a entrega em "$cliente"?\n\nA parada fica marcada como entregue e nao podera ser desfeita aqui.',
+      textoConfirmar: 'CONFIRMAR ENTREGA',
+      icone: Icons.check_circle_outline,
+    );
+    if (resposta == Confirmacao.confirmado) {
+      provider.confirmDelivery(index);
+    }
   }
 
   Widget _rodape(RouteProvider provider) {

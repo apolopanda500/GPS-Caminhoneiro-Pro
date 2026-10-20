@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/utils/overlay_style.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
@@ -96,14 +97,15 @@ class AppearanceScreen extends StatelessWidget {
   }
 
   Widget _preview(BuildContext context, SettingsProvider settings, Color texto) {
-    final superficie = OverlayStyle.surface(context, settings.overlayOpacity);
+    final superficie =
+        overlaySurface(context, opacity: settings.overlayOpacity);
     final cor = settings.overlayColor;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: superficie,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: OverlayStyle.border(context, cor), width: 1.4),
+        border: Border.all(color: overlayBorder(context, accent: cor), width: 1.4),
       ),
       child: Row(
         children: [

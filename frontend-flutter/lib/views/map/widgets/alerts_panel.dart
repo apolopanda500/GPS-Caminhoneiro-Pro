@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/utils/overlay_style.dart';
 import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
@@ -48,11 +49,11 @@ class _AlertsPanelState extends State<AlertsPanel> {
   @override
   Widget build(BuildContext context) {
     final alerts = widget.alerts;
-    final texto = OverlayStyle.text(context);
+    final texto = overlayText(context);
     final settings = _ajustes(context);
     final cor = widget.accent ?? settings?.overlayColor ?? kOverlayAccents.first;
     final superficie = widget.surface ??
-        OverlayStyle.surface(context, settings?.overlayOpacity ?? 1.0);
+        overlaySurface(context, opacity: settings?.overlayOpacity ?? 1.0);
 
     return Positioned(
       left: _offset.dx,
@@ -66,7 +67,7 @@ class _AlertsPanelState extends State<AlertsPanel> {
             color: superficie,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: OverlayStyle.border(context, cor),
+              color: overlayBorder(context, accent: cor),
               width: 1.4,
             ),
             boxShadow: [

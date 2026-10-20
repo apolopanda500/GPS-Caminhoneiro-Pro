@@ -12,6 +12,7 @@ import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -607,107 +608,7 @@ class _RadioTile extends StatelessWidget {
   }
 
   void _abrirRadio(BuildContext context, AudioProvider audio) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      isScrollControlled: true,
-      builder: (sheetContext) => const _RadioSheet(),
-    );
-  }
-}
-
-class _RadioSheet extends StatefulWidget {
-  const _RadioSheet();
-
-  @override
-  State<_RadioSheet> createState() => _RadioSheetState();
-}
-
-class _RadioSheetState extends State<_RadioSheet> {
-  final TextEditingController _busca = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<AudioProvider>().buscarEstacoes();
-    });
-  }
-
-  @override
-  void dispose() {
-    _busca.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final audio = context.watch<AudioProvider>();
-    final theme = Theme.of(context);
-    final ink = theme.colorScheme.onSurface;
-    final muted = ink.withValues(alpha: 0.55);
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _busca,
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar estação',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onSubmitted: (v) => audio.buscarEstacoes(v),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(audio.radioTocando ? Icons.stop : Icons.play_arrow,
-                        color: kEmergencyRed),
-                    onPressed: audio.radioTocando ? audio.pararRadio : null,
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: audio.carregandoEstacoes
-                  ? const Center(child: CircularProgressIndicator(color: kEmergencyRed))
-                  : audio.estacoes.isEmpty
-                      ? Center(
-                          child: Text('Nenhuma estação encontrada.',
-                              style: TextStyle(color: muted)),
-                        )
-                      : ListView.builder(
-                          itemCount: audio.estacoes.length,
-                          itemBuilder: (context, i) {
-                            final e = audio.estacoes[i];
-                            final tocando = audio.radioTocando && audio.radioEstacao == e.nome;
-                            return ListTile(
-                              leading: Icon(
-                                tocando ? Icons.radio : Icons.radio_outlined,
-                                color: tocando ? kEmergencyRed : muted,
-                              ),
-                              title: Text(e.nome,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: ink)),
-                              subtitle: Text(e.url,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: muted, fontSize: 11)),
-                              onTap: () => audio.tocarEstacao(e),
-                            );
-                          },
-                        ),
-            ),
-          ],
-        ),
-      ),
-    );
+    RadioSheet.open(context);
   }
 }
 

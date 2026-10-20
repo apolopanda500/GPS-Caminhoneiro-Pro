@@ -39,14 +39,15 @@ class GpsCamioneiroProApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final accent = settings.overlayColor;
     return MaterialApp(
       title: 'GPS Caminhoneiro Pro',
       debugShowCheckedModeBanner: false,
-      theme: appLightTheme,
-      darkTheme: appTheme,
-      themeMode: context.watch<SettingsProvider>().nightMode
-          ? ThemeMode.dark
-          : ThemeMode.light,
+      theme: appLightTheme(accent: accent),
+      darkTheme: appTheme(accent: accent),
+      themeMode:
+          settings.nightMode ? ThemeMode.dark : ThemeMode.light,
       home: const SplashScreen(),
     );
   }
