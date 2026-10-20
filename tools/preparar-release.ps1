@@ -41,7 +41,7 @@ $senha = Read-Host "Senha do keystore ($([IO.Path]::GetFileName($keystore)))" -A
 $senhaTexto = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
   [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($senha))
 
-$saida = & keytool -list -v -keystore $keystore -storepass $senhaTexto 2>&1
+$saida = & keytool '-J-Duser.language=en' '-J-Duser.country=US' -list -v -keystore $keystore -storepass $senhaTexto 2>&1
 if ($LASTEXITCODE -ne 0) {
   Write-Host $saida -ForegroundColor DarkGray
   Falha "senha incorreta ou keystore invalido"
@@ -50,7 +50,9 @@ if ($LASTEXITCODE -ne 0) {
 $alias = ($saida | Select-String "Alias name:").ToString() -replace ".*Alias name: ", ""
 if ([string]::IsNullOrWhiteSpace($alias)) { $alias = "upload" }
 $sha1 = ($saida | Select-String "SHA1:").ToString() -replace ".*SHA1: ", ""
-$sha256 = ($saida | Select-String "SHA256:" | Select-Object -Skip 1) -replace ".*SHA256: ", ""
+$sha256 = ($saida | Select-String "SHA256:").ToString() -replace ".*SHA256: ", ""
+$sha1 = $sha1.Trim()
+$sha256 = $sha256.Trim()
 
 Write-Host "    alias  : $alias"
 Write-Host "    SHA-1  : $sha1" -ForegroundColor Yellow

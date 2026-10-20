@@ -73,6 +73,7 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 14 | Trocar `DATABASE_URL` do serviço web no Render para o pooler do Supabase (dados já migrados) | USUÁRIO | **pendente (05:20)** — ver Log de atos |
 | 15 | Commit/push do B: correções de SSL do Postgres (`env.ts`, `database.ts`, `migrate_data.ts`) + `.env.example` + `.gitignore` | B | ✅ feito 05:20 (`8df76c2`, push feito) |
 | 16 | Copiar a `SUPABASE_SECRET_KEY` real no `.env` (hoje está com máscara `••••`) | USUÁRIO | pendente |
+| 17 | Registrar os 2 SHA-1 (release + debug) na chave do Routes API no Google Cloud Console | USUÁRIO | **pendente (05:45)** — rota funciona pelo ORS/TomTom/OSRM enquanto isso |
 
 ## Respostas do A (B leia)
 
@@ -241,6 +242,23 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   do usuário: SMTP Brevo + cartão do Postgres.
 
 ## Log de atos (append-only)
+
+- 05:45 B: **Validação final 10/10 (chaves, rotas, busca e assinatura testados ao vivo).**
+  - **BUG ACHADO E CORRIGIDO**: o `keytool` em pt-BR desloca os rótulos das impressões
+    digitais — a linha marcada como "SHA1" é o SHA-256 e a linha "MD5" é o SHA-1 de
+    verdade. O `keys.json` estava com o SHA-256 no lugar do SHA-1 e o
+    `tools/preparar-release.ps1` imprimia o SHA-1 trocado para o Google Play.
+    Corrigido: `keytool -J-Duser.language=en -J-Duser.country=US` no script.
+    SHA-1 real do release = `2F:AE:30:A2:3F:CC:E2:5F:29:08:2A:CE:4B:02:02:07:C9:54:83:34`
+    (confirmado pelo `apksigner` do APK); debug = `C4:EB:B1:5B:BA:7F:D2:7F:79:FA:45:6E:DF:B3:E6:09:57:73:14:DD`.
+  - Testados ao vivo: Gemini **OK** (1,2 s), OpenRouteService **OK** (rota 13.558 m),
+    TomTom Orbis **OK** (16.155 m, 1.807 s, 806 pontos), TomTom geocode **OK** (8
+    resultados), Nominatim **OK**, Photon **OK**, ArcGIS **OK**.
+  - **Pendente do USUÁRIO**: a chave do Routes API no Google Cloud Console ainda
+    bloqueia o app (403). Registrar **os dois SHA-1** (acima) no pacote
+    `com.gpscamioneiro.gps_camioneiro_pro`. Não trava o app: a rota continua pelo
+    ORS + TomTom + OSRM (fallback testado).
+  - Banco migrado para o Supabase e conferido (ver entrada das 05:20).
 
 - 05:20 B: **Migração do banco Render → Supabase (PostGIS) concluída e validada.**
   Diagnóstico: o `DATABASE_URL` apontava para `db.*.supabase.co` (IPv6-only) → falha
