@@ -57,26 +57,39 @@ consegue gerar uma nova chave de upload.
 ## 2) Chave do Google (rotas com trânsito em tempo real)
 
 Hoje a chave do Google responde **403** ("Requests from this Android client
-application are blocked") porque está restrita para Android e o app não manda
-os headers. O app já tem suporte: basta informar o SHA-1.
+application com.gpscamioneiro.gps_camioneiro_pro are blocked") porque está
+restrita para Android e o SHA-1 registrado no console não bate com o do build
+instalado. O app já manda os headers `X-Android-Package` e `X-Android-Cert` —
+falta acertar o SHA-1.
+
+**Os dois SHA-1 do projeto:**
+
+| Keystore | SHA-1 | Quando usar |
+|---|---|---|
+| `android/app/upload-keystore.jks` (release) | `72:ED:AA:CD:F3:E4:E7:3B:C4:9F:AA:1D:8A:2D:DD:81:80:9C:7D:67:98:C0:E7:16:E7:19:8B:B8:E6:F3:46:15` | **APK de release** (o que vai para a Play Store) |
+| `~/.android/debug.keystore` (debug) | `22:7C:6B:5A:B5:07:F1:F3:55:BA:00:24:FD:68:6B:F9:3F:F9:D4:FB:E8:B7:C6:CB:2D:9D:41:9B:46:EB:A2:BA` | APK de debug (testes rápidos) |
 
 1. [Google Cloud Console](https://console.cloud.google.com) → **APIs e serviços** →
    **Credenciais** → sua chave do *Routes API*.
-2. **Restrições de aplicativo** → *Android apps*:
+2. **Restrições de aplicativo** → *Android apps* → adicione **duas** entradas
+   (mesmo pacote, um SHA-1 cada):
    - Package name: `com.gpscamioneiro.gps_camioneiro_pro`
-   - SHA-1: o que o script `preparar-release.ps1` mostrou
-     (ou o SHA-1 de debug acima, se estiver testando).
+     + SHA-1 do **release** (acima)
+   - Package name: `com.gpscamioneiro.gps_camioneiro_pro`
+     + SHA-1 de **debug** (acima)
 3. Salve e espere alguns minutos.
 
-Opcional: adicione o SHA-1 no `frontend-flutter/keys.json`:
+O `frontend-flutter/keys.json` precisa ter o SHA-1 **do build que está
+instalado no aparelho** (o app manda um único valor no header):
 
 ```json
-"APP_ANDROID_CERT_SHA1": "22:7C:6B:...:BA",
+"APP_ANDROID_CERT_SHA1": "72:ED:AA:CD:F3:E4:E7:3B:C4:9F:AA:1D:8A:2D:DD:81:80:9C:7D:67:98:C0:E7:16:E7:19:8B:B8:E6:F3:46:15",
 "APP_ANDROID_PACKAGE": "com.gpscamioneiro.gps_camioneiro_pro"
 ```
 
-> Sem isso o app **ainda calcula rota** (OpenRouteService para caminhão + OSRM
-> como reserva). O Google só entra como opção extra de trânsito ao vivo.
+> Sem isso o app **ainda calcula rota** (OpenRouteService para caminhão + TomTom
+> com trânsito ao vivo + OSRM como reserva — os três testados e funcionando).
+> O Google só entra como opção extra de trânsito ao vivo.
 
 ---
 
