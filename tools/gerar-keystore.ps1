@@ -60,6 +60,10 @@ $null = Read-Host
 
 Write-Host ""
 Write-Host "=== 3/5  Criando o keystore de release ===" -ForegroundColor Cyan
+# O keytool nao sobrescreve um keystore existente (ele tenta abrir e falha),
+# entao removemos o arquivo antigo (o backup ja foi feito no passo 1).
+if (Test-Path $keystore) { Remove-Item $keystore -Force }
+
 $argumentos = @(
   "-genkeypair", "-v",
   "-keystore", $keystore,
@@ -70,8 +74,11 @@ $argumentos = @(
   "-keypass", $senhaTexto,
   "-dname", "CN=GPS Caminhoneiro Pro, OU=GPS Caminhoneiro Pro, O=GPS Caminhoneiro Pro, L=Rio de Janeiro, ST=RJ, C=BR"
 )
-& keytool @argumentos 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Falha "nao foi possivel criar o keystore" }
+$out = & keytool @argumentos 2>&1
+if ($LASTEXITCODE -ne 0) {
+  Write-Host $out -ForegroundColor DarkGray
+  Falha "nao foi possivel criar o keystore (veja a mensagem acima)"
+}
 Write-Host "    keystore criado: $keystore" -ForegroundColor Green
 
 $saida = & keytool -list -v -keystore $keystore -storepass $senhaTexto 2>&1
