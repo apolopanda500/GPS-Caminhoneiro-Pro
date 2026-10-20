@@ -253,8 +253,37 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
-- 17:55 B: **Mini janela flutuante corrigida: auto-entra no HOME em ciclo.**
-  O `onUserLeaveHint` sozinho nao era confiavel ao voltar do mini. Agora usa
+- 20:20 B: **Reconstrucao final do app (tudo no mapa, menus enxutos) + clima
+  profissional e voz configuravel.**
+  1. **Mapa**: 12 botoes em circulos compactos (3 colunas) - buscar,
+     centralizar, rota, mapa e graficos, sinais, rede, radio, clima,
+     compartilhar, emitir sinal, configuracoes e o STOP vermelho.
+  2. **Rede** (tela nova com abas): Chat, Grupos e Contatos, com as acoes de
+     empresa e sinalizar. Um lugar so, sem comando duplicado.
+  3. **Configuracoes** reescritas: 10 entradas, cada uma abrindo um grupo
+     completo (perfil, plano, GPS e rota, mapa e graficos, sons e voz,
+     aparencia, permissoes, historico, limpar sinais/cache, sair).
+  4. **Sons e voz** (tela nova): a voz fala o **numero** da parada ou o
+     **nome do cliente** (escolha do motorista), voz do aparelho com troca de
+     voz, velocidade e tom, e botao de teste.
+  5. **Clima em tempo real, sem chave de API**: radar de chuva **animado**
+     (2 h de passado + previsao, com play/pausa/recomecar), precipitacao,
+     vento, temperatura e cobertura de nuvens (Open-Meteo) desenhados como
+     circulos coloridos, nuvens por satelite e relevo.
+  6. **Flutuantes estilo iPhone**: tab lateral com seta e menu longo
+     (expandir, aumentar, diminuir, ocultar) + alcas de redimensionamento
+     nos 4 cantos, sem limite de tamanho.
+  7. **GPS sempre no maximo** (bestForNavigation) e a opcao "alta precisao"
+     saiu das configuracoes. **Economia de bateria real**: o intervalo do GPS
+     triplica. A camera segue o caminhao (centralizar religa).
+  8. **HAZMAT** virou cartao explicado e liga sozinho quando o tipo de
+     carga e perigoso.
+  9. **Busca presa no estado**: a UF e descoberta pelo GPS e nada de outros
+     estados aparece.
+  Testado no aparelho: busca de "Av. Brasil" devolveu 11 resultados, todos
+  no Rio de Janeiro, com distancia ao vivo. APK 94,4 MB instalado.
+
+- 17:55 B: **Mini janela flutuante corrigida: auto-entra no HOME em ciclo.**  O `onUserLeaveHint` sozinho nao era confiavel ao voltar do mini. Agora usa
   a API oficial do Android 12+ (`setAutoEnterEnabled(true)`), que e o
   caminho que o YouTube Premium usa: o sistema entra na mini janela
   quando o usuario aperta HOME e repete a cada ciclo.
