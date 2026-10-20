@@ -170,10 +170,13 @@ class _FloatingPanelState extends State<FloatingPanel> {
       );
     }
 
+    // Sem puxador definido, o arrasto funciona no painel inteiro.
+    final arrastarTudo = widget.dragWholeChild || widget.handle == null;
+
     return Positioned(
       left: _offset.dx,
       top: _offset.dy,
-      child: widget.dragWholeChild
+      child: arrastarTudo
           ? GestureDetector(
               onPanUpdate: _arrastar,
               onPanEnd: (_) => _soltar(),

@@ -31,7 +31,6 @@ class AlertsPanel extends StatefulWidget {
 }
 
 class _AlertsPanelState extends State<AlertsPanel> {
-  late Offset _offset = widget.initialOffset;
   bool _minimized = false;
 
   static const double _maxHeight = 260;
@@ -55,9 +54,8 @@ class _AlertsPanelState extends State<AlertsPanel> {
     final superficie = widget.surface ??
         overlaySurface(context, opacity: settings?.overlayOpacity ?? 1.0);
 
-    return Positioned(
-      left: _offset.dx,
-      top: _offset.dy,
+    // Sem Positioned: quem posiciona e o FloatingPanel que envolve o painel.
+    return SizedBox(
       width: _width,
       child: Material(
         color: Colors.transparent,
@@ -92,32 +90,23 @@ class _AlertsPanelState extends State<AlertsPanel> {
   }
 
   Widget _cabecalho(int total, Color texto, Color cor) {
-    return GestureDetector(
-      onPanUpdate: (details) {
-        setState(() {
-          _offset = Offset(
-            _offset.dx + details.delta.dx,
-            (_offset.dy + details.delta.dy).clamp(8.0, 460.0),
-          );
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
-        decoration: BoxDecoration(
-          color: cor.withValues(alpha: 0.18),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: cor, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                total == 0 ? 'Sinais da estrada' : 'Sinais da estrada ($total)',
-                style: TextStyle(
-                  color: texto,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.18),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: cor, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              total == 0 ? 'Sinais da estrada' : 'Sinais da estrada ($total)',
+              style: TextStyle(
+                color: texto,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
                 ),
               ),
             ),
@@ -142,7 +131,6 @@ class _AlertsPanelState extends State<AlertsPanel> {
             ),
           ],
         ),
-      ),
     );
   }
 
