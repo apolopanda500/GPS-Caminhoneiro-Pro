@@ -228,12 +228,12 @@ class SettingsScreen extends StatelessWidget {
             leading: const Icon(Icons.tune, color: Colors.redAccent),
             title: Text('Mapa e gráficos', style: TextStyle(color: ink)),
             subtitle: Text(
-              'Camada, prédios 3D, chuva, nuvens, relevo, qualidade (leve/médio/pesado), '
-              'FPS e cor da linha da rota — ajuste no painel flutuante do mapa '
-              '(ícone de ferramentas na lateral).',
+              'Camada, trânsito ao vivo, prédios 3D, chuva, nuvens, relevo, '
+              'qualidade (leve/médio/pesado), FPS e cor da linha da rota.',
               style: TextStyle(color: muted, fontSize: 12),
             ),
             trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => _abrirCamadas(context),
           ),
           _Switch(
             title: 'Mostrar outros caminhões',
@@ -324,10 +324,11 @@ class SettingsScreen extends StatelessWidget {
             title: Text('Qualidade gráfica', style: TextStyle(color: ink)),
             subtitle: Text(
               'Perfil atual: ${switch (s.renderQuality) { RenderQuality.economy => 'leve', RenderQuality.balanced => 'médio', RenderQuality.ultra => 'pesado' }} '
-              '• alvo ${s.targetFps} FPS. Ajuste no painel "Mapa e gráficos" do mapa.',
+              '• alvo ${s.targetFps} FPS. Toque para trocar agora.',
               style: TextStyle(color: muted, fontSize: 12),
             ),
             trailing: Icon(Icons.chevron_right, color: muted),
+            onTap: () => _abrirCamadas(context),
           ),
           const _Section('MAPA E FERRAMENTAS'),
           // AGENTE B: o mapa ficou com 5 elementos (km/h, centralizar, rota,

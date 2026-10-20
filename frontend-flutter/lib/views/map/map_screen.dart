@@ -144,6 +144,13 @@ class _MapScreenState extends State<MapScreen> {
     });
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _atualizarMapaSeNecessario());
+    // O app entra em modo de estrada: servico em primeiro plano ligado para
+    // o GPS e a rede continuarem com a tela apagada.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ligado = context.read<SettingsProvider>().trackingEnabled;
+      _sincronizarServicoDeFundo(ligado);
+    });
   }
 
   Future<void> _atualizarMapaSeNecessario() async {
@@ -1021,7 +1028,7 @@ class _MapScreenState extends State<MapScreen> {
         break;
       case 'stop':
         final index = (data['index'] as num?)?.toInt();
-        if (index != null) _confirmarParada(index);
+        if (index != null) _mostrarInformacaoDaParada(index);
         break;
       case 'alert':
         _abrirDetalhesSinal(data);
@@ -2045,6 +2052,115 @@ class _MapScreenState extends State<MapScreen> {
     _showSnackBar('Parada ${index + 1} confirmada.');
     _renderMarkers();
     _verificarConclusoesDaRota();
+  }
+
+  /// Tocar num ponto da rota **nao** confirma a entrega: mostra o local e a
+  /// informacao da parada. A confirmacao continua sendo um ato deliberado.
+  void _mostrarInformacaoDaParada(int index) {
+    final route = context.read<RouteProvider>();
+    if (index < 0 || index >= route.totalStops) return;
+    final stop = route.stops[index];
+    final status = route.statusOf(index);
+    final pos = _currentPosition;
+    final distancia = pos == null
+        ? null
+        : const Distance().as(LengthUnit.Meter, pos, stop.point) / 1000;
+
+    final statusTexto = switch (status) {
+      StopStatus.delivered => 'Entrega concluída',
+      StopStatus.arrived => 'Você está na parada',
+      StopStatus.pending => 'Ainda não chegou',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final tema = Theme.of(sheetContext);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Parada ${index + 1}',
+                  style: tema.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  stop.customer.isNotEmpty ? stop.customer : stop.label,
+                  style: tema.textTheme.bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (stop.neighborhood.isNotEmpty)
+                  Text(stop.neighborhood, style: tema.textTheme.bodySmall),
+                const SizedBox(height: 12),
+                _linhaInfo(sheetContext, Icons.place, statusTexto),
+                _linhaInfo(
+                  sheetContext,
+                  Icons.straighten,
+                  'Posição: ${stop.point.latitude.toStringAsFixed(5)}, '
+                  '${stop.point.longitude.toStringAsFixed(5)}',
+                ),
+                if (distancia != null)
+                  _linhaInfo(
+                    sheetContext,
+                    Icons.near_me,
+                    'A ${distancia.toStringAsFixed(1)} km de você',
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _moverCamera(stop.point, zoom: 16, bearing: _bearing);
+                        },
+                        icon: const Icon(Icons.center_focus_strong, size: 18),
+                        label: const Text('VER NO MAPA'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _confirmarParada(index);
+                        },
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text('CONFIRMAR'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _linhaInfo(BuildContext context, IconData icone, String texto) {
+    final tema = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icone, size: 16, color: tema.colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(texto, style: tema.textTheme.bodySmall),
+          ),
+        ],
+      ),
+    );
   }
 
   void _verificarConclusoesDaRota() {
