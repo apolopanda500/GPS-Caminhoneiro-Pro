@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
@@ -20,6 +19,7 @@ import 'package:gps_camioneiro_pro/views/map/widgets/chat_panel.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
+import 'package:gps_camioneiro_pro/views/settings/permissions_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   /// Acoes que vivem no mapa e foram reunidas aqui para deixar o acesso
@@ -513,26 +513,12 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _revisarPermissoes(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    await <Permission>[
-      Permission.locationWhenInUse,
-      Permission.locationAlways,
-      Permission.notification,
-      Permission.camera,
-      Permission.microphone,
-      Permission.ignoreBatteryOptimizations,
-      Permission.systemAlertWindow,
-    ].request();
-
-    if (!context.mounted) return;
-    final status = await openAppSettings();
-    if (status) {
-      messenger.showSnackBar(
-        const SnackBar(
-            content: Text('Ajuste as permissões especiais e volte ao app.')),
-      );
-    }
+  void _revisarPermissoes(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PermissionsScreen(),
+      ),
+    );
   }
 
   Future<void> _limparCache(BuildContext context) async {

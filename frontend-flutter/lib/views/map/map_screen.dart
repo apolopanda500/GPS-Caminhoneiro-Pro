@@ -18,6 +18,7 @@ import 'package:gps_camioneiro_pro/core/premium/premium_policy.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
 import 'package:gps_camioneiro_pro/core/map/traffic_layer.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/onda_aviso.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
@@ -502,6 +503,57 @@ class _MapScreenState extends State<MapScreen> {
     } else {
       _overSpeedWarned = false;
     }
+  }
+
+  /// Onda de aviso em curso (posicao na tela + cor).
+  ({Offset posicao, Color cor})? _onda;
+
+  /// Momento do ultimo aviso: evita encher a rede de sinais iguais.
+  DateTime? _ultimoAviso;
+
+  /// Compartilha a posicao com a rede: emite uma onda, avisa os caminhoes
+  /// por perto (sinal no mapa de todos) e mostra o alerta na lista.
+  void _compartilharLocalizacao() {
+    final pos = _currentPosition ?? _center;
+    final agora = DateTime.now();
+    final ultimo = _ultimoAviso;
+    if (ultimo != null && agora.difference(ultimo) < const Duration(minutes: 2)) {
+      final falta = 2 - agora.difference(ultimo).inMinutes;
+      _showSnackBar('Aguarde $falta min para avisar de novo.');
+      return;
+    }
+    _ultimoAviso = agora;
+
+    final auth = context.read<AuthProvider>();
+    final driverId = auth.driver?.driverId ?? widget.driverId;
+    final nome = auth.driver?.name ?? 'Motorista';
+
+    // Sinal no mapa de todos (vai para o banco e chega pela rede).
+    _socket.sendRoadAlert(
+      driverId: driverId,
+      type: 'sinal',
+      message: '$nome esta passando por aqui',
+      lat: pos.latitude,
+      lon: pos.longitude,
+    );
+    // Mensagem no chat da rodovia (todo mundo ouve).
+    _socket.sendChatMessage(
+      driverId: driverId,
+      driverName: nome,
+      message: 'Passando por aqui. Seguam com cuidado.',
+      lat: pos.latitude,
+      lon: pos.longitude,
+    );
+
+    // Onda na tela, no ponto do caminhao.
+    final size = MediaQuery.of(context).size;
+    setState(() {
+      _onda = (
+        posicao: Offset(size.width / 2, size.height / 2),
+        cor: kEmergencyRed
+      );
+    });
+    _showSnackBar('📡 Posicao compartilhada com a rede.');
   }
 
   void _moverCamera(LatLng target,
@@ -2502,6 +2554,17 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           _buildMapView(),
+          // Onda de aviso (compartilhar posicao / marcar sinal).
+          if (_onda != null)
+            Positioned.fill(
+              child: OndaAviso(
+                posicao: _onda!.posicao,
+                cor: _onda!.cor,
+                aoTerminar: () {
+                  if (mounted) setState(() => _onda = null);
+                },
+              ),
+            ),
           // AGENTE B: na tela do mapa ficam SO os 5 elementos pedidos:
           // km/h, centralizar camera, rota, buscar e sinais.
           // Tudo o mais (clima, camadas/graficos, radio, IA, chat, caminhoes
@@ -2542,6 +2605,9 @@ class _MapScreenState extends State<MapScreen> {
                   const SizedBox(height: 8),
                   _botaoFlutuante(Icons.warning_amber_rounded, 'Sinais da estrada',
                       () => setState(() => _alertsPanelClosed = false)),
+                  const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.campaign, 'Compartilhar posicao com a rede',
+                      _compartilharLocalizacao),
                   const SizedBox(height: 8),
                   _botaoFlutuante(Icons.settings, 'Configuracoes', _abrirConfiguracoes),
                   const SizedBox(height: 8),
