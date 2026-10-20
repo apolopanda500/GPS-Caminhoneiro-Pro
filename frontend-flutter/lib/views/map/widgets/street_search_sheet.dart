@@ -1,7 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Historico de buscas do motorista (as ultimas 8).
+class BuscaHistorico {
+  BuscaHistorico._();
+  static const _chave = 'busca.historico';
+
+  static Future<List<String>> carregar() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_chave) ?? const [];
+  }
+
+  static Future<void> registrar(String termo) async {
+    final t = termo.trim();
+    if (t.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final lista = [...await carregar(), t];
+    final unicos = <String>[];
+    for (final x in lista.reversed) {
+      if (!unicos.contains(x)) unicos.add(x);
+      if (unicos.length >= 8) break;
+    }
+    await prefs.setStringList(_chave, unicos.reversed.toList());
+  }
+
+  static Future<void> limpar() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_chave);
+  }
+}
 
 /// Folha de busca de rua/cidade. Retorna um [GeoResult] escolhido.
 ///
@@ -64,10 +95,23 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
   List<GeoResult> _results = [];
   bool _loading = false;
   String? _error;
+  List<String> _historico = const [];
 
   /// Regiao em uso (pode ser trocada pelos atalhos). Vem do GPS: a busca
   /// nunca sai do estado onde o caminhao esta.
   late String _regiao = widget.stateName ?? 'RJ';
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarHistorico();
+  }
+
+  Future<void> _carregarHistorico() async {
+    final h = await BuscaHistorico.carregar();
+    if (!mounted) return;
+    setState(() => _historico = h);
+  }
 
   Future<void> _search() async {
     final q = _controller.text.trim();
@@ -84,6 +128,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
         cityName: widget.cityName,
         stateName: _regiao,
       );
+      await BuscaHistorico.registrar(q);
       if (!mounted) return;
       setState(() {
         _results = r;
@@ -92,6 +137,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
             ? 'Nenhum resultado em $_regiao. Troque a regiao ou tente outro termo.'
             : null;
       });
+      await _carregarHistorico();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -99,6 +145,15 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
         _error = 'Falha na busca. Verifique a conexão.';
       });
     }
+  }
+
+  /// Copia o texto do resultado (endereco) para a area de transferencia.
+  Future<void> _copiar(String texto) async {
+    await Clipboard.setData(ClipboardData(text: texto));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copiado: $texto')),
+    );
   }
 
   @override
@@ -129,23 +184,64 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
               ),
             ],
           ),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            textInputAction: TextInputAction.search,
-            style: TextStyle(color: sheetText(context)),
-            onSubmitted: (_) => _search(),
-            decoration: InputDecoration(
-              hintText: widget.near != null
-                  ? 'Ex.: Av. Brasil, proximo a mim'
-                  : 'Ex.: Av. Anhanguera, Rio de Janeiro',
-              hintStyle: TextStyle(color: sheetMuted(context)),
-              suffixIcon: IconButton(
-                icon: Icon(Icons.arrow_forward, color: sheetAccent(context)),
-                onPressed: _search,
+          // Campo grande: facil de digitar e de acertar com o dedo na estrada.
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            decoration: BoxDecoration(
+              color: fieldFill(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: sheetAccent(context).withValues(alpha: 0.45),
+                width: 1.4,
               ),
             ),
+            child: Row(
+              children: [
+                Icon(Icons.search, color: sheetAccent(context), size: 26),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    autofocus: true,
+                    textInputAction: TextInputAction.search,
+                    textCapitalization: TextCapitalization.words,
+                    style: TextStyle(
+                      color: sheetText(context),
+                      fontSize: 19,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    onSubmitted: (_) => _search(),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: widget.near != null
+                          ? 'Av. Brasil, proximo a mim'
+                          : 'Av. Anhanguera, Rio de Janeiro',
+                      hintStyle: TextStyle(
+                        color: sheetMuted(context),
+                        fontSize: 17,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Material(
+                  color: sheetAccent(context),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _search,
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Icon(Icons.arrow_forward, color: Colors.white, size: 24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+          const SizedBox(height: 6),
           if (widget.near != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -199,6 +295,45 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
             ),
           ),
           const SizedBox(height: 8),
+          if (_historico.isNotEmpty && _results.isEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.history, size: 15, color: sheetMuted(context)),
+                const SizedBox(width: 6),
+                Text('Buscas recentes',
+                    style: TextStyle(
+                        color: sheetMuted(context), fontSize: 12)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () async {
+                    await BuscaHistorico.limpar();
+                    await _carregarHistorico();
+                  },
+                  child: Text('limpar',
+                      style: TextStyle(
+                          color: sheetAccent(context), fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _historico.map((t) {
+                return ActionChip(
+                  avatar: Icon(Icons.search, size: 14, color: sheetMuted(context)),
+                  label: Text(t,
+                      style: TextStyle(color: sheetText(context), fontSize: 12)),
+                  backgroundColor: sheetDivider(context).withValues(alpha: 0.4),
+                  onPressed: () {
+                    _controller.text = t;
+                    _search();
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+          ],
           if (_loading)
             Padding(
               padding: const EdgeInsets.all(16),
@@ -228,10 +363,20 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                               color: sheetMuted(context), fontSize: 11),
                         )
                       : null,
-                  trailing: r.distanceKm != null
-                      ? Icon(Icons.near_me,
-                          size: 14, color: sheetMuted(context))
-                      : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Copiar',
+                        iconSize: 18,
+                        onPressed: () => _copiar(r.displayName),
+                        icon: Icon(Icons.copy, color: sheetMuted(context)),
+                      ),
+                      if (r.distanceKm != null)
+                        Icon(Icons.near_me,
+                            size: 14, color: sheetMuted(context)),
+                    ],
+                  ),
                   onTap: () => Navigator.pop(context, r),
                 );
               },

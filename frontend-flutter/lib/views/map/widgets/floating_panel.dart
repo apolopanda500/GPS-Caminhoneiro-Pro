@@ -133,27 +133,46 @@ class _FloatingPanelState extends State<FloatingPanel> {
     } catch (_) {}
   }
 
-  /// Sem limite: o painel pode ficar do tamanho que o motorista quiser.
+  /// Sem limite artificial: o painel pode ficar do tamanho que o motorista
+  /// quiser (ate o tamanho da tela).
   double get _larguraMin => 40;
-  double get _larguraMax => 6000;
+  double get _larguraMax => 4000;
   double get _alturaMin => 40;
-  double get _alturaMax => 6000;
+  double get _alturaMax => 4000;
 
   /// Redimensiona o painel arrastando uma das alcas dos cantos.
+  ///
+  /// lado: 0 = inferior direito, 1 = inferior esquerdo,
+  ///       2 = superior direito, 3 = superior esquerdo.
+  /// Ao arrastar a alca da esquerda (ou de cima) o painel cresce para
+  /// aquele lado, mantendo a borda oposta no lugar.
   void _redimensionar(DragUpdateDetails d, {required int lado}) {
+    final cresceParaDireita = lado == 0 || lado == 2;
+    final cresceParaBaixo = lado == 0 || lado == 1;
     setState(() {
       var largura = _largura ?? widget.width;
       var altura = _altura ?? widget.height;
-      // lado: 0 = inferior direito, 1 = inferior esquerdo,
-      //       2 = superior direito, 3 = superior esquerdo
-      final dx = lado == 1 || lado == 3 ? -d.delta.dx : d.delta.dx;
-      final dy = lado >= 2 ? -d.delta.dy : d.delta.dy;
-      largura = (largura + dx).clamp(_larguraMin, _larguraMax);
-      altura = (altura + dy).clamp(_alturaMin, _alturaMax);
-      _largura = largura;
-      _altura = altura;
+      var dx = d.delta.dx;
+      var dy = d.delta.dy;
+
+      if (cresceParaDireita) {
+        largura += dx;
+      } else {
+        largura -= dx;
+        _offset = Offset(_offset.dx + dx, _offset.dy);
+      }
+      if (cresceParaBaixo) {
+        altura += dy;
+      } else {
+        altura -= dy;
+        _offset = Offset(_offset.dx, _offset.dy + dy);
+      }
+
+      _largura = largura.clamp(_larguraMin, _larguraMax);
+      _altura = altura.clamp(_alturaMin, _alturaMax);
     });
   }
+
 
   void _arrastar(DragUpdateDetails d) {
     setState(() {

@@ -132,13 +132,18 @@ class GeocodingService {
   static double _rad(double grau) => grau * math.pi / 180.0;
 
   /// Ordena por distancia e corta o que estiver longe demais.
+  ///
+  /// O que combina com o termo digitado (empresas, postos,КТlojas) fica
+  /// na frente; o resto vem por distancia.
   List<GeoResult> _priorizar(
     List<GeoResult> resultados,
     LatLng? referencia,
-    double raioKm,
-  ) {
+    double raioKm, {
+    String? termo,
+  }) {
     if (referencia == null) return resultados;
 
+    final alvo = _semAcento((termo ?? '').trim().toLowerCase());
     final comDistancia = resultados
         .map((r) => GeoResult(
               displayName: r.displayName,
@@ -149,14 +154,52 @@ class GeocodingService {
               region: r.region,
               state: r.state,
             ))
-        .toList()
-      ..sort((a, b) => (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
+        .toList();
+
+    if (alvo.isNotEmpty) {
+      comDistancia.sort((a, b) {
+        final ma = _combinacao(a.displayName, alvo);
+        final mb = _combinacao(b.displayName, alvo);
+        if (ma != mb) return ma.compareTo(mb);
+        return (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9);
+      });
+    } else {
+      comDistancia.sort(
+          (a, b) => (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
+    }
 
     final dentro = comDistancia
         .where((r) => (r.distanceKm ?? 0) <= raioKm)
         .toList();
     // Se nada estiver perto, mantem os resultados (para nao sumir com a busca).
     return dentro.isNotEmpty ? dentro : comDistancia;
+  }
+
+  /// Texto sem acentos e em minusculas.
+  static String _semAcento(String texto) {
+    const mapa = {
+      'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a',
+      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+      'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+      'ó': 'o', 'ò': 'o', 'õ': 'o', 'ô': 'o', 'ö': 'o',
+      'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+      'ç': 'c', 'ñ': 'n',
+    };
+    final buffer = StringBuffer();
+    for (final r in texto.toLowerCase().runes) {
+      final c = String.fromCharCode(r);
+      buffer.write(mapa[c] ?? c);
+    }
+    return buffer.toString();
+  }
+
+  /// Quanto o resultado combina com o que foi digitado (0 = casa, 1 = parcial).
+  static int _combinacao(String nome, String alvo) {
+    if (alvo.isEmpty) return 1;
+    final n = _semAcento(nome.toLowerCase());
+    if (n.startsWith(alvo)) return 0;
+    if (n.contains(alvo)) return 1;
+    return 2;
   }
 
   Future<List<GeoResult>> search(
@@ -198,7 +241,7 @@ class GeocodingService {
     }
 
     final semDuplicado = _removerDuplicados(lista);
-    final priorizados = _priorizar(semDuplicado, near, raioKm);
+    final priorizados = _priorizar(semDuplicado, near, raioKm, termo: q);
     return _filtrarPorEstado(priorizados, stateName, limit);
   }
 
