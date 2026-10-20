@@ -9,6 +9,7 @@ import authRoutes from './routes/auth';
 import alertRoutes from './routes/alerts';
 import paymentRoutes from './routes/payment';
 import groupRoutes from './routes/groups';
+import assistantRoutes from './routes/assistant';
 
 const app = express();
 let dbConnected = false;
@@ -19,6 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 app.get('/', (_req, res) => {
   res.json({

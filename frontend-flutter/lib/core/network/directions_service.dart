@@ -67,21 +67,47 @@ class DirectionsService {
     int? axleCount,
     bool hazmat = false,
   }) async {
+    final erros = <String>[];
+
+    // 1) OpenRouteService: rota para veiculos pesados (altura, peso, eixos).
     if (AppConstants.orsConfigured) {
-      return _routeHgv(
-        origin: origin,
-        destination: destination,
-        waypoints: waypoints,
-        truckHeight: truckHeight,
-        truckWeight: truckWeight,
-        truckWidth: truckWidth,
-        truckLength: truckLength,
-        axleCount: axleCount,
-        hazmat: hazmat,
-      );
+      try {
+        return await _routeHgv(
+          origin: origin,
+          destination: destination,
+          waypoints: waypoints,
+          truckHeight: truckHeight,
+          truckWeight: truckWeight,
+          truckWidth: truckWidth,
+          truckLength: truckLength,
+          axleCount: axleCount,
+          hazmat: hazmat,
+        );
+      } catch (e) {
+        erros.add(e.toString());
+      }
     }
-    return _routeGoogle(
-        origin: origin, destination: destination, waypoints: waypoints);
+
+    // 2) Google Routes (trafego em tempo real).
+    if (AppConstants.directionsConfigured) {
+      try {
+        return await _routeGoogle(
+            origin: origin, destination: destination, waypoints: waypoints);
+      } catch (e) {
+        erros.add(e.toString());
+      }
+    }
+
+    // 3) OSRM publico (sem chave): garantia que sempre da para calcular.
+    try {
+      return await _routeOsrm(
+          origin: origin, destination: destination, waypoints: waypoints);
+    } catch (e) {
+      erros.add(e.toString());
+    }
+
+    throw Exception(
+        'Nao foi possivel calcular a rota. ${erros.isEmpty ? '' : erros.join(' | ')}');
   }
 
   Future<RouteResult> _routeHgv({
@@ -96,7 +122,7 @@ class DirectionsService {
     required bool hazmat,
   }) async {
     final uri = Uri.parse(
-      'https://api.heigit.org/openrouteservice/v2/directions/driving-hgv/geojson',
+      'https://api.openrouteservice.org/v2/directions/driving-hgv/geojson',
     );
     final restrictions = <String, dynamic>{
       if (truckHeight != null) 'height': truckHeight,
@@ -227,6 +253,11 @@ class DirectionsService {
             'X-Goog-Api-Key': AppConstants.googleDirectionsApiKey,
             'X-Goog-FieldMask':
                 'routes.duration,routes.staticDuration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description',
+            // Necessario quando a chave do Google e restrita para Android.
+            if (AppConstants.androidCertSha1.isNotEmpty)
+              'X-Android-Package': AppConstants.androidPackage,
+            if (AppConstants.androidCertSha1.isNotEmpty)
+              'X-Android-Cert': AppConstants.androidCertSha1,
           },
           body: jsonEncode(body),
         )
@@ -258,6 +289,55 @@ class DirectionsService {
       staticDurationSeconds: staticDuration,
       summary: (route0['description'] as String?) ?? '',
       provider: 'google',
+      heavyVehicle: false,
+    );
+  }
+
+  /// OSRM publico: sem chave, sempre disponivel (rota de carro, sem
+  /// restricoes de caminhao). Ultimo recurso para nunca falhar a rota.
+  Future<RouteResult> _routeOsrm({
+    required LatLng origin,
+    required LatLng destination,
+    required List<LatLng> waypoints,
+  }) async {
+    final pontos = [
+      '${origin.longitude},${origin.latitude}',
+      for (final w in waypoints) '${w.longitude},${w.latitude}',
+      '${destination.longitude},${destination.latitude}',
+    ].join(';');
+
+    final uri = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/$pontos'
+      '?overview=full&geometries=geojson',
+    );
+    final resp =
+        await _client.get(uri).timeout(const Duration(seconds: 20));
+    if (resp.statusCode != 200) {
+      throw Exception('Falha ao calcular rota (OSRM HTTP ${resp.statusCode}).');
+    }
+    final data =
+        jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+    final rotas = data['routes'] as List<dynamic>? ?? const [];
+    if (rotas.isEmpty) {
+      throw Exception('Nao existe rota entre esses pontos.');
+    }
+    final rota = rotas.first as Map<String, dynamic>;
+    final geo = (rota['geometry'] as Map?)?.cast<String, dynamic>() ?? {};
+    final coords = (geo['coordinates'] as List<dynamic>?) ?? const [];
+    final polyline = coords
+        .whereType<List>()
+        .where((c) => c.length >= 2)
+        .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+        .toList();
+    final distance = (rota['distance'] as num?)?.toDouble() ?? 0;
+    final duration = (rota['duration'] as num?)?.toDouble() ?? 0;
+    return RouteResult(
+      polyline: polyline,
+      distanceMeters: distance,
+      durationSeconds: duration,
+      staticDurationSeconds: duration,
+      summary: 'Rota de carro (OSRM)',
+      provider: 'osrm',
       heavyVehicle: false,
     );
   }

@@ -46,6 +46,7 @@ import 'package:gps_camioneiro_pro/views/map/widgets/peer_profile_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_planner_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/assistant_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_fab.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
@@ -2269,9 +2270,19 @@ class _MapScreenState extends State<MapScreen> {
                 initial: Offset(size.width - 70, size.height - 300),
                 child: RadioFab(
                   surface: _superficie(context),
-                accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
+                  accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
                   onPressed: _abrirRadio,
                 ),
+              );
+            }),
+          // AGENTE B: assistente da estrada (IA em todas as camadas).
+          if (ui)
+            Builder(builder: (ctx) {
+              final size = MediaQuery.of(ctx).size;
+              return DraggablePanel(
+                id: 'assistant',
+                initial: Offset(size.width - 70, size.height - 380),
+                child: _buildAssistantButton(),
               );
             }),
           if (ui)
@@ -2434,6 +2445,32 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  /// Botao do assistente: abre a conversa com o estado real do app.
+  Widget _buildAssistantButton() {
+    return Tooltip(
+      message: 'Assistente da estrada',
+      child: Material(
+        color: _superficie(context),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _abrirAssistente,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(Icons.auto_awesome,
+                color: _settingsProvider?.overlayColor ?? kEmergencyRed,
+                size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Abre o assistente (IA que le rota, alertas, limite e clima).
+  void _abrirAssistente() {
+    AssistantSheet.show(context);
+  }
+
   Widget _buildUiToggle() {
     final icon = _uiExpanded ? Icons.visibility_off : Icons.visibility;
     final tooltip = _uiExpanded
@@ -2585,7 +2622,6 @@ class _MapScreenState extends State<MapScreen> {
               // O radio ficou no botao flutuante e nas Configuracoes (sem duplicar).
               _railAction(Icons.search, 'Buscar',
                   () => _gatePremium(PremiumFeature.streetSearch, _buscarRua)),
-              _railAction(Icons.gps_fixed, 'Aqui', _recentralizarNoCaminhao),
             ],
           ),
         ),

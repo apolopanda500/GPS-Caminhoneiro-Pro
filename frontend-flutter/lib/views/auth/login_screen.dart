@@ -40,9 +40,17 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.directions_transit,
+              const Icon(Icons.local_shipping,
                   size: 80, color: kEmergencyRed),
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
+              const Text(
+                'GPS Caminhoneiro Pro',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
               const Text(
                 'Entrar',
                 style: TextStyle(

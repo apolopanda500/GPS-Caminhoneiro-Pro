@@ -10,6 +10,7 @@ class SocketClient {
   String _truckIcon = '🚚';
   bool _isPremium = false;
   String _role = 'motorista';
+  String _token = '';
 
   factory SocketClient() => _instance;
 
@@ -29,6 +30,7 @@ class SocketClient {
         'driverId': _driverId,
         'isPremium': _isPremium,
         'role': _role,
+        if (_token.isNotEmpty) 'token': _token,
       });
       if (_name.isNotEmpty) {
         socket.emit('join_truck_network', {
@@ -48,11 +50,22 @@ class SocketClient {
     required bool isPremium,
     String name = '',
     String truckIcon = '🚚',
+    String? token,
   }) {
     _driverId = driverId;
     _isPremium = isPremium;
     _truckIcon = truckIcon;
     if (name.isNotEmpty) _name = name;
+    if (token != null && token.isNotEmpty) {
+      _token = token;
+      // O `options` é tipado como Map?
+      final dynamic manager = socket.io;
+      final dynamic opts = manager.options ?? {};
+      final dynamic auth = opts['auth'] ?? {};
+      auth['token'] = _token;
+      opts['auth'] = auth;
+      manager.options = opts;
+    }
     if (!socket.connected) socket.connect();
   }
 
@@ -163,8 +176,23 @@ class SocketClient {
     });
   }
 
-  void sendPeerAlert({
-    required String fromDriverId,
+  /// Apaga um sinal (road_alert) do dono em toda a rede.
+  void clearAlert({
+    required String alertId,
+    required String driverId,
+    required double lat,
+    required double lon,
+  }) {
+    if (!socket.connected) return;
+    socket.emit('clear_alert', {
+      'alertId': alertId,
+      'driverId': driverId,
+      'lat': lat,
+      'lon': lon,
+    });
+  }
+
+  void sendPeerAlert({    required String fromDriverId,
     required String fromName,
     required String targetDriverId,
     required String kind,
@@ -190,6 +218,7 @@ class SocketClient {
     required String fromName,
     required String routeJson,
     String? targetDriverId,
+    String? groupId,
   }) {
     if (!socket.connected) return;
     socket.emit('share_route', {
@@ -197,11 +226,34 @@ class SocketClient {
       'fromName': fromName,
       'routeJson': routeJson,
       if (targetDriverId != null) 'targetDriverId': targetDriverId,
+      if (groupId != null && groupId.isNotEmpty) 'groupId': groupId,
     });
   }
 
   void onReceiveSharedRoute(void Function(dynamic data) callback) {
     socket.on('receive_shared_route', callback);
+  }
+
+  /// Convite para entrar num grupo/comboio.
+  void sendGroupInvite({
+    required String groupId,
+    required String groupName,
+    required String fromDriverId,
+    required String fromName,
+    required String targetDriverId,
+  }) {
+    if (!socket.connected) return;
+    socket.emit('send_group_invite', {
+      'groupId': groupId,
+      'groupName': groupName,
+      'fromDriverId': fromDriverId,
+      'fromName': fromName,
+      'targetDriverId': targetDriverId,
+    });
+  }
+
+  void onReceiveGroupInvite(void Function(dynamic data) callback) {
+    socket.on('receive_group_invite', callback);
   }
 
   void sendTruckReaction({

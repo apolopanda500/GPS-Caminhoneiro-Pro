@@ -18,6 +18,16 @@
       String.fromEnvironment('GOOGLE_ROUTES_KEY', defaultValue: '');
   static const bool directionsConfigured = googleDirectionsApiKey != '';
 
+  // Chave do Google restrita para Android exige o pacote e o SHA-1 do
+  // certificado de assinatura. Informe o SHA-1 em keys.json
+  // (APP_ANDROID_CERT_SHA1) para a chave Android-restrita funcionar.
+  static const String androidPackage = String.fromEnvironment(
+    'APP_ANDROID_PACKAGE',
+    defaultValue: 'com.gpscamioneiro.gps_camioneiro_pro',
+  );
+  static const String androidCertSha1 =
+      String.fromEnvironment('APP_ANDROID_CERT_SHA1', defaultValue: '');
+
   // OpenRouteService: rota específica para caminhões (altura, peso, eixos, HAZMAT).
   // https://openrouteservice.org/dev/#/signup
   static const String openRouteServiceApiKey =
@@ -29,6 +39,12 @@
   static const String mapillaryToken =
       String.fromEnvironment('MAPILLARY_TOKEN', defaultValue: '');
   static const bool streetViewConfigured = mapillaryToken != '';
+
+  // TomTom: camada de transito em tempo real (flow) do mundo todo.
+  // Chave gratuita: https://developer.tomtom.com/user/register (2500/dia).
+  static const String tomTomTrafficApiKey =
+      String.fromEnvironment('TOMTOM_TRAFFIC_KEY', defaultValue: '');
+  static const bool trafficConfigured = tomTomTrafficApiKey != '';
 
   // Tipos de ajuda do perfil "ajudante".
   static const List<String> helperTypes = [
