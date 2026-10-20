@@ -253,6 +253,22 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 13:10 B: **Testado no aparelho (R9XY1016R6V) e 3 bugs corrigidos.**
+  1. **Botoes mortos**: "Mapa e graficos" e "Qualidade grafica" tinham
+     chevron (pareciam clicaveis) mas **nenhum onTap** - tocar nao fazia
+     nada. Agora abrem o painel. Criei uma auditoria que varre todos os
+     ListTile/IconButton do app: nenhum item sem acao.
+  2. **Pontos da rota**: tocar num ponto **confirmava a entrega** (ficava
+     verde) sem querer. Agora abre a informacao da parada (cliente, bairro,
+     coordenadas, distancia ao vivo) com "VER NO MAPA" e "CONFIRMAR".
+  3. **Servico 24/7**: so subia quando uma configuracao mudava; agora liga
+     ao abrir o mapa (validado com dumpsys: notificacao FOREGROUND_SERVICE
+     "Rastreando sua viagem" + acao "Encerrar viagem").
+  O album do radio que aparece sobre o mapa e o **overlay de midia do
+  Android** (nao e do app) e some quando o radio para.
+  APK instalado e funcionando: painel abrindo, transito ao vivo nas vias
+  (verde) e servico em primeiro plano ativo.
+
 - 07:10 B: **Perfil, transito ao vivo, ETA, rede e acessos especiais.**
   1. **Perfil**: o botao SALVAR agora grava no servidor (antes so atualizava
      a copia local e o perfil sumia ao trocar de aparelho); indicador de
