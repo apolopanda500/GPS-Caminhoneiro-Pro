@@ -101,15 +101,34 @@ class _AlertsPanelState extends State<AlertsPanel> {
           Icon(Icons.warning_amber_rounded, color: cor, size: 18),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              total == 0 ? 'Sinais da estrada' : 'Sinais da estrada ($total)',
-              style: TextStyle(
-                color: texto,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    total == 0
+                        ? 'Sinais da estrada'
+                        : 'Sinais da estrada ($total)',
+                    style: TextStyle(
+                      color: texto,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF39FF14),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
             ),
+          ),
             IconButton(
               tooltip: _minimized ? 'Expandir' : 'Minimizar',
               iconSize: 18,
@@ -156,10 +175,23 @@ class _AlertsPanelState extends State<AlertsPanel> {
               Icon(Icons.info_outline, color: cor, size: 16),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  '[${alert.type.toUpperCase()}] '
-                  '${alert.message ?? 'Sem mensagem'}',
-                  style: TextStyle(color: texto, fontSize: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '[${alert.type.toUpperCase()}] '
+                      '${alert.message ?? 'Sem mensagem'}',
+                      style: TextStyle(color: texto, fontSize: 12),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _idade(alert.createdAt),
+                      style: TextStyle(
+                        color: texto.withValues(alpha: 0.55),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -167,6 +199,17 @@ class _AlertsPanelState extends State<AlertsPanel> {
         );
       },
     );
+  }
+
+  /// Idade do sinal (ha quanto tempo foi criado), para o motorista saber
+  /// se o sinal ainda e recente.
+  String _idade(DateTime quando) {
+    final minutos = DateTime.now().difference(quando).inMinutes;
+    if (minutos < 1) return 'agora mesmo';
+    if (minutos < 60) return 'há $minutos min';
+    final horas = minutos ~/ 60;
+    if (horas < 24) return 'há $horas h';
+    return 'há ${horas ~/ 24} d';
   }
 
   Color _corDoTipo(String type) {

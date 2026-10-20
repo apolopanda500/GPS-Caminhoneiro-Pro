@@ -34,6 +34,9 @@ class FloatingPanel extends StatefulWidget {
   /// Arrastar funciona em todo o conteudo (ignore o [handle]).
   final bool dragWholeChild;
 
+  /// Mostra o botao de minimizar/expandir no canto do painel.
+  final bool showToggle;
+
   const FloatingPanel({
     super.key,
     required this.id,
@@ -45,6 +48,7 @@ class FloatingPanel extends StatefulWidget {
     this.alwaysOpen = false,
     this.handle,
     this.dragWholeChild = false,
+    this.showToggle = true,
   });
 
   @override
@@ -176,13 +180,13 @@ class _FloatingPanelState extends State<FloatingPanel> {
     return Positioned(
       left: _offset.dx,
       top: _offset.dy,
-      child: arrastarTudo
-          ? GestureDetector(
-              onPanUpdate: _arrastar,
-              onPanEnd: (_) => _soltar(),
-              child: widget.child,
-            )
-          : Column(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onPanUpdate: arrastarTudo ? _arrastar : null,
+            onPanEnd: arrastarTudo ? (_) => _soltar() : null,
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -190,11 +194,62 @@ class _FloatingPanelState extends State<FloatingPanel> {
                   GestureDetector(
                     onPanUpdate: _arrastar,
                     onPanEnd: (_) => _soltar(),
+                    onDoubleTap: () =>
+                        setState(() => _minimizado = !_minimizado),
                     child: widget.handle!,
                   ),
                 widget.child,
               ],
             ),
+          ),
+          if (widget.showToggle)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: _BotaoMinimizar(
+                minimizado: _minimizado,
+                onTap: () {
+                  setState(() => _minimizado = !_minimizado);
+                  _salvar();
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Botao pequeno de minimizar/expandir do painel flutuante.
+class _BotaoMinimizar extends StatelessWidget {
+  final bool minimizado;
+  final VoidCallback onTap;
+
+  const _BotaoMinimizar({
+    required this.minimizado,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: minimizado ? 'Expandir painel' : 'Minimizar painel',
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.35),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Icon(
+              minimizado ? Icons.open_in_full : Icons.minimize,
+              size: 13,
+              color: Colors.white70,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

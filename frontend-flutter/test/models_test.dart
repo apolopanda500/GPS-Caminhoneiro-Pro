@@ -71,6 +71,28 @@ void main() {
       expect(b.longitude, a.longitude);
       expect(b.createdAt.millisecondsSinceEpoch, a.createdAt.millisecondsSinceEpoch);
     });
+
+    test('fromJson le created_at em ISO da varredura SQL', () {
+      final a = AlertModel.fromJson({
+        'id': 's1',
+        'alert_type': 'radar',
+        'lat': -23.5,
+        'lon': -46.6,
+        'created_at': '2026-10-20T02:00:00.000Z',
+      });
+      expect(a.id, 's1');
+      expect(a.type, 'radar');
+      expect(a.createdAt.year, 2026);
+      expect(a.createdAt.month, 10);
+    });
+
+    test('fromJson le created_at como epoch em string', () {
+      final a = AlertModel.fromJson({
+        'id': 's2',
+        'created_at': '1000',
+      });
+      expect(a.createdAt.millisecondsSinceEpoch, 1000);
+    });
   });
 
   group('TruckConfig', () {

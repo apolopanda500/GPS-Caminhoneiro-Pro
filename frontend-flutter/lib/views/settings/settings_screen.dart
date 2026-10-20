@@ -12,7 +12,6 @@ import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
 
@@ -134,48 +133,18 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const _Section('MAPA E VISUALIZAÇÃO'),
+          // AGENTE B: camada do mapa, predios 3D, qualidade grafica e FPS
+          // ficaram em UM lugar so (painel "Mapa e graficos" no mapa).
           ListTile(
-            leading: const Icon(Icons.layers, color: Colors.redAccent),
-            title: Text('Camada do mapa', style: TextStyle(color: ink)),
+            leading: const Icon(Icons.tune, color: Colors.redAccent),
+            title: Text('Mapa e gráficos', style: TextStyle(color: ink)),
             subtitle: Text(
-              switch (s.layer) {
-                MapLayerMode.satellite => 'Satélite (imagem real)',
-                MapLayerMode.streets => 'Ruas (leve e legível)',
-                MapLayerMode.detailed => 'Ruas 3D (detalhado)',
-              },
-              style: TextStyle(color: muted),
+              'Camada, prédios 3D, chuva, nuvens, relevo, qualidade (leve/médio/pesado), '
+              'FPS e cor da linha da rota — ajuste no painel flutuante do mapa '
+              '(ícone de ferramentas na lateral).',
+              style: TextStyle(color: muted, fontSize: 12),
             ),
-            trailing: SegmentedButton<MapLayerMode>(
-              segments: const [
-                ButtonSegment(
-                    value: MapLayerMode.satellite, label: Text('Sat.')),
-                ButtonSegment(value: MapLayerMode.streets, label: Text('Ruas')),
-                ButtonSegment(value: MapLayerMode.detailed, label: Text('3D')),
-              ],
-              selected: {s.layer},
-              onSelectionChanged: (v) {
-                if (v.first == MapLayerMode.detailed && !premium) {
-                  _premiumLock(context, 'Ruas 3D (detalhado)');
-                  return;
-                }
-                s.setLayer(v.first);
-              },
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            ),
-          ),
-          _Switch(
-            title: 'Prédios em 3D',
-            subtitle: 'Relevo urbano ao inclinar o mapa (camada 3D)',
-            icon: Icons.apartment,
-            value: s.buildings3d,
-            onChanged: (on) {
-              if (on && !premium) {
-                _premiumLock(context, 'Prédios em 3D');
-                return;
-              }
-              s.setBuildings3d(on);
-            },
+            trailing: Icon(Icons.chevron_right, color: muted),
           ),
           _Switch(
             title: 'Mostrar outros caminhões',
@@ -249,55 +218,17 @@ class SettingsScreen extends StatelessWidget {
             onChanged: s.setPushNotifications,
           ),
           const _Section('DESEMPENHO'),
+          // AGENTE B: qualidade grafica, FPS alvo e FPS sao do painel do mapa
+          // (um lugar so). Aqui fica so a informacao de leitura.
           ListTile(
             leading: const Icon(Icons.auto_awesome, color: Colors.redAccent),
             title: Text('Qualidade gráfica', style: TextStyle(color: ink)),
             subtitle: Text(
-              'Perfil de GPU/CPU. A tela usa a resolução nativa do aparelho.',
+              'Perfil atual: ${switch (s.renderQuality) { RenderQuality.economy => 'leve', RenderQuality.balanced => 'médio', RenderQuality.ultra => 'pesado' }} '
+              '• alvo ${s.targetFps} FPS. Ajuste no painel "Mapa e gráficos" do mapa.',
               style: TextStyle(color: muted, fontSize: 12),
             ),
-            trailing: SegmentedButton<RenderQuality>(
-              segments: const [
-                ButtonSegment(value: RenderQuality.economy, label: Text('Eco')),
-                ButtonSegment(
-                    value: RenderQuality.balanced, label: Text('Equil.')),
-                ButtonSegment(value: RenderQuality.ultra, label: Text('Ultra')),
-              ],
-              selected: {s.renderQuality},
-              onSelectionChanged: (v) => s.setRenderQuality(v.first),
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            ),
-          ),
-          _Switch(
-            title: 'Mostrar FPS',
-            subtitle: 'Mede o FPS real do render do app',
-            icon: Icons.speed,
-            value: s.showFps,
-            onChanged: s.setShowFps,
-          ),
-          if (s.showFps)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FpsOverlay(targetFps: s.targetFps),
-              ),
-            ),
-          ListTile(
-            leading: const Icon(Icons.memory, color: Colors.redAccent),
-            title: Text('FPS alvo', style: TextStyle(color: ink)),
-            subtitle:
-                Text('${s.targetFps} FPS', style: TextStyle(color: muted)),
-            trailing: SegmentedButton<int>(
-              segments: SettingsProvider.supportedFps
-                  .map((f) => ButtonSegment<int>(value: f, label: Text('$f')))
-                  .toList(),
-              selected: {s.targetFps},
-              onSelectionChanged: (v) => s.setTargetFps(v.first),
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            ),
+            trailing: Icon(Icons.chevron_right, color: muted),
           ),
           const _Section('APARÊNCIA DO MAPA'),
           ListTile(

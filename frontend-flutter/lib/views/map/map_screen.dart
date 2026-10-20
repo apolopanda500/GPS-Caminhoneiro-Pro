@@ -231,6 +231,7 @@ class _MapScreenState extends State<MapScreen> {
       bool novo = false;
       setState(() {
         novo = _adicionarAlerts([alert]);
+        if (novo) _alertsPanelClosed = false;
       });
       if (!novo) return;
       LocalCache.saveAlertCache(Map<String, dynamic>.from(data))
@@ -2492,6 +2493,50 @@ class _MapScreenState extends State<MapScreen> {
                 onClose: () => setState(() => _alertsPanelClosed = true),
               ),
             ),
+          // AGENTE B: painel fechado mas com sinais ativos: badge para reabrir.
+          if (ui && _activeAlerts.isNotEmpty && _alertsPanelClosed)
+            FloatingPanel(
+              id: 'alerts_badge',
+              initial: Offset(_contentLeft, 96),
+              width: 56,
+              height: 56,
+              dragWholeChild: true,
+              minimizedChild: const Icon(Icons.warning_amber_rounded, size: 20),
+              child: FloatingActionButton(
+                heroTag: 'fab_alerts_badge',
+                tooltip: '${_activeAlerts.length} sinais — toque para ver',
+                onPressed: () => setState(() => _alertsPanelClosed = false),
+                backgroundColor: _superficie(context),
+                foregroundColor: Colors.amber,
+                elevation: 2,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, size: 22),
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: kEmergencyRed,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${_activeAlerts.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // AGENTE B: botao flutuante do radio (liga/desliga nas Configuracoes).
           if (ui && _settingsProvider?.radioFabEnabled != false)
             Builder(builder: (ctx) {
@@ -2694,12 +2739,6 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  /// Volta a camera para o norte (bussola).
-  void _voltarAoNorte() {
-    final target = _currentPosition ?? _center;
-    _moverCamera(target, zoom: _zoom, bearing: 0, tilt: _is3d ? 50 : 0);
-  }
-
   Widget _railAction(IconData icon, String label, VoidCallback onTap) {
     final corIcone =
         _settingsProvider?.overlayColor ?? Theme.of(context).colorScheme.primary;
@@ -2785,7 +2824,6 @@ class _MapScreenState extends State<MapScreen> {
               _railAction(Icons.settings, 'Tudo', _abrirMenu),
               // AGENTE B: bussola e centralizar foram fundidos na barra
               // (antes eram dois botoes flutuantes soltos na tela).
-              _railAction(Icons.explore, 'Bússola', _voltarAoNorte),
               _railAction(Icons.center_focus_strong, 'Centralizar',
                   _recentralizarNoCaminhao),
             // AGENTE B: ajudante acompanha, mas nao monta nem inicia rota.
