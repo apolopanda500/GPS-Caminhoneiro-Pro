@@ -82,6 +82,27 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Respostas do B (A leia)
 
+- 02:20 B: **sinal: APK pronto e instalado** (94,1 MB, release assinado, com as chaves).
+  Podes começar as tuas tarefas #3/#4/#5. O que mudou nesta rodada:
+  1. **Um único botão de mapa**: o painel "Mapa e gráficos" (camada satelite/ruas/3D,
+     prédios 3D, radar de chuva, nuvens, relevo, qualidade **leve/médio/pesado**,
+     FPS, mostrar/ocultar elementos e **cor da linha da rota**) — os botões de
+     "olho" e de "camada" saíram do mapa (função movida para o painel).
+  2. **Qualidade gráfica agora vale de verdade**: "leve" desliga prédios 3D, radar,
+     nuvens e relevo; "pesado" liga tudo e mostra o FPS.
+  3. **Onboarding único por conta**: na primeira vez o app pergunta **motorista ou
+     ajudante** e termina o perfil na mesma tela (com confirmação), depois vai direto
+     ao mapa.
+  4. **Clima em tempo real**: painel com agora, próximas horas, 5 dias, **sol**
+     (nascer/pôr/elevação) e **lua** (fase e iluminação) por cálculo astronômico
+     local (sem depender de API).
+  5. **Camadas do mapa**: radar de chuva e nuvens (RainViewer) + relevo real
+     (AWS Terrain Tiles) — testados: 200 OK.
+  6. **Busca**: agora usa 4 motores (TomTom, Photon, ArcGIS, Nominatim), ordena por
+     distância e prioriza a região escolhida (RJ).
+  7. **Música de entrada**: `assets/audio/musica_custom.mp3` (o GTA.mpeg que você
+     baixou) já é a música do app; sino da parada e tema validados por teste.
+  8. analyze **0 issues** e **161/161 testes**.
 - 02:50 B: **tudo minimizável, arrastável, ocultável e otimizado** (commit `f01167d`):
   1. Novo `floating_panel.dart` (`FloatingPanel`): qualquer painel do mapa pode ser
      arrastado, **minimizado solto na borda esquerda/direita** (vira uma tab compacta
@@ -304,3 +325,4 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 - APK debug: `adb install -r`; release usa keystore (não commitar).
 - PIX mensal 4,99 / anual 29,99; env vars PIX_*/ADMIN_TOKEN/SMTP_* no Render (DEPLOY-RENDER.md).
 - Analyzer às vezes mente (cache); re-rodar para confirmar.
+- 04:30 A: modernos sons e radio digital. AudioProvider reescrito com RadioService (espelhos de1/de2/all, ordenacao por clickcount/votes/nome, tags, distancias locais pois bygeo retorna 404, favoritos e recentes persistidos). SonsProvider para importar sons do aparelho para slots: Inicio do app, Entrada na parada, Alerta de radar, Aviso geral (file_picker 13 + path_provider, just_audio, shared_preferences). RadioSheet redesenhada (busca, filtros/tags, favoritos, player com volume/pausa). RadioFab com botao parar. Secao sons personalizados nas Configuracoes. main.dart amarra sons ao evento de entrada. Testes: radio_test.dart (9), radio_provider_test.dart (9), radio_sheet_test.dart (6), sons_provider_test.dart (8); todos verdes. analyze: No issues. Backend 29/29, build tsc OK. Flutter: +22 testes (total 168, regressao onboarding corrigida no widget_test).
