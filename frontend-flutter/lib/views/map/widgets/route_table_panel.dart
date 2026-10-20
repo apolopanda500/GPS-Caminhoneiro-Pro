@@ -7,6 +7,16 @@ import 'package:gps_camioneiro_pro/core/network/directions_service.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
+/// Cores disponiveis para a linha da rota (mesma lista do painel do mapa).
+const List<String> kCoresLinhaRota = [
+  '#FF6D00',
+  '#E53935',
+  '#1D4ED8',
+  '#15803D',
+  '#7C3AED',
+  '#FACC15',
+];
+
 /// Painel "Tabela de rotas": lista as paradas com status, permite arrastar,
 /// redimensionar e minimizar sem cobrir o mapa.
 class RouteTablePanel extends StatefulWidget {
@@ -15,6 +25,12 @@ class RouteTablePanel extends StatefulWidget {
   final VoidCallback onStart;
   final VoidCallback onConfirmNext;
   final VoidCallback onClose;
+
+  /// Abre a busca de enderecos para adicionar uma parada na rota.
+  final VoidCallback? onAddStop;
+
+  /// Recalcula a rota depois de uma edicao (paradas novas/removidas).
+  final VoidCallback? onRecalcular;
 
   /// Ajudante apenas acompanha: nao monta nem inicia rota.
   final bool canManageRoute;
@@ -26,6 +42,8 @@ class RouteTablePanel extends StatefulWidget {
     required this.onStart,
     required this.onConfirmNext,
     required this.onClose,
+    this.onAddStop,
+    this.onRecalcular,
     this.canManageRoute = true,
   });
 
@@ -37,6 +55,10 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
   double _width = 320;
   double _height = 220;
   bool _minimized = false;
+
+  /// Modo edicao: permite mover, remover e adicionar paradas mesmo com a
+  /// rota ja montada ou em andamento.
+  bool _editando = false;
 
   /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
   SettingsProvider? _ajustes(BuildContext context) {
@@ -76,6 +98,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
               _cabecalho(provider, route),
               if (!_minimized) ...[
                 Flexible(child: _tabela(provider, stops)),
+                if (_editando) _barraEdicao(provider),
                 _rodape(provider),
                 _alcaResize(),
               ],
@@ -98,13 +121,15 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
       child: Row(
         children: [
           const Icon(Icons.table_rows, color: Colors.redAccent, size: 18),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Tabela de rotas',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: overlayText(context),
                     fontWeight: FontWeight.bold,
@@ -124,35 +149,132 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Mostrar rota',
-            iconSize: 18,
-            icon: Icon(Icons.center_focus_strong,
-                color: overlayTextMuted(context)),
-            onPressed: widget.onShowRoute,
+          _botaoCabecalho(Icons.center_focus_strong, 'Mostrar rota',
+              widget.onShowRoute),
+          _botaoCorRota(),
+          _botaoCabecalho(Icons.share_location, 'Compartilhar rota',
+              widget.onShare),
+          _botaoCabecalho(Icons.edit, 'Editar rota', () {
+            setState(() => _editando = !_editando);
+          }, ativo: widget.canManageRoute),
+          _botaoCabecalho(
+            _minimized ? Icons.expand_less : Icons.expand_more,
+            _minimized ? 'Expandir' : 'Minimizar',
+            () => setState(() => _minimized = !_minimized),
           ),
-          IconButton(
-            tooltip: 'Compartilhar rota',
-            iconSize: 18,
-            icon: Icon(Icons.share_location, color: overlayTextMuted(context)),
-            onPressed: widget.onShare,
-          ),
-          IconButton(
-            tooltip: _minimized ? 'Expandir' : 'Minimizar',
-            iconSize: 18,
-            icon: Icon(
-              _minimized ? Icons.expand_less : Icons.expand_more,
-              color: overlayTextMuted(context),
-            ),
-            onPressed: () => setState(() => _minimized = !_minimized),
-          ),
-          IconButton(
-            tooltip: 'Fechar',
-            iconSize: 18,
-            icon: Icon(Icons.close, color: overlayTextMuted(context)),
-            onPressed: widget.onClose,
-          ),
+          _botaoCabecalho(Icons.close, 'Fechar', widget.onClose),
         ],
+      ),
+    );
+  }
+
+  /// Botao da cor da linha da rota: um toque Troca para a proxima cor
+  /// (e um toque longo abre a lista de cores).
+  Widget _botaoCorRota() {
+    final settings = _ajustes(context);
+    final cor = settings?.corRota ?? '#FF6D00';
+    const lista = kCoresLinhaRota;
+    final indice = lista.indexWhere(
+      (c) => c.toUpperCase() == cor.toUpperCase(),
+    );
+    return Tooltip(
+      message: 'Cor da linha da rota (toque para trocar)',
+      child: GestureDetector(
+        onTap: () {
+          if (settings == null) return;
+          final proximo = (indice + 1) % lista.length;
+          settings.setCorRota(lista[indice < 0 ? 0 : proximo]);
+        },
+        onLongPress: () => _escolherCorRota(context, settings),
+        child: Container(
+          width: 20,
+          height: 20,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: Color(int.parse('FF${cor.replaceFirst('#', '')}', radix: 16)),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white24, width: 1),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Lista de cores para a linha da rota.
+  void _escolherCorRota(BuildContext context, SettingsProvider? settings) {
+    if (settings == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: overlaySurface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Cor da linha da rota',
+                style: TextStyle(
+                  color: overlayText(context),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: kCoresLinhaRota.map((c) {
+                  final sel = settings.corRota.toUpperCase() == c.toUpperCase();
+                  return GestureDetector(
+                    onTap: () {
+                      settings.setCorRota(c);
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Color(
+                          int.parse('FF${c.replaceFirst('#', '')}', radix: 16),
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: sel ? Colors.white : Colors.white24,
+                          width: sel ? 3 : 1,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Botao compacto do cabecalho (deixa espaco para o titulo da tabela).
+  Widget _botaoCabecalho(
+    IconData icone,
+    String dica,
+    VoidCallback onPressed, {
+    bool ativo = true,
+  }) {
+    return IconButton(
+      tooltip: dica,
+      iconSize: 16,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      onPressed: ativo ? onPressed : null,
+      icon: Icon(
+        icone,
+        color: ativo
+            ? overlayTextMuted(context)
+            : overlayTextMuted(context).withValues(alpha: 0.3),
       ),
     );
   }
@@ -294,18 +416,44 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                           ],
                         ),
                       ),
-                      SizedBox(
-                        width: 74,
-                        child: Text(
-                          rotulo,
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            color: cor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                      if (_editando)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _botaoEditar(
+                              icone: Icons.keyboard_arrow_up,
+                              dica: 'Subir',
+                              ativo: index > 0,
+                              onPressed: () => _moverParada(index, index - 1),
+                            ),
+                            _botaoEditar(
+                              icone: Icons.keyboard_arrow_down,
+                              dica: 'Descer',
+                              ativo: index < stops.length - 1,
+                              onPressed: () => _moverParada(index, index + 1),
+                            ),
+                            _botaoEditar(
+                              icone: Icons.delete_outline,
+                              dica: 'Remover',
+                              ativo: true,
+                              cor: const Color(0xFFE53935),
+                              onPressed: () => _removerParada(index),
+                            ),
+                          ],
+                        )
+                      else
+                        SizedBox(
+                          width: 74,
+                          child: Text(
+                            rotulo,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: cor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -317,9 +465,94 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
     );
   }
 
-  /// Confirmacao real antes de marcar a entrega.
-  Future<void> _confirmarEntrega(int index) async {
+  /// Botao pequeno do modo edicao.
+  Widget _botaoEditar({
+    required IconData icone,
+    required String dica,
+    required bool ativo,
+    required VoidCallback onPressed,
+    Color? cor,
+  }) {
+    final c = cor ?? overlayAccent(context);
+    return IconButton(
+      tooltip: dica,
+      iconSize: 15,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+      onPressed: ativo ? onPressed : null,
+      icon: Icon(
+        icone,
+        color: ativo ? c : overlayTextMuted(context).withValues(alpha: 0.3),
+      ),
+    );
+  }
+
+  /// Barra do modo edicao: adicionar parada e recalcular a rota.
+  Widget _barraEdicao(RouteProvider provider) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: widget.onAddStop,
+              icon: const Icon(Icons.add_location_alt, size: 15),
+              label: const Text('PARADA'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                textStyle: const TextStyle(fontSize: 10),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: widget.onRecalcular,
+              icon: const Icon(Icons.refresh, size: 15),
+              label: const Text('RECALCULAR'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                textStyle: const TextStyle(fontSize: 10),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Move a parada para outra posicao da rota.
+  void _moverParada(int de, int para) {
     final provider = context.read<RouteProvider>();
+    if (de < 0 || de >= provider.stops.length) return;
+    if (para < 0 || para >= provider.stops.length) return;
+    provider.move(de, para);
+    widget.onRecalcular?.call();
+  }
+
+  /// Remove a parada (com confirmacao).
+  Future<void> _removerParada(int index) async {
+    final provider = context.read<RouteProvider>();
+    if (index < 0 || index >= provider.stops.length) return;
+    final stop = provider.stops[index];
+    final nome = stop.customer.isNotEmpty ? stop.customer : stop.label;
+    final resposta = await confirmarAcao(
+      context,
+      titulo: 'Remover parada',
+      mensagem: 'Remover "$nome" da rota?',
+      textoConfirmar: 'REMOVER',
+      destrutivo: true,
+      icone: Icons.delete_outline,
+    );
+    if (resposta != Confirmacao.confirmado) return;
+    provider.removeStopAt(index);
+    widget.onRecalcular?.call();
+  }
+
+  /// Confirmacao real antes de marcar a entrega.
+  Future<void> _confirmarEntrega(int index) async {    final provider = context.read<RouteProvider>();
     final stops = provider.stops;
     if (index < 0 || index >= stops.length) return;
     final stop = stops[index];

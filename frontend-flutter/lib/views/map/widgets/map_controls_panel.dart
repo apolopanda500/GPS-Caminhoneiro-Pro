@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
@@ -247,7 +248,7 @@ class MapControlsPanel extends StatelessWidget {
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _coresRota.map((c) {
+              children: kCoresLinhaRota.map((c) {
                 final sel = settings.corRota.toUpperCase() == c;
                 return GestureDetector(
                   onTap: () => settings.setCorRota(c),
@@ -276,11 +277,4 @@ class MapControlsPanel extends StatelessWidget {
   }
 }
 
-const List<String> _coresRota = [
-  '#FF6D00',
-  '#E53935',
-  '#1D4ED8',
-  '#15803D',
-  '#7E22CE',
-  '#FACC15',
-];
+

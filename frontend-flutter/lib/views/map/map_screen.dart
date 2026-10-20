@@ -28,6 +28,7 @@ import 'package:gps_camioneiro_pro/data/models/map_marker_model.dart';
 import 'package:gps_camioneiro_pro/data/models/trip_model.dart';
 import 'package:gps_camioneiro_pro/core/utils/location_handler.dart';
 import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
+import 'package:gps_camioneiro_pro/core/utils/estado_uf.dart';
 import 'package:gps_camioneiro_pro/core/database/local_cache.dart';
 import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
 import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
@@ -151,7 +152,15 @@ class _MapScreenState extends State<MapScreen> {
       final ligado = context.read<SettingsProvider>().trackingEnabled;
       _sincronizarServicoDeFundo(ligado);
     });
+    // Mini janela (Picture-in-Picture): mesma tecnologia do YouTube Premium.
+    ServicoRastreio.instancia.onPipChanged((emPip) {
+      if (!mounted) return;
+      setState(() => _emPip = emPip);
+    });
   }
+
+  /// O app esta na mini janela flutuante?
+  bool _emPip = false;
 
   Future<void> _atualizarMapaSeNecessario() async {
     if (!mounted) return;
@@ -509,6 +518,116 @@ class _MapScreenState extends State<MapScreen> {
       }
     } else {
       _overSpeedWarned = false;
+    }
+  }
+
+  /// Interface compacta da mini janela (Picture-in-Picture): velocidade,
+  /// proxima parada e o botao de voltar ao app.
+  Widget _miniJanela(BuildContext context) {
+    final cor = _settingsProvider?.overlayColor ?? kEmergencyRed;
+    final proxima = context.watch<RouteProvider>().nextStopLabel;
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 6, 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              kDarkBlack.withValues(alpha: 0.85),
+            ],
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: cor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${_speedKmh.round()} km/h',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                proxima.isEmpty ? 'Sem rota' : proxima,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Voltar ao app',
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+              color: Colors.white,
+              icon: const Icon(Icons.open_in_full, size: 16),
+              onPressed: () => ServicoRastreio.instancia.entrarNoPip(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Abre a mini janela flutuante (Picture-in-Picture): a mesma tecnologia
+  /// que o YouTube Premium usa para continuar em segundo plano. A janela
+  /// pode ser arrastada, redimensionada e minimizada pelo usuario.
+  Future<void> _abrirMiniJanela() async {
+    final ok = await ServicoRastreio.instancia.entrarNoPip();
+    if (!ok) {
+      _showSnackBar('Este aparelho nao suporta mini janela.');
+    }
+  }
+
+  /// Adiciona uma parada na rota depois que ela ja foi montada ou iniciada.
+  /// Estado (UF) onde o caminhao esta agora. A busca e o filtro usam isso:
+  /// nunca aparece resultado de outro estado.
+  String? get _estadoLocal {
+    final pos = _currentPosition;
+    if (pos == null) return null;
+    return estadoDaPosicao(pos);
+  }
+
+  Future<void> _adicionarParadaNaRota() async {
+    final resultado = await StreetSearchSheet.show(
+      context,
+      near: _currentPosition,
+      stateName: _estadoLocal,
+    );
+    if (resultado == null || !mounted) return;
+    final route = context.read<RouteProvider>();
+    route.addStop(RouteStopEntry(
+      label: resultado.displayName,
+      customer: resultado.displayName.split(',').first.trim(),
+      neighborhood: resultado.region ?? '',
+      point: LatLng(resultado.latitude, resultado.longitude),
+      radiusMeters: 150,
+    ));
+    _showSnackBar('Parada adicionada. Recalculando a rota...');
+    await _recalcularRota();
+  }
+
+  /// Recalcula a rota depois de editar as paradas.
+  Future<void> _recalcularRota() async {
+    final route = context.read<RouteProvider>();
+    if (route.stops.isEmpty) return;
+    final ok = await route.plan(_currentPosition ?? _center);
+    if (!ok) {
+      _showSnackBar('Não foi possível recalcular a rota.');
     }
   }
 
@@ -1846,6 +1965,8 @@ class _MapScreenState extends State<MapScreen> {
     final texto = km < 0.2
         ? 'Chegando: $proxima.'
         : 'Faltam ${(km * 1000).round()} metros para $proxima.';
+    // Som de aproximacao (slot "Proxima parada") e depois a voz.
+    unawaited(context.read<SonsProvider>().tocar(SlotSom.proximaParada));
     unawaited(VoiceService.instance.falar(texto));
   }
 
@@ -2367,8 +2488,11 @@ class _MapScreenState extends State<MapScreen> {
         // Pede a isencao do economizador de bateria (o Android mata o app
         // em segundo plano sem isso).
         await ServicoRastreio.instancia.pedirIsencaoDeBateria();
+        // Tela acesa: o motorista nao trava a tela durante a viagem.
+        await ServicoRastreio.instancia.manterTelaLigada(true);
       } else {
         await ServicoRastreio.instancia.parar();
+        await ServicoRastreio.instancia.manterTelaLigada(false);
       }
     } catch (_) {}
   }
@@ -2538,7 +2662,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _buscarRua() async {
-    final result = await StreetSearchSheet.show(context);
+    final result = await StreetSearchSheet.show(
+      context,
+      near: _currentPosition,
+      stateName: _estadoLocal,
+    );
     if (result == null) return;
     final target = LatLng(result.latitude, result.longitude);
     setState(() => _center = target);
@@ -2660,7 +2788,9 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ui = _uiExpanded;
+    // Na mini janela (Picture-in-Picture) a interface e compacta: sem
+    // paineis, so o essencial do GPS.
+    final ui = _uiExpanded && !_emPip;
     final size = MediaQuery.of(context).size;
     // O painel de rotas so aparece quando existe rota de verdade: painel
     // vazio sobre o mapa so atrapalhava.
@@ -2670,6 +2800,7 @@ class _MapScreenState extends State<MapScreen> {
       body: Stack(
         children: [
           _buildMapView(),
+          if (_emPip) _miniJanela(context),
           // Onda de aviso (compartilhar posicao / marcar sinal).
           if (_onda != null)
             Positioned.fill(
@@ -2725,6 +2856,10 @@ class _MapScreenState extends State<MapScreen> {
                   _botaoFlutuante(Icons.campaign, 'Compartilhar posicao com a rede',
                       _compartilharLocalizacao),
                   const SizedBox(height: 8),
+                  _botaoFlutuante(Icons.picture_in_picture_alt,
+                      'Mini janela (continua por cima do app)',
+                      _abrirMiniJanela),
+                  const SizedBox(height: 8),
                   _botaoFlutuante(Icons.settings, 'Configuracoes', _abrirConfiguracoes),
                   const SizedBox(height: 8),
                   _botaoParar(),
@@ -2741,14 +2876,16 @@ class _MapScreenState extends State<MapScreen> {
                 height: 240,
                 minimizedChild: const Icon(Icons.table_rows, size: 20),
                 handle: _buildPuxador('Tabela de rotas', Icons.table_rows),
-                child: RouteTablePanel(
-                  onShowRoute: _mostrarRota,
-                  onShare: _compartilharRota,
-                  onStart: _iniciarRota,
-                  onConfirmNext: _confirmarEntregaAtual,
-                  onClose: () => setState(() => _routePanelClosed = true),
-                  canManageRoute: !_isHelper,
-                ),
+              child: RouteTablePanel(
+                onShowRoute: _mostrarRota,
+                onShare: _compartilharRota,
+                onStart: _iniciarRota,
+                onConfirmNext: _confirmarEntregaAtual,
+                onClose: () => setState(() => _routePanelClosed = true),
+                onAddStop: _adicionarParadaNaRota,
+                onRecalcular: _recalcularRota,
+                canManageRoute: !_isHelper,
+              ),
               );
             }),
           // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
@@ -2857,16 +2994,20 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Botao vermelho de encerrar a viagem: fica sempre a vista na coluna de
   /// acoes do mapa (no menu ele ficava longe e era facil esquecer).
+  ///
+  /// Ele **para o GPS de verdade**: salva a viagem (se houver), cancela o
+  /// fluxo de posicao, encerra o expediente e desliga o servico em primeiro
+  /// plano (a notificacao some).
   Widget _botaoParar() {
     return Tooltip(
-      message: 'Encerrar viagem',
+      message: 'Parar GPS e encerrar viagem',
       child: Material(
         color: const Color(0xFFC62828),
         shape: const CircleBorder(),
         elevation: 3,
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: _finalizarViagem,
+          onTap: _pararGpsEEncerrarViagem,
           child: const Padding(
             padding: EdgeInsets.all(11),
             child: Icon(Icons.stop_rounded, color: Colors.white, size: 22),
@@ -2874,6 +3015,39 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
+  }
+
+  /// Para tudo: GPS, expediente e servico em primeiro plano.
+  Future<void> _pararGpsEEncerrarViagem() async {
+    final resposta = await confirmarAcao(
+      context,
+      titulo: 'Parar o GPS?',
+      mensagem: 'A viagem atual sera salva e o rastreamento sera desligado. '
+          'Voce liga de novo quando quiser continuar.',
+      textoConfirmar: 'PARAR TUDO',
+      destrutivo: true,
+      icone: Icons.stop_rounded,
+    );
+    if (resposta != Confirmacao.confirmado) return;
+    if (!mounted) return;
+
+    // 1) Salva a viagem percorrida (se houver trecho).
+    await _finalizarViagem(notify: false);
+
+    // 2) Cancela o fluxo de posicao (para o GPS de verdade).
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
+
+    // 3) Encerra o expediente (fica salvo no app) e desliga o servico.
+    if (!mounted) return;
+    try {
+      await context.read<SettingsProvider>().endDay();
+    } catch (_) {}
+    await ServicoRastreio.instancia.parar();
+
+    if (!mounted) return;
+    setState(() => _currentPosition = null);
+    _showSnackBar('GPS parado. Viagem encerrada.');
   }
 
   /// Puxador de arraste dos paineis (arrasta e mostra o nome do painel).

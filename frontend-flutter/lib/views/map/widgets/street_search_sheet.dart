@@ -65,7 +65,8 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
   bool _loading = false;
   String? _error;
 
-  /// Regiao em uso (pode ser trocada pelos atalhos).
+  /// Regiao em uso (pode ser trocada pelos atalhos). Vem do GPS: a busca
+  /// nunca sai do estado onde o caminhao esta.
   late String _regiao = widget.stateName ?? 'RJ';
 
   Future<void> _search() async {

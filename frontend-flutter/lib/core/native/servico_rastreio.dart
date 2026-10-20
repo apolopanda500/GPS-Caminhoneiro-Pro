@@ -62,6 +62,56 @@ class ServicoRastreio {
     }
   }
 
+  /// True quando o app esta na mini janela (Picture-in-Picture).
+  bool get emPip => _emPip;
+  bool _emPip = false;
+
+  /// Notifica quando o Android entra ou sai da mini janela.
+  void onPipChanged(void Function(bool emPip) callback) {
+    _canal.setMethodCallHandler((call) async {
+      if (call.method == 'pip/estado') {
+        _emPip = call.arguments == true;
+        callback(_emPip);
+      }
+    });
+  }
+
+  /// O aparelho suporta mini janela?
+  Future<bool> pipPermitido() async {
+    try {
+      final r = await _canal.invokeMethod<bool>('pip/permitido');
+      return r ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Coloca o app na mini janela flutuante (Picture-in-Picture).
+  Future<bool> entrarNoPip() async {
+    try {
+      final r = await _canal.invokeMethod<bool>('pip/entrar');
+      return r ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Mantem a tela acesa durante a viagem (sem travar a tela do celular).
+  Future<bool> manterTelaLigada(bool ligada) async {
+    try {
+      await _canal.invokeMethod<bool>('tela/ligar', {'ligada': ligada});
+      return true;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// Abre a tela do Android para o usuario tirar o app do "economizador de
   /// bateria". Sem isso o Android mata o app em segundo plano.
   Future<bool> pedirIsencaoDeBateria() async {

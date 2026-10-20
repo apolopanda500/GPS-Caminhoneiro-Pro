@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/core/utils/estado_uf.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 
@@ -55,12 +56,24 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
       return;
     }
     setState(() => _searching = true);
-    final r = await _service.search(query);
+    final r = await _service.search(
+      query,
+      near: widget.origin,
+      stateName: _estadoLocal,
+    );
     if (!mounted) return;
     setState(() {
       _results = r;
       _searching = false;
     });
+  }
+
+  /// Estado (UF) da origem da rota: a busca de clientes fica presa no
+  /// estado local (nada de homonimos de outros estados).
+  String? get _estadoLocal {
+    final p = widget.origin;
+    if (p == null) return null;
+    return estadoDaPosicao(p);
   }
 
   void _adicionarDestino(GeoResult g) {

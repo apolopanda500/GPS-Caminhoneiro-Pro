@@ -9,7 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Momentos do app em que um som personalizado pode ser disparado.
 enum SlotSom {
   inicioApp('Inicio do app', 'Toca assim que o app abre'),
-  entradaParada('Entrada na parada', 'Dispara ao chegar em uma entrega'),
+  entradaParada('Sino de chegada', 'Dispara o sino ao chegar na parada'),
+  proximaParada('Próxima parada', 'Toca quando o caminhão se aproxima da entrega'),
   alertaRadar('Alerta de radar', 'Toca quando o radar esta proximo'),
   avisoGeral('Aviso geral', 'Som de aviso do app');
 
