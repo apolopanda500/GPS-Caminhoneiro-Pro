@@ -17,6 +17,7 @@ import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
 import 'package:gps_camioneiro_pro/core/map/traffic_layer.dart';
+import 'package:gps_camioneiro_pro/core/rota/monitor_paradas.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/onda_aviso.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/rede_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
@@ -102,6 +103,9 @@ class _MapScreenState extends State<MapScreen> {
   String _nomeEmpresaPendente = '';
   final bool _uiExpanded = true;
   bool _alertsPanelClosed = false;
+
+  /// O painel de sinais foi aberto pelo botao (aparece mesmo sem sinais).
+  bool _mostrarAlertas = false;
   bool _routePanelClosed = false;
 
   MapLayerMode _layerMode = MapLayerMode.satellite;
@@ -485,6 +489,8 @@ class _MapScreenState extends State<MapScreen> {
       _socket.sendLocationUpdate(
           lat: newPos.latitude, lon: newPos.longitude, driverId: widget.driverId);
       _validarEntregas(newPos);
+      _detectarChegadaSaida(newPos);
+      unawaited(_atualizarEstadoLocal());
       _verificarLimiteVelocidade(newPos, _speedKmh);
       // Clima em tempo real: busca assim que o GPS define a posicao.
       if (mounted) {
@@ -603,11 +609,24 @@ class _MapScreenState extends State<MapScreen> {
   /// Adiciona uma parada na rota depois que ela ja foi montada ou iniciada.
   /// Estado (UF) onde o caminhao esta agora. A busca e o filtro usam isso:
   /// nunca aparece resultado de outro estado.
-  String? get _estadoLocal {
+  ///
+  /// Resposta imediata pela caixa geografica e refino pelo geocodificador
+  /// reverso (que acerta a cidade de Florianopolis, Recife e assim por diante).
+  String? get _estadoLocal =>
+      _estadoLocalCache ?? estadoDaPosicao(_currentPosition ?? _center);
+
+  /// Atualiza a UF do caminhao (em segundo plano, sem travar o GPS).
+  Future<void> _atualizarEstadoLocal() async {
     final pos = _currentPosition;
-    if (pos == null) return null;
-    return estadoDaPosicao(pos);
+    if (pos == null) return;
+    final uf = await EstadoUf.instancia.descobrir(pos);
+    if (!mounted || uf == null) return;
+    if (uf != _estadoLocalCache) {
+      setState(() => _estadoLocalCache = uf);
+    }
   }
+
+  String? _estadoLocalCache;
 
   Future<void> _adicionarParadaNaRota() async {
     final resultado = await StreetSearchSheet.show(
@@ -691,6 +710,43 @@ class _MapScreenState extends State<MapScreen> {
         longitude: clima.lastLongitude,
       ),
     );
+  }
+
+  /// Limpa a rota: some com a linha, as paradas, a empresa, o painel e
+  /// qualquer estado de chegada - o mapa fica limpo para a proxima viagem.
+  Future<void> _limparRotaDoMapa() async {
+    final route = context.read<RouteProvider>();
+    if (route.stops.isEmpty && route.result == null) {
+      _showSnackBar('Nao ha rota para limpar.');
+      return;
+    }
+    final resposta = await confirmarAcao(
+      context,
+      titulo: 'Limpar a rota?',
+      mensagem: 'Some com a linha da rota, as paradas e o retorno a empresa. '
+          'O historico de viagens continua salvo.',
+      textoConfirmar: 'LIMPAR',
+      destrutivo: true,
+      icone: Icons.delete_sweep,
+    );
+    if (resposta != Confirmacao.confirmado) return;
+    if (!mounted) return;
+
+    route.clear();
+    // Marcadores que pertencem a rota tambem saem.
+    final markers = context.read<MarkerProvider>();
+    for (final m in markers.markers.toList()) {
+      if (m.type == 'rota' || m.type == 'parada') {
+        markers.removeMarker(m.id);
+      }
+    }
+    setState(() {
+      _routePanelClosed = true;
+      _monitorParadas.resetar();
+      _sinalSelecionadoId = null;
+    });
+    _renderMarkers();
+    _showSnackBar('Rota limpa do mapa.');
   }
 
   /// Onda de aviso em curso (posicao na tela + cor).
@@ -809,8 +865,11 @@ class _MapScreenState extends State<MapScreen> {
     _styleFallbackTimer?.cancel();
     _imagesAdded.clear();
     await _ensureBuildings3d();
-    await _aplicarCamadaDeTrafego();
     await _renderMarkers();
+    // As camadas de clima (chuva, nuvens, vento) entram DEPOIS dos
+    // marcadores: assim a chuva aparece por cima do caminhao, que e o que
+    // o motorista precisa ver.
+    await _aplicarCamadaDeTrafego();
     if (_is3d) {
       final target = _currentPosition ?? _center;
       _moverCamera(target, zoom: _zoom, bearing: 25, tilt: 50);
@@ -1145,6 +1204,11 @@ class _MapScreenState extends State<MapScreen> {
         {'kind': 'stop', 'index': i},
       );
     }
+
+    // As camadas de clima entram por ultimo: a chuva, as nuvens e o vento
+    // ficam POR CIMA do caminhao e da rota (e o que o motorista precisa
+    // ver na hora).
+    await _aplicarCamadaDeTrafego();
   }
 
   Future<void> _renderHighlightedArea() async {
@@ -2032,6 +2096,53 @@ class _MapScreenState extends State<MapScreen> {
     unawaited(VoiceService.instance.falar(texto));
   }
 
+  /// Monitor de chegada e saida das paradas (logica testada com milhares
+  /// de simulacoes em test/simulacao_jornadas_test.dart).
+  final MonitorDeParadas _monitorParadas = MonitorDeParadas();
+
+  /// Detecta a chegada e a saida das paradas pelo GPS, em tempo real.
+  ///
+  /// - Chegou (entrou no raio da parada): vibra, toca o sino e fala a parada.
+  /// - Comecou a andar e saiu (passou de 100-200 m): toca o som e anuncia a
+  ///   proxima parada automaticamente.
+  void _detectarChegadaSaida(LatLng pos) {
+    final route = context.read<RouteProvider>();
+    if (route.stops.isEmpty) return;
+
+    final eventos = _monitorParadas.processar(
+      totalParadas: route.stops.length,
+      dentroDe: (i) => route.dentroDoRaio(i, pos),
+      saiuDe: (i) => route.saiuDaParada(i, pos),
+      velocidadeKmh: _speedKmh,
+    );
+    if (eventos.isEmpty) return;
+
+    final audio = context.read<AudioProvider>();
+    final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
+
+    for (final ev in eventos) {
+      if (ev.chegou) {
+        HapticFeedback.heavyImpact();
+        unawaited(audio.tocarChegada());
+        unawaited(VoiceService.instance.chegadaNaParada(
+          route.numeroDaParada(ev.indice),
+          total,
+          proximoNumero: route.proximoNumero,
+          proximoNome: route.proximoNome,
+          distanciaProximaKm: route.distanciaProximaParadaKm,
+        ));
+      } else if (ev.saiu) {
+        unawaited(audio.tocarChegada());
+        unawaited(VoiceService.instance.proximaParada(
+          numero: route.proximoNumero,
+          nome: route.proximoNome,
+          distanciaKm: route.distanciaProximaParadaKm,
+          totalParadas: total,
+        ));
+      }
+    }
+  }
+
   void _validarEntregas(LatLng pos) {
     final route = context.read<RouteProvider>();
     if (route.totalStops == 0) return;
@@ -2845,13 +2956,8 @@ class _MapScreenState extends State<MapScreen> {
                 alignment: WrapAlignment.start,
                 children: [
                   _botaoFlutuante(Icons.search, 'Buscar rua', _buscarRua),
-                  _botaoFlutuante(
-                      Icons.center_focus_strong, 'Centralizar camera',
-                      _recentralizarNoCaminhao),
                   _botaoFlutuante(Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
                   _botaoFlutuante(Icons.tune, 'Mapa e graficos', _abrirMapaGraficos),
-                  _botaoFlutuante(Icons.warning_amber_rounded, 'Sinais da estrada',
-                      () => setState(() => _alertsPanelClosed = false)),
                   _botaoFlutuante(Icons.group, 'Rede de caminhoneiros', _abrirRede),
                   _botaoFlutuante(Icons.radio_outlined, 'Radio da estrada',
                       _abrirRadio),
@@ -2865,6 +2971,19 @@ class _MapScreenState extends State<MapScreen> {
                   _botaoParar(),
                 ],
               ),
+            ),
+          // Centralizar a camera: botao solto (igual o km/h), fora do grupo.
+          if (ui)
+            FloatingPanel(
+              id: 'centralizar',
+              initial: Offset(16, size.height - 420),
+              width: 52,
+              height: 52,
+              dragWholeChild: true,
+              resizable: false,
+              minimizedChild: const Icon(Icons.center_focus_strong, size: 18),
+              child: _botaoFlutuante(Icons.center_focus_strong,
+                  'Centralizar a camera no caminhao', _recentralizarNoCaminhao),
             ),
           if (ui && !_routePanelClosed && totalParadas > 0)
             Builder(builder: (ctx) {
@@ -2884,12 +3003,14 @@ class _MapScreenState extends State<MapScreen> {
                 onClose: () => setState(() => _routePanelClosed = true),
                 onAddStop: _adicionarParadaNaRota,
                 onRecalcular: _recalcularRota,
+                onLimparRota: _limparRotaDoMapa,
                 canManageRoute: !_isHelper,
               ),
               );
             }),
           // AGENTE B: painel de sinais com minimizar/fechar (evita travar a tela).
-          if (ui && _activeAlerts.isNotEmpty && !_alertsPanelClosed)
+          if (ui && !_alertsPanelClosed &&
+              (_activeAlerts.isNotEmpty || _mostrarAlertas))
             FloatingPanel(
               id: 'alerts',
               initial: Offset(_contentLeft, 96),
@@ -2901,7 +3022,11 @@ class _MapScreenState extends State<MapScreen> {
                 alerts: List<AlertModel>.unmodifiable(_activeAlerts),
                 surface: _superficie(context),
                 accent: _settingsProvider?.overlayColor ?? kEmergencyRed,
-                onClose: () => setState(() => _alertsPanelClosed = true),
+                onClose: () => setState(() {
+                  _alertsPanelClosed = true;
+                  _mostrarAlertas = false;
+                }),
+                onCriarSinal: _abrirSinalizacoes,
                 selectedId: _sinalSelecionadoId,
                 onSelect: _selecionarSinal,
               ),
@@ -2964,24 +3089,47 @@ class _MapScreenState extends State<MapScreen> {
   /// Ele **para o GPS de verdade**: salva a viagem (se houver), cancela o
   /// fluxo de posicao, encerra o expediente e desliga o servico em primeiro
   /// plano (a notificacao some).
+  /// Botao do GPS: **verde para ligar** e **vermelho para desligar**.
+  ///
+  /// Desligar encerra a viagem, cancela o fluxo de posicao e desliga o
+  /// servico em primeiro plano; ligar volta o rastreio com a tela acesa.
   Widget _botaoParar() {
+    final ligado = context.watch<SettingsProvider>().trackingEnabled;
+    final cor = ligado ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
     return Tooltip(
-      message: 'Parar GPS e encerrar viagem',
+      message: ligado ? 'Parar GPS e encerrar viagem' : 'Ligar o GPS',
       child: Material(
-        color: const Color(0xFFC62828),
+        color: cor,
         shape: const CircleBorder(),
         elevation: 3,
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: _pararGpsEEncerrarViagem,
-          child: const Padding(
-            padding: EdgeInsets.all(8),
-            child: Icon(Icons.stop_rounded, color: Colors.white, size: 19),
+          onTap: ligado ? _pararGpsEEncerrarViagem : _ligarGps,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              ligado ? Icons.stop_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 19,
+            ),
           ),
         ),
       ),
     );
   }
+
+  /// Liga o GPS: inicia o expediente, o servico em primeiro plano e a tela
+  /// mantida acesa.
+  Future<void> _ligarGps() async {
+    final settings = context.read<SettingsProvider>();
+    if (!settings.trackingEnabled) {
+      await settings.startDay();
+    }
+    await _sincronizarServicoDeFundo(true);
+    _startLocationStream();
+    _showSnackBar('GPS ligado. Boa viagem!');
+  }
+
 
   /// Para tudo: GPS, expediente e servico em primeiro plano.
   Future<void> _pararGpsEEncerrarViagem() async {

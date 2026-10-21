@@ -601,6 +601,39 @@ class RouteProvider extends ChangeNotifier {
     return delivered;
   }
 
+  /// Distancia em metros do caminhão ate a parada de indice [index].
+  double distanciaAte(int index, LatLng pos) {
+    if (index < 0 || index >= _stops.length) return double.infinity;
+    return _distance.as(LengthUnit.Meter, pos, _stops[index].point);
+  }
+
+  /// O caminhão está dentro do raio da parada de indice [index]?
+  bool dentroDoRaio(int index, LatLng pos) {
+    if (index < 0 || index >= _stops.length) return false;
+    final stop = _stops[index];
+    return _distance.as(LengthUnit.Meter, pos, stop.point) <= stop.radiusMeters;
+  }
+
+  /// Raio de **saida** da parada: entre 100 e 200 m.
+  ///
+  /// O mais perto possivel e em tempo real: assim que o caminhao comeca a
+  /// andar e deixa a area de descarga, a proxima parada e anunciada - sem
+  /// esperar ele sair da rua inteira.
+  double raioDeSaida(int index) {
+    if (index < 0 || index >= _stops.length) return 150;
+    final r = _stops[index].radiusMeters;
+    if (r < 100) return 100;
+    if (r > 200) return 200;
+    return r;
+  }
+
+  /// O caminhão ja saiu do raio de saida da parada?
+  bool saiuDaParada(int index, LatLng pos) {
+    if (index < 0 || index >= _stops.length) return false;
+    return _distance.as(LengthUnit.Meter, pos, _stops[index].point) >
+        raioDeSaida(index);
+  }
+
   /// Devolve (uma vez) o indice da parada em que o caminhão acabou de
   /// entrar. O app usa isso para falar e vibrar na hora da chegada, sem
   /// esperar a confirmacao da entrega.

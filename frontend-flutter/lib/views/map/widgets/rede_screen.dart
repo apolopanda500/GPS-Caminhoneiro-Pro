@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
+import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
 import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/chat_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/groups_sheet.dart';
@@ -67,7 +68,7 @@ class RedeScreen extends StatefulWidget {
 
 class _RedeScreenState extends State<RedeScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs = TabController(length: 4, vsync: this);
 
   @override
   void dispose() {
@@ -95,6 +96,7 @@ class _RedeScreenState extends State<RedeScreen>
             Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Chat'),
             Tab(icon: Icon(Icons.group), text: 'Grupos'),
             Tab(icon: Icon(Icons.people), text: 'Contatos'),
+            Tab(icon: Icon(Icons.warning_amber_rounded), text: 'Sinais'),
           ],
         ),
       ),
@@ -120,8 +122,52 @@ class _RedeScreenState extends State<RedeScreen>
             authHeaders: widget.authHeaders,
           ),
           _contatos(context, ink),
+          _sinais(context),
         ],
       ),
+    );
+  }
+
+  /// Aba de sinais da estrada (fundida no chat da rede).
+  Widget _sinais(BuildContext context) {
+    final alertas = context.watch<AlertProvider>().alerts;
+    if (alertas.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.warning_amber_rounded, size: 44, color: Colors.white24),
+              const SizedBox(height: 12),
+              Text(
+                'Nenhum sinal por perto agora.\n'
+                'Avise a comunidade sobre radar, buraco ou via interditada.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: widget.onSinalizar,
+                icon: const Icon(Icons.add_location_alt, size: 18),
+                label: const Text('AVISAR A COMUNIDADE'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      itemCount: alertas.length,
+      itemBuilder: (context, i) {
+        final a = alertas[i];
+        return ListTile(
+          leading: const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+          title: Text('${a.type.toUpperCase()}: ${a.message ?? ''}'),
+          subtitle: Text(a.createdAt.toLocal().toString().substring(0, 16),
+              style: const TextStyle(fontSize: 11)),
+        );
+      },
     );
   }
 

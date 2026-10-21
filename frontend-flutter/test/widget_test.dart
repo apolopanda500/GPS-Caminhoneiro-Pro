@@ -48,7 +48,8 @@ void main() {
 
   testWidgets('SpeedHUD renderiza a velocidade', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SpeedHUD(speedKmh: 82))));
-    expect(find.text('82 km/h'), findsOneWidget);
+    expect(find.text('82'), findsOneWidget);
+    expect(find.text('km/h'), findsOneWidget);
     expect(find.byIcon(Icons.speed), findsOneWidget);
   });
 

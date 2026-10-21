@@ -186,7 +186,8 @@ void main() {
     await tester.pumpWidget(
         _app(const Scaffold(body: SpeedHUD(speedKmh: 88, limitKmh: 90))));
     await tester.pumpAndSettle();
-    expect(find.text('88 km/h'), findsOneWidget);
+    expect(find.text('88'), findsOneWidget);
+    expect(find.text('km/h'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

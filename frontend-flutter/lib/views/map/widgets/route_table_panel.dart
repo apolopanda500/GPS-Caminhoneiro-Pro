@@ -26,6 +26,9 @@ class RouteTablePanel extends StatefulWidget {
   final VoidCallback onConfirmNext;
   final VoidCallback onClose;
 
+  /// Limpa a rota do mapa (some com a linha e as paradas).
+  final VoidCallback? onLimparRota;
+
   /// Abre a busca de enderecos para adicionar uma parada na rota.
   final VoidCallback? onAddStop;
 
@@ -42,6 +45,7 @@ class RouteTablePanel extends StatefulWidget {
     required this.onStart,
     required this.onConfirmNext,
     required this.onClose,
+    this.onLimparRota,
     this.onAddStop,
     this.onRecalcular,
     this.canManageRoute = true,
@@ -261,7 +265,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
   Widget _botaoCabecalho(
     IconData icone,
     String dica,
-    VoidCallback onPressed, {
+    VoidCallback? onPressed, {
     bool ativo = true,
   }) {
     return IconButton(
@@ -589,6 +593,14 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
             ),
           ),
           const SizedBox(width: 10),
+          IconButton(
+            tooltip: 'Limpar rota do mapa',
+            iconSize: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+            onPressed: widget.onLimparRota,
+            icon: Icon(Icons.delete_sweep, color: overlayTextMuted(context)),
+          ),
           if (!widget.canManageRoute)
             Text(
               'Apenas o motorista pode iniciar a rota.',

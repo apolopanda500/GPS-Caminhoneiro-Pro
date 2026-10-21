@@ -157,6 +157,74 @@ class VoiceService {
     } catch (_) {}
   }
 
+  /// Fala a proxima parada quando o caminhao comeca a andar (saiu da
+  /// parada anterior).
+  Future<void> proximaParada({
+    int? numero,
+    String? nome,
+    double? distanciaKm,
+    int totalParadas = 0,
+  }) async {
+    final buf = StringBuffer();
+    if (modoFalaParada == ModoFalaParada.nomeCliente &&
+        nome != null &&
+        nome.trim().isNotEmpty) {
+      buf.write('Próxima parada: ${nome.trim()}');
+    } else if (numero != null) {
+      buf.write('Próxima parada, número $numero');
+    } else {
+      buf.write('Rota concluída');
+    }
+    if (distanciaKm != null && distanciaKm > 0) {
+      if (distanciaKm < 0.1) {
+        buf.write(', logo ali');
+      } else if (distanciaKm < 1) {
+        buf.write(', a menos de um quilômetro');
+      } else {
+        buf.write(', a ${distanciaKm.toStringAsFixed(0)} quilometros');
+      }
+    }
+    await falar(buf.toString());
+  }
+
+  /// Fala o inicio da rota: quantas paradas tem, qual e a proxima e o
+  /// "bom trabalho".
+  ///
+  /// A proxima parada pode ser falada pelo **numero** ou pelo **nome do
+  /// cliente**, conforme o motorista escolheu em Som e voz.
+  Future<void> rotaIniciada({
+    required int totalParadas,
+    int? proximoNumero,
+    String? proximoNome,
+    bool temRetornoEmpresa = false,
+  }) async {
+    final buf = StringBuffer();
+    buf.write('Rota iniciada');
+    if (totalParadas > 0) {
+      buf.write(', com $totalParadas parada${totalParadas == 1 ? '' : 's'}');
+      if (temRetornoEmpresa) buf.write(' e retorno a empresa');
+    }
+    buf.write('. ');
+
+    if (modoFalaParada == ModoFalaParada.nomeCliente &&
+        proximoNome != null &&
+        proximoNome.trim().isNotEmpty) {
+      buf.write('Próxima parada: ${proximoNome.trim()}. ');
+    } else if (proximoNumero != null) {
+      buf.write('Próxima parada, número $proximoNumero. ');
+    }
+
+    buf.write('Bom trabalho!');
+    await falar(buf.toString());
+  }
+
+  /// Fala a chegada na empresa: a rota acabou.
+  Future<void> chegadaNaEmpresa() async {
+    await falar(
+      'Você chegou na empresa. Viagem concluída com sucesso. Bom trabalho!',
+    );
+  }
+
   /// "Chegou na parada numero 1... chegou na parada numero 2..." ate o
   /// ultimo cliente, dizendo sempre a proxima parada com o numero certo.
   ///
@@ -219,14 +287,8 @@ class VoiceService {
     return buf.toString();
   }
 
-  /// "Chegou na empresa, viagem concluida com sucesso!"
-  Future<void> chegadaNaEmpresa() async {
-    await falar(
-      'Voce chegou na empresa. Viagem concluida com sucesso. Bom trabalho!',
-    );
-  }
 
   Future<void> viagemConcluida() async {
-    await falar('Viagem concluida. Bom trabalho, caminhoneiro!');
+    await falar('Viagem concluída. Bom trabalho, caminhoneiro!');
   }
 }

@@ -343,11 +343,12 @@ class MapLayersProvider extends ChangeNotifier {
 
     c.addSource(sourceId, ml.GeojsonSourceProperties(data: geojson));
     c.addLayer(sourceId, layerId, ml.CircleLayerProperties(
-      circleRadius: 26,
+      circleRadius: 42,
       circleColor: _corDaCamada(camada),
-      circleOpacity: 0.45,
-      circleStrokeWidth: 1,
-      circleStrokeColor: '#FFFFFF66',
+      circleOpacity: 0.42,
+      circleBlur: 0.6,
+      circleStrokeWidth: 1.4,
+      circleStrokeColor: '#FFFFFF55',
     ));
   }
 

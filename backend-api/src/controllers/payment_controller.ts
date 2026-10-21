@@ -24,6 +24,16 @@ export class PaymentController {
     const annual = 29.99;
     const value = amount === annual ? annual : monthly;
     try {
+      // O driver precisa existir: sem isso o INSERT quebra a chave
+      // estrangeira e volta um 500 confuso para o app.
+      const driver = await this.db.query(
+        'SELECT driver_id FROM drivers WHERE driver_id = $1',
+        [driverId],
+      );
+      if (driver.rowCount === 0) {
+        res.status(404).json({ error: 'Motorista nao encontrado.' });
+        return;
+      }
       const paymentGatewayId =
         'pay_' + Math.random().toString(36).substring(2, 11);
       const copyAndPaste = buildPixPayload({

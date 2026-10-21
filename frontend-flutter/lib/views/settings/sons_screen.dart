@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
+import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
 import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
@@ -99,6 +101,41 @@ class _SonsScreenState extends State<SonsScreen> {
             onChanged: settings.setRadarSound,
             activeThumbColor: kEmergencyRed,
             activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
+          ),
+          // Testes: o motorista confere o som e a vibracao sem sair da
+          // estrada.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await context.read<AudioProvider>().tocarChegada();
+                    HapticFeedback.mediumImpact();
+                  },
+                  icon: const Icon(Icons.notifications_active, size: 16),
+                  label: const Text('SINo DE CHEGADA'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    AlertNotifier.triggerRadarWarning();
+                    HapticFeedback.mediumImpact();
+                  },
+                  icon: const Icon(Icons.warning, size: 16),
+                  label: const Text('ALARME DE RADAR'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.heavyImpact();
+                    HapticFeedback.vibrate();
+                  },
+                  icon: const Icon(Icons.vibration, size: 16),
+                  label: const Text('VIBRACAO'),
+                ),
+              ],
+            ),
           ),
           SwitchListTile(
             secondary: Icon(Icons.vibration, color: ink.withValues(alpha: 0.7)),

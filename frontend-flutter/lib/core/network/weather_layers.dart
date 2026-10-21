@@ -139,83 +139,69 @@ class WeatherLayers {
     int horas = 1,
   }) async {
     try {
+      // Grade 4x4 ao redor do caminhao. Todos os pontos vao em UMA chamada
+      // (o Open-Meteo aceita varias coordenadas): o dado real chega rapido e
+      // sem estourar a cota da API.
+      const passos = 4;
+      const passoGraus = 0.22;
+      final lats = <double>[];
+      final lons = <double>[];
+      for (var i = 0; i < passos; i++) {
+        for (var j = 0; j < passos; j++) {
+          lats.add(lat + (i - passos / 2) * passoGraus);
+          lons.add(lon + (j - passos / 2) * passoGraus);
+        }
+      }
+
       final uri = Uri.parse(_openMeteo).replace(queryParameters: {
-        'latitude': lat.toString(),
-        'longitude': lon.toString(),
+        'latitude': lats.map((v) => v.toStringAsFixed(4)).join(','),
+        'longitude': lons.map((v) => v.toStringAsFixed(4)).join(','),
         'hourly': campo,
         'forecast_days': '2',
         'timezone': 'auto',
       });
-      final resp = await http.get(uri).timeout(const Duration(seconds: 12));
+      final resp = await http
+          .get(uri, headers: {'User-Agent': 'gps-camioneiro-pro/1.0'})
+          .timeout(const Duration(seconds: 15));
       if (resp.statusCode != 200) return const [];
       final data =
           jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
-      final hourly = data['hourly'] as Map<String, dynamic>? ?? {};
+
+      final hourly = data['hourly'] as Map<String, dynamic>? ?? const {};
       final valores = hourly[campo] as List<dynamic>? ?? const [];
       final times = hourly['time'] as List<dynamic>? ?? const [];
-      if (valores.isEmpty) return const [];
+      final latis = data['latitude'] as List<dynamic>? ?? const [];
+      final lonsRet = data['longitude'] as List<dynamic>? ?? const [];
+      if (valores.isEmpty || latis.isEmpty) return const [];
 
-      final inicio = DateTime.now();
-      // Escolhe a hora mais proxima do agora.
+      // Hora mais proxima do agora.
+      final agora = DateTime.now();
       var indice = 0;
       var menor = 1e12;
       for (var i = 0; i < times.length; i++) {
         final t = DateTime.tryParse(times[i].toString());
         if (t == null) continue;
-        final d = t.difference(inicio).inMinutes.abs().toDouble();
+        final d = t.difference(agora).inMinutes.abs().toDouble();
         if (d < menor) {
           menor = d;
           indice = i;
         }
       }
 
-      // Grade de 5x5 ao redor do caminhao (visualmente mais util que o mundo
-      // inteiro) com o valor interpolado.
       final pontos = <Ponto>[];
-      const passos = 4;
-      const passoGraus = 0.22;
-      for (var i = 0; i < passos; i++) {
-        for (var j = 0; j < passos; j++) {
-          final pLat = lat + (i - passos / 2) * passoGraus;
-          final pLon = lon + (j - passos / 2) * passoGraus;
-          final v = await _valorEm(pLat, pLon, campo, indice, horas);
-          if (v != null) pontos.add(Ponto(pLat, pLon, v));
-        }
+      for (var i = 0; i < latis.length && i < lonsRet.length; i++) {
+        if (indice + i >= valores.length) break;
+        final v = valores[indice + i];
+        if (v is! num) continue;
+        pontos.add(Ponto(
+          (lats[i] as num).toDouble(),
+          (lonsRet[i] as num).toDouble(),
+          v.toDouble(),
+        ));
       }
       return pontos;
     } catch (_) {
       return const [];
-    }
-  }
-
-  /// Valor do campo em um ponto (consulta leve ao Open-Meteo).
-  static Future<double?> _valorEm(
-    double lat,
-    double lon,
-    String campo,
-    int indice,
-    int horas,
-  ) async {
-    try {
-      final uri = Uri.parse(_openMeteo).replace(queryParameters: {
-        'latitude': lat.toString(),
-        'longitude': lon.toString(),
-        'hourly': campo,
-        'forecast_days': '2',
-        'timezone': 'auto',
-      });
-      final resp = await http.get(uri).timeout(const Duration(seconds: 10));
-      if (resp.statusCode != 200) return null;
-      final data =
-          jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
-      final hourly = data['hourly'] as Map<String, dynamic>? ?? {};
-      final valores = hourly[campo] as List<dynamic>? ?? const [];
-      if (indice >= valores.length) return null;
-      final v = valores[indice];
-      if (v is num) return v.toDouble();
-      return double.tryParse(v.toString());
-    } catch (_) {
-      return null;
     }
   }
 

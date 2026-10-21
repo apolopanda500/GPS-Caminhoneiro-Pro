@@ -17,6 +17,9 @@ class AlertsPanel extends StatefulWidget {
   final Color? accent;
   final VoidCallback onClose;
 
+  /// Cria um sinal na estrada (usado quando nao ha nenhum).
+  final VoidCallback? onCriarSinal;
+
   /// Chamado quando o motorista toca em um sinal: devolve o sinal escolhido
   /// para o mapa destacar (ou null quando o sinal esta sem coordenada).
   final ValueChanged<AlertModel?>? onSelect;
@@ -30,6 +33,7 @@ class AlertsPanel extends StatefulWidget {
     this.surface,
     this.accent,
     required this.onClose,
+    this.onCriarSinal,
     this.onSelect,
     this.selectedId,
   });
@@ -83,15 +87,58 @@ class _AlertsPanelState extends State<AlertsPanel> {
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _cabecalho(alerts.length, texto, cor),
-              if (!_minimizado && alerts.isNotEmpty)
-                Flexible(child: _lista(alerts, texto, cor)),
-            ],
-          ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _cabecalho(alerts.length, texto, cor),
+                if (!_minimizado && alerts.isEmpty)
+                  _vazio(context, texto, cor)
+                else if (!_minimizado && alerts.isNotEmpty)
+                  Flexible(child: _lista(alerts, texto, cor)),
+              ],
+            ),
         ),
+      ),
+    );
+  }
+
+  /// Estado vazio: nenhum sinal na estrada. Oferece avisar a comunidade.
+  Widget _vazio(BuildContext context, Color texto, Color cor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: cor, size: 30),
+          const SizedBox(height: 8),
+          Text(
+            'Nenhum sinal por perto agora.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: texto, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Avise a comunidade sobre radar, buraco, ponte baixa ou '
+            'estrada interditada. Todos os caminhoneiros veem na hora.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: texto.withValues(alpha: 0.6), fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: widget.onCriarSinal,
+              icon: const Icon(Icons.add_location_alt, size: 17),
+              label: const Text('AVISAR A COMUNIDADE'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: cor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

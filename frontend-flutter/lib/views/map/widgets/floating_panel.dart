@@ -72,6 +72,10 @@ class _FloatingPanelState extends State<FloatingPanel> {
 
   /// O painel foi ocultado pelo usuario (some do mapa).
   bool _oculto = false;
+
+  /// As alcas de redimensionamento ficam escondidas: o painel fica limpo e
+  /// elas aparecem com um toque longo no painel.
+  bool _mostrarAlcas = false;
   bool _ladoEsquerdo = false;
   bool _carregado = false;
 
@@ -106,7 +110,17 @@ class _FloatingPanelState extends State<FloatingPanel> {
           );
         }
         if (largura != null) _largura = largura.clamp(_larguraMin, _larguraMax);
+        if (altura != null) _altura = altura.clamp(_alturaMin, _alturaMax);
         _oculto = oculto;
+        // Nunca abre fora da tela: o painel volta sempre visivel.
+        if (x != null && y != null) {
+          _offset = OrientacaoLayout.limitarTela(
+            context,
+            Offset(x, y),
+            larguraPainel: _largura ?? widget.width,
+            alturaPainel: _altura ?? widget.height,
+          );
+        }
         if (altura != null) _altura = altura.clamp(_alturaMin, _alturaMax);
         if (estado != null) {
           final partes = estado.split('|');
@@ -185,6 +199,21 @@ class _FloatingPanelState extends State<FloatingPanel> {
     });
   }
 
+  /// Garante que o painel fique inteiro visivel na tela (nada de comando
+  /// cortado ou painel fora da area util).
+  void _manterNaTela() {
+    final mq = MediaQuery.of(context).size;
+    final largura = _largura ?? widget.width;
+    final altura = _altura ?? widget.height;
+    final maxX = (mq.width - largura).clamp(0.0, double.infinity);
+    final maxY = (mq.height - altura).clamp(0.0, double.infinity);
+    final x = _offset.dx.clamp(0.0, maxX);
+    final y = _offset.dy.clamp(0.0, maxY);
+    if (x != _offset.dx || y != _offset.dy) {
+      _offset = Offset(x, y);
+    }
+  }
+
   void _soltar() {
     final mq = MediaQuery.of(context).size;
     setState(() {});
@@ -203,6 +232,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
         });
       }
     }
+    _manterNaTela();
     _salvar();
   }
 
@@ -288,6 +318,81 @@ class _FloatingPanelState extends State<FloatingPanel> {
     );
   }
 
+  /// Menu do painel (toque longo): redimensionar, mostrar as alcas ou ocultar.
+  void _menuDoPainel(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.zoom_in),
+              title: const Text('Aumentar painel'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _largura = ((_largura ?? widget.width) * 1.25)
+                      .clamp(_larguraMin, _larguraMax);
+                  _altura = ((_altura ?? widget.height) * 1.25)
+                      .clamp(_alturaMin, _alturaMax);
+                });
+                _salvar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.zoom_out),
+              title: const Text('Diminuir painel'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _largura = ((_largura ?? widget.width) * 0.8)
+                      .clamp(_larguraMin, _larguraMax);
+                  _altura = ((_altura ?? widget.height) * 0.8)
+                      .clamp(_alturaMin, _alturaMax);
+                });
+                _salvar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_with),
+              title: const Text('Mostrar as alças de redimensionar'),
+              subtitle: const Text('Arraste as alças dos cantos'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => _mostrarAlcas = !_mostrarAlcas);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: Colors.redAccent),
+              title: const Text('Ocultar painel'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => _oculto = true);
+                _salvar();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_carregado || _oculto) {
@@ -355,6 +460,13 @@ class _FloatingPanelState extends State<FloatingPanel> {
                     onPanEnd: (_) => _soltar(),
                     onDoubleTap: () =>
                         setState(() => _minimizado = !_minimizado),
+                    // O menu fica no puxador (e nao no painel inteiro) para
+                    // nao competir com o arraste - era isso que travava o
+                    // arrasto dos paineis.
+                    onLongPress: () {
+                      setState(() => _mostrarAlcas = true);
+                      _menuDoPainel(context);
+                    },
                     child: widget.handle!,
                   ),
                 ConstrainedBox(
@@ -380,7 +492,8 @@ class _FloatingPanelState extends State<FloatingPanel> {
     );
   }
 
-  /// Alca de redimensionamento em um dos cantos.
+  /// Alca de redimensionamento: escondida (o painel fica limpo). As alcas
+  /// so aparecem quando o usuario pede pelo menu do toque longo.
   Widget _alcaResize(int lado) {
     final alinhamento = switch (lado) {
       0 => Alignment.bottomRight,
@@ -389,17 +502,20 @@ class _FloatingPanelState extends State<FloatingPanel> {
       _ => Alignment.topLeft,
     };
     return Positioned.fill(
-      child: Align(
-        alignment: alinhamento,
-        child: GestureDetector(
-          onPanUpdate: (d) => _redimensionar(d, lado: lado),
-          onPanEnd: (_) => _salvar(),
-          child: Padding(
-            padding: const EdgeInsets.all(2),
-            child: Icon(
-              Icons.open_in_full,
-              size: 12,
-              color: overlayTextMuted(context).withValues(alpha: 0.6),
+      child: IgnorePointer(
+        ignoring: !_mostrarAlcas,
+        child: Align(
+          alignment: alinhamento,
+          child: GestureDetector(
+            onPanUpdate: (d) => _redimensionar(d, lado: lado),
+            onPanEnd: (_) => _salvar(),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(
+                Icons.open_in_full,
+                size: 12,
+                color: overlayTextMuted(context).withValues(alpha: 0.6),
+              ),
             ),
           ),
         ),
