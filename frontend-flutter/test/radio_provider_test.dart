@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -43,7 +43,8 @@ void main() {
     });
 
     test('carregarPopulares preenche a lista', () async {
-      final p = AudioProvider(servico: _servico([_estacao('A'), _estacao('B')]));
+      final p =
+          AudioProvider(servico: _servico([_estacao('A'), _estacao('B')]));
       final ok = await p.carregarPopulares();
       expect(ok, isTrue);
       expect(p.estacoes.length, 2);
@@ -114,6 +115,3 @@ void main() {
     });
   });
 }
-
-
-

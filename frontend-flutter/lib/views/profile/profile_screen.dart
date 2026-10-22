@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -117,7 +117,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nome = _name.text.trim().isEmpty ? current.name : _name.text.trim();
     final modelo =
         _truckModel.text.trim().isEmpty ? null : _truckModel.text.trim();
-    final carga = _cargoType.text.trim().isEmpty ? null : _cargoType.text.trim();
+    final carga =
+        _cargoType.text.trim().isEmpty ? null : _cargoType.text.trim();
 
     // Grava no servidor (quando ha) e sempre no aparelho: o perfil nao pode
     // sumir ao trocar de celular ou reiniciar o app.
@@ -178,7 +179,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: _salvando ? null : _salvar,
             child: Text(
               _salvando ? 'SALVANDO...' : 'SALVAR',
-              style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -210,8 +213,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 92,
                             height: 92,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                Text(_icon, style: const TextStyle(fontSize: 46)),
+                            errorBuilder: (_, __, ___) => Text(_icon,
+                                style: const TextStyle(fontSize: 46)),
                           )
                         : Text(_icon, style: const TextStyle(fontSize: 46)),
                   ),
@@ -220,9 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   right: 0,
                   bottom: 0,
                   child: InkWell(
-                    onTap: _salvandoFoto
-                        ? null
-                        : () => _escolherFoto('avatar'),
+                    onTap: _salvandoFoto ? null : () => _escolherFoto('avatar'),
                     customBorder: const CircleBorder(),
                     child: Container(
                       padding: const EdgeInsets.all(6),
@@ -248,8 +249,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 6),
           Center(
             child: TextButton.icon(
-              onPressed:
-                  _salvandoFoto ? null : () => _escolherFoto('truck'),
+              onPressed: _salvandoFoto ? null : () => _escolherFoto('truck'),
               icon: const Icon(Icons.add_a_photo_outlined, size: 16),
               label: const Text('Foto do caminhão'),
             ),
@@ -287,7 +287,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: selected ? theme.colorScheme.primary : muted.withValues(alpha: 0.3),
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : muted.withValues(alpha: 0.3),
                       width: selected ? 2 : 1,
                     ),
                   ),

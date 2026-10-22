@@ -65,8 +65,8 @@ class _TruckSetupScreenState extends State<TruckSetupScreen> {
         color: (perigo ? kEmergencyRed : Colors.white).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: (perigo ? kEmergencyRed : Colors.white24)
-              .withValues(alpha: 0.45),
+          color:
+              (perigo ? kEmergencyRed : Colors.white24).withValues(alpha: 0.45),
           width: 1.2,
         ),
       ),
@@ -127,11 +127,19 @@ class _TruckSetupScreenState extends State<TruckSetupScreen> {
         padding: const EdgeInsets.all(20),
         child: ListView(
           children: [
-            const Text('DADOS DO MOTORISTA', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+            const Text('DADOS DO MOTORISTA',
+                style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             _buildField('Nome do Motorista', _nameController),
             const SizedBox(height: 12),
-            const Text('DIMENSÕES E CARGA', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+            const Text('DIMENSÕES E CARGA',
+                style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             _buildField('Altura (m)', _heightController),
             const SizedBox(height: 12),
@@ -145,7 +153,8 @@ class _TruckSetupScreenState extends State<TruckSetupScreen> {
             const SizedBox(height: 12),
             _buildField('Modelo do Caminhão', _modelController),
             const SizedBox(height: 12),
-            _buildField('Tipo de Carga', _cargoController, onChanged: _aoMudarCarga),
+            _buildField('Tipo de Carga', _cargoController,
+                onChanged: _aoMudarCarga),
             const SizedBox(height: 14),
             _cartaoHazmat(),
             const SizedBox(height: 30),
@@ -156,7 +165,8 @@ class _TruckSetupScreenState extends State<TruckSetupScreen> {
                 onPressed: () {
                   final auth = context.read<AuthProvider>();
                   final current = auth.driver;
-                  final driverId = current?.driverId ?? 'drv_${DateTime.now().millisecondsSinceEpoch}';
+                  final driverId = current?.driverId ??
+                      'drv_${DateTime.now().millisecondsSinceEpoch}';
 
                   final config = TruckConfig(
                     driverId: driverId,
@@ -182,13 +192,19 @@ class _TruckSetupScreenState extends State<TruckSetupScreen> {
                     truckWeight: config.weight,
                     axleCount: config.axleCount,
                     hazmat: config.hazmat,
-                    truckModel: _modelController.text.isNotEmpty ? _modelController.text : null,
-                    cargoType: _cargoController.text.isNotEmpty ? _cargoController.text : null,
+                    truckModel: _modelController.text.isNotEmpty
+                        ? _modelController.text
+                        : null,
+                    cargoType: _cargoController.text.isNotEmpty
+                        ? _cargoController.text
+                        : null,
                   ));
 
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => MapScreen(driverId: driverId, driverName: name)),
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            MapScreen(driverId: driverId, driverName: name)),
                   );
                 },
                 child: const Text('Salvar e Iniciar Navegação V2X'),

@@ -11,7 +11,8 @@ class AppConstants {
   );
 
   // Enquanto a URL acima não for configurada, o app roda em modo local/offline.
-  static const bool serverConfigured = baseUrl != 'https://seu-servidor.onrender.com';
+  static const bool serverConfigured =
+      baseUrl != 'https://seu-servidor.onrender.com';
 
   // Google Routes API (trânsito em tempo real + ETA).
   static const String googleDirectionsApiKey =
@@ -44,8 +45,7 @@ class AppConstants {
   // Chave: https://aistudio.google.com/apikey  ->  keys.json: GEMINI_API_KEY
   static const String geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  static const String geminiModel = String.fromEnvironment(
-      'GEMINI_MODEL',
+  static const String geminiModel = String.fromEnvironment('GEMINI_MODEL',
       defaultValue: 'gemini-3-flash-preview');
   static const bool iaConfigured = geminiApiKey != '';
 
@@ -62,25 +62,66 @@ class AppConstants {
 
   // Ícones de pessoa para o perfil "ajudante".
   static const List<String> helperIcons = [
-    '🧑‍🔧', '🧑‍🚒', '🧑‍✈️', '👷', '🙋', '🧑‍🏭', '🛠️', '🤝',
+    '🧑‍🔧',
+    '🧑‍🚒',
+    '🧑‍✈️',
+    '👷',
+    '🙋',
+    '🧑‍🏭',
+    '🛠️',
+    '🤝',
   ];
 
   // Estilos MapLibre (camera 3D: rotacao e inclinacao).
   static const String styleSatellite = 'assets/map_styles/style_satellite.json';
   // Estilos raster locais (funcionam offline do CDN de estilo e nunca ficam brancos).
-  static const String styleStreetsLight = 'assets/map_styles/style_streets_light.json';
-  static const String styleStreetsDark = 'assets/map_styles/style_streets_dark.json';
+  static const String styleStreetsLight =
+      'assets/map_styles/style_streets_light.json';
+  static const String styleStreetsDark =
+      'assets/map_styles/style_streets_dark.json';
   // Estilo vetorial da OpenFreeMap (detalhado, com predios 3D).
-  static const String styleStreetsUrl = 'https://tiles.openfreemap.org/styles/dark';
-  static const String styleStreetsLightUrl = 'https://tiles.openfreemap.org/styles/bright';
+  static const String styleStreetsUrl =
+      'https://tiles.openfreemap.org/styles/dark';
+  static const String styleStreetsLightUrl =
+      'https://tiles.openfreemap.org/styles/bright';
 
   // Icones de caminhao que cada motorista escolhe para si.
   static const List<String> truckIcons = [
-    '🚚', '🚛', '🚜', '🛻', '🚐', '🚙', '🚕', '🚌',
-    '🚎', '🚔', '🚑', '🚒', '🛵', '🏍️', '🚲', '🛴',
-    '🚂', '🚆', '✈️', '🚁', '🛺', '🐂', '🐎', '🦅',
-    '🐺', '🦁', '🐉', '⭐', '🔥', '⚡', '🛡️', '💀',
-    '👑', '😎', '🫡',
+    '🚚',
+    '🚛',
+    '🚜',
+    '🛻',
+    '🚐',
+    '🚙',
+    '🚕',
+    '🚌',
+    '🚎',
+    '🚔',
+    '🚑',
+    '🚒',
+    '🛵',
+    '🏍️',
+    '🚲',
+    '🛴',
+    '🚂',
+    '🚆',
+    '✈️',
+    '🚁',
+    '🛺',
+    '🐂',
+    '🐎',
+    '🦅',
+    '🐺',
+    '🦁',
+    '🐉',
+    '⭐',
+    '🔥',
+    '⚡',
+    '🛡️',
+    '💀',
+    '👑',
+    '😎',
+    '🫡',
   ];
 
   static const int alertRadiusMeters = 2000;
@@ -134,7 +175,19 @@ class AppConstants {
   static String emojiForType(String type) => alertTypeEmoji[type] ?? '⚠️';
 
   static const List<String> roadEmojis = [
-    '👋', '👍', '☕', '⚠️', '🚧', '🚦', '🚸', '🛑', '⛔', '🅿️', '⛽', '📍', '🚜',
+    '👋',
+    '👍',
+    '☕',
+    '⚠️',
+    '🚧',
+    '🚦',
+    '🚸',
+    '🛑',
+    '⛔',
+    '🅿️',
+    '⛽',
+    '📍',
+    '🚜',
   ];
 
   // Sinais/emojis no mapa são TEMPORÁRIOS: expiram e o mapa é limpo sozinho.

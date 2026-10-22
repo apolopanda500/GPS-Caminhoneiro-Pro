@@ -15,7 +15,8 @@ class CaixaEstado {
   final double lonMin;
   final double lonMax;
 
-  const CaixaEstado(this.uf, this.latMin, this.latMax, this.lonMin, this.lonMax);
+  const CaixaEstado(
+      this.uf, this.latMin, this.latMax, this.lonMin, this.lonMax);
 
   bool contem(double lat, double lon) {
     final latOk =
@@ -116,8 +117,8 @@ class EstadoUf {
   /// uma vez a cada 5 minutos ou quando o caminhao muda de estado.
   Future<String?> descobrir(LatLng pos, {bool forcar = false}) async {
     final agora = DateTime.now();
-    final longe = _ultimaPosicao == null ||
-        _distancia(_ultimaPosicao!, pos) > 2000;
+    final longe =
+        _ultimaPosicao == null || _distancia(_ultimaPosicao!, pos) > 2000;
     if (!forcar &&
         _uf != null &&
         !longe &&
@@ -152,9 +153,9 @@ Future<String?> estadoPreciso(
       'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=5'
       '&lat=${pos.latitude}&lon=${pos.longitude}',
     );
-    final resp = await http
-        .get(uri, headers: {'User-Agent': 'gps-camioneiro-pro/1.0'})
-        .timeout(const Duration(seconds: 10));
+    final resp = await http.get(uri, headers: {
+      'User-Agent': 'gps-camioneiro-pro/1.0'
+    }).timeout(const Duration(seconds: 10));
     if (resp.statusCode != 200) return estadoDaPosicao(pos);
     final data =
         jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;

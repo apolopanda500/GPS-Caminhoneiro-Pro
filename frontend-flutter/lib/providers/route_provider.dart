@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -351,7 +351,8 @@ class RouteProvider extends ChangeNotifier {
   void saveTemplate(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty || _stops.isEmpty) return;
-    _templates.removeWhere((t) => t.name.toLowerCase() == trimmed.toLowerCase());
+    _templates
+        .removeWhere((t) => t.name.toLowerCase() == trimmed.toLowerCase());
     _templates.insert(
       0,
       RouteTemplate(
@@ -419,7 +420,8 @@ class RouteProvider extends ChangeNotifier {
 
   bool get allDelivered => _stops.isNotEmpty && deliveredCount == _stops.length;
 
-  List<List<double>>? get highlightedArea => _areas.isEmpty ? null : _areas.first.ring;
+  List<List<double>>? get highlightedArea =>
+      _areas.isEmpty ? null : _areas.first.ring;
   String? get highlightedAreaLabel =>
       _areas.isEmpty ? null : _areas.first.label;
 
@@ -427,7 +429,9 @@ class RouteProvider extends ChangeNotifier {
 
   void setHighlightedArea(List<List<double>>? ring, {String? label}) {
     _areas.clear();
-    if (ring != null) _areas.add(RouteAreaHighlight(ring: ring, label: label ?? ''));
+    if (ring != null) {
+      _areas.add(RouteAreaHighlight(ring: ring, label: label ?? ''));
+    }
     notifyListeners();
   }
 
@@ -467,11 +471,12 @@ class RouteProvider extends ChangeNotifier {
     return metros / 1000;
   }
 
-  String get nextStopLabel {    final i = nextStopIndex;
-    if (i == null) return 'Rota conclu��da';
+  String get nextStopLabel {
+    final i = nextStopIndex;
+    if (i == null) return 'Rota concluída';
     final s = _stops[i];
     final who = s.customer.isNotEmpty ? s.customer : s.label;
-    final bairro = s.neighborhood.isNotEmpty ? ' �?� ${s.neighborhood}' : '';
+    final bairro = s.neighborhood.isNotEmpty ? ' - ${s.neighborhood}' : '';
     return '${i + 1}. $who$bairro';
   }
 
@@ -489,7 +494,6 @@ class RouteProvider extends ChangeNotifier {
     final s = _stops[i];
     return s.customer.isNotEmpty ? s.customer : s.label;
   }
-
 
   double get progress => totalStops == 0 ? 0 : deliveredCount / totalStops;
 
@@ -725,6 +729,55 @@ class RouteProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
       _result = null;
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Recalcula a rota a partir da posicao real do caminhao, mantendo apenas
+  /// as paradas que ainda nao foram entregues. Usado quando o motorista sai
+  /// do tracado planejado (desvio, rua fechada, obra).
+  Future<bool> replanFrom(
+    LatLng origin, {
+    double? truckHeight,
+    double? truckWeight,
+    double? truckWidth,
+    double? truckLength,
+    int? axleCount,
+    bool hazmat = false,
+  }) async {
+    final restantes = <RouteStopEntry>[];
+    for (var i = 0; i < _stops.length; i++) {
+      if (statusOf(i) != StopStatus.delivered) restantes.add(_stops[i]);
+    }
+    if (restantes.isEmpty) return false;
+
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final destination = restantes.last.point;
+      final waypoints = restantes
+          .sublist(0, restantes.length - 1)
+          .map((e) => e.point)
+          .toList();
+      _result = await _service.route(
+        origin: origin,
+        destination: destination,
+        waypoints: waypoints,
+        truckHeight: truckHeight,
+        truckWeight: truckWeight,
+        truckWidth: truckWidth,
+        truckLength: truckLength,
+        axleCount: axleCount,
+        hazmat: hazmat,
+      );
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
       return false;
     } finally {
       _loading = false;

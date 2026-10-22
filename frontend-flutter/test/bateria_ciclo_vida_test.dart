@@ -151,15 +151,6 @@ void main() {
   });
 
   group('Ciclo de vida: rotas compartilhadas do grupo', () {
-    SharedRoute rota(String shareId, String dono) => SharedRoute(
-          shareId: shareId,
-          groupId: 'g1',
-          ownerDriverId: dono,
-          ownerName: dono,
-          stops: const [],
-          createdAt: DateTime.now(),
-        );
-
     test('o motorista escolhe quais rotas ver (1 de 10, 9 de 10...)', () async {
       final p = SharedRoutesProvider();
       for (var i = 0; i < 10; i++) {
@@ -207,8 +198,18 @@ void main() {
         'fromDriverId': 'outro',
         'fromName': 'Joao',
         'stops': [
-          {'lat': -22.9, 'lon': -43.17, 'label': 'Cliente 1', 'customer': 'Cliente 1'},
-          {'lat': -22.8, 'lon': -43.16, 'label': 'Cliente 2', 'customer': 'Cliente 2'},
+          {
+            'lat': -22.9,
+            'lon': -43.17,
+            'label': 'Cliente 1',
+            'customer': 'Cliente 1'
+          },
+          {
+            'lat': -22.8,
+            'lon': -43.16,
+            'label': 'Cliente 2',
+            'customer': 'Cliente 2'
+          },
         ],
       });
       final r = p.todas.first;

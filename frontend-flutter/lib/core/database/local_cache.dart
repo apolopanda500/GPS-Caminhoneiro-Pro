@@ -1,4 +1,4 @@
-﻿import 'package:sqflite/sqflite.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class LocalCache {
@@ -61,7 +61,8 @@ class LocalCache {
         'message': alert['message'] ?? '',
         'latitude': alert['latitude'] ?? 0,
         'longitude': alert['longitude'] ?? 0,
-        'timestamp': alert['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+        'timestamp':
+            alert['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

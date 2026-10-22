@@ -115,8 +115,7 @@ class SettingsScreen extends StatelessWidget {
             context,
             icone: Icons.tune,
             titulo: 'Mapa e gráficos',
-            subtitulo:
-                'Camada, trânsito ao vivo, 3D, chuva, nuvens, relevo, '
+            subtitulo: 'Camada, trânsito ao vivo, 3D, chuva, nuvens, relevo, '
                 'qualidade, FPS, cor da linha e aparência dos painéis',
             onTap: () => _abrirMapa(context, settings),
           ),
@@ -126,8 +125,7 @@ class SettingsScreen extends StatelessWidget {
             context,
             icone: Icons.record_voice_over,
             titulo: 'Sons e voz',
-            subtitulo:
-                'Voz das paradas, voz do aparelho, rádio, alarms e sons '
+            subtitulo: 'Voz das paradas, voz do aparelho, rádio, alarms e sons '
                 'personalizados',
             onTap: () => SonsScreen.show(context),
           ),
@@ -149,8 +147,7 @@ class SettingsScreen extends StatelessWidget {
             context,
             icone: Icons.shield,
             titulo: 'Permissões e energia',
-            subtitulo:
-                'Confirmar tudo de uma vez e manter o app vivo 24/7',
+            subtitulo: 'Confirmar tudo de uma vez e manter o app vivo 24/7',
             onTap: () => PermissionsScreen.show(context),
           ),
           const Divider(height: 26),
@@ -244,8 +241,8 @@ class SettingsScreen extends StatelessWidget {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   secondary: Icon(Icons.location_on, color: ink),
-                  title:
-                      Text('Localização em segundo plano', style: TextStyle(color: ink)),
+                  title: Text('Localização em segundo plano',
+                      style: TextStyle(color: ink)),
                   subtitle: Text('Continua navegando com a tela bloqueada',
                       style: TextStyle(color: muted, fontSize: 12)),
                   value: settings.backgroundLocation,
@@ -254,7 +251,8 @@ class SettingsScreen extends StatelessWidget {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   secondary: Icon(Icons.battery_saver, color: ink),
-                  title: Text('Economia de bateria', style: TextStyle(color: ink)),
+                  title:
+                      Text('Economia de bateria', style: TextStyle(color: ink)),
                   subtitle: Text(
                     settings.batterySaver
                         ? 'Ligada: pede posição a cada ${settings.intervaloGpsReal}s'
@@ -316,7 +314,8 @@ class SettingsScreen extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await LocalCache.clearAll();
-      messenger.showSnackBar(const SnackBar(content: Text('Cache offline limpo.')));
+      messenger
+          .showSnackBar(const SnackBar(content: Text('Cache offline limpo.')));
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Não foi possível limpar o cache.')),

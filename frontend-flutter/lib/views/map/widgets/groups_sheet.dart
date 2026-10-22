@@ -45,8 +45,7 @@ class GroupsSheet extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Text('Grupos de caminhoneiros',
-                style: tema.textTheme.titleMedium),
+            Text('Grupos de caminhoneiros', style: tema.textTheme.titleMedium),
             const SizedBox(height: 4),
             SwitchListTile(
               value: grupos.estrito,
@@ -61,8 +60,8 @@ class GroupsSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(10),
                 child: Text(grupos.error!,
-                    style: TextStyle(
-                        color: tema.colorScheme.error, fontSize: 13)),
+                    style:
+                        TextStyle(color: tema.colorScheme.error, fontSize: 13)),
               ),
             Expanded(
               child: grupos.loading
@@ -113,15 +112,14 @@ class GroupsSheet extends StatelessWidget {
                                                   gp.membersOf(g.id));
                                             }
                                           },
-                                          icon: const Icon(Icons.forum,
-                                              size: 18),
+                                          icon:
+                                              const Icon(Icons.forum, size: 18),
                                           label: const Text('Chat do grupo'),
                                         ),
                                       ),
                                       Expanded(
                                         child: TextButton.icon(
-                                          onPressed: () =>
-                                              _sair(context, g.id),
+                                          onPressed: () => _sair(context, g.id),
                                           icon: const Icon(Icons.logout,
                                               size: 18),
                                           label: const Text('Sair do grupo'),
@@ -308,8 +306,9 @@ class _CriarGrupo extends StatelessWidget {
             onPressed: () {
               final nome = controller.text.trim();
               if (nome.isEmpty) return;
-              context.read<GroupProvider>().create(
-                  name: nome, driverId: driverId, auth: auth);
+              context
+                  .read<GroupProvider>()
+                  .create(name: nome, driverId: driverId, auth: auth);
             },
             icon: const Icon(Icons.flag, size: 18),
             label: const Text('CRIAR GRUPO (COMBOIO)'),

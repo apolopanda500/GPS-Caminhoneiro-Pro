@@ -36,7 +36,8 @@ class Ponto {
 /// - **Previsao em grade** (Open-Meteo): precipitacao, vento, temperatura e
 ///   cobertura de nuvens desenhados como circulos coloridos sobre o mapa.
 class WeatherLayers {
-  static const String _api = 'https://api.rainviewer.com/public/weather-maps.json';
+  static const String _api =
+      'https://api.rainviewer.com/public/weather-maps.json';
   static const String _openMeteo = 'https://api.open-meteo.com/v1/forecast';
 
   /// Timeline completa do radar: 2 horas de passado + nowcast (previsao).
@@ -160,42 +161,44 @@ class WeatherLayers {
         'forecast_days': '2',
         'timezone': 'auto',
       });
-      final resp = await http
-          .get(uri, headers: {'User-Agent': 'gps-camioneiro-pro/1.0'})
-          .timeout(const Duration(seconds: 15));
+      final resp = await http.get(uri, headers: {
+        'User-Agent': 'gps-camioneiro-pro/1.0'
+      }).timeout(const Duration(seconds: 15));
       if (resp.statusCode != 200) return const [];
-      final data =
-          jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+      final dinamico = jsonDecode(utf8.decode(resp.bodyBytes));
+      final locais = dinamico is List ? dinamico : [dinamico];
 
-      final hourly = data['hourly'] as Map<String, dynamic>? ?? const {};
-      final valores = hourly[campo] as List<dynamic>? ?? const [];
-      final times = hourly['time'] as List<dynamic>? ?? const [];
-      final latis = data['latitude'] as List<dynamic>? ?? const [];
-      final lonsRet = data['longitude'] as List<dynamic>? ?? const [];
-      if (valores.isEmpty || latis.isEmpty) return const [];
-
-      // Hora mais proxima do agora.
       final agora = DateTime.now();
-      var indice = 0;
-      var menor = 1e12;
-      for (var i = 0; i < times.length; i++) {
-        final t = DateTime.tryParse(times[i].toString());
-        if (t == null) continue;
-        final d = t.difference(agora).inMinutes.abs().toDouble();
-        if (d < menor) {
-          menor = d;
-          indice = i;
-        }
-      }
-
       final pontos = <Ponto>[];
-      for (var i = 0; i < latis.length && i < lonsRet.length; i++) {
-        if (indice + i >= valores.length) break;
-        final v = valores[indice + i];
+      for (var i = 0; i < locais.length; i++) {
+        final local = locais[i];
+        if (local is! Map) continue;
+        final hourly = local['hourly'];
+        if (hourly is! Map) continue;
+        final valores = hourly[campo];
+        final times = hourly['time'];
+        if (valores is! List || times is! List) continue;
+
+        var indice = 0;
+        var menor = 1e12;
+        for (var t = 0; t < times.length; t++) {
+          final hora = DateTime.tryParse(times[t].toString());
+          if (hora == null) continue;
+          final d = hora.difference(agora).inMinutes.abs().toDouble();
+          if (d < menor) {
+            menor = d;
+            indice = t;
+          }
+        }
+        if (indice >= valores.length) continue;
+        final v = valores[indice];
         if (v is! num) continue;
+
+        final latRet = local['latitude'];
+        final lonRet = local['longitude'];
         pontos.add(Ponto(
-          (lats[i] as num).toDouble(),
-          (lonsRet[i] as num).toDouble(),
+          latRet is num ? latRet.toDouble() : lats[i],
+          lonRet is num ? lonRet.toDouble() : lons[i],
           v.toDouble(),
         ));
       }
@@ -204,6 +207,13 @@ class WeatherLayers {
       return const [];
     }
   }
+
+  /// Modelo de URL XYZ do radar de chuva para o MapLibre.
+  static String templateRadar(String path) => '$path/256/{z}/{x}/{y}/2/1_1.png';
+
+  /// Modelo de URL XYZ do infravermelho (nuvens reais).
+  static String templateInfrarrojo(String path) =>
+      '$path/256/{z}/{x}/{y}/0/0_0.png';
 
   /// URL de tile do radar de chuva (padrao XYZ do MapLibre).
   static String urlRadar(String path, int z, int x, int y) =>

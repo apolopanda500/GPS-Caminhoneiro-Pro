@@ -56,7 +56,8 @@ void main() {
       final random = Random(4242);
       final frota = <Motorista>[
         for (var i = 0; i < 10; i++)
-          Motorista('Motorista $i', 'drv_$i', LatLng(-22.9068 + i * 0.002, -43.1729)),
+          Motorista(
+              'Motorista $i', 'drv_$i', LatLng(-22.9068 + i * 0.002, -43.1729)),
       ];
 
       // Cada um monta 3 paradas a frente e comeca a viagem.
@@ -108,7 +109,8 @@ void main() {
       for (final m in frota) {
         expect(m.rota.deliveredCount, 3,
             reason: '${m.nome} nao entregou tudo (${m.rota.deliveredCount}/3)');
-        expect(m.rota.allDelivered, isTrue, reason: '${m.nome} nao concluiu a rota');
+        expect(m.rota.allDelivered, isTrue,
+            reason: '${m.nome} nao concluiu a rota');
         expect(m.rota.consumeRouteFinishedEvent(), isTrue,
             reason: '${m.nome} nao avisou que a rota terminou');
       }
@@ -119,7 +121,8 @@ void main() {
     });
 
     test('parada da empresa volta para a base e fecha a rota', () {
-      final m = Motorista('Com Empresa', 'drv_empresa', const LatLng(-22.9068, -43.1729));
+      final m = Motorista(
+          'Com Empresa', 'drv_empresa', const LatLng(-22.9068, -43.1729));
       m.rota.addStop(const RouteStopEntry(
         label: 'Cliente 1',
         customer: 'Mercado Bom',
@@ -136,20 +139,23 @@ void main() {
       // Chega no cliente e entrega.
       m.pos = const LatLng(-22.9000, -43.1729);
       m.rota.updatePosition(m.pos);
-      m.rota.updatePosition(m.pos, now: DateTime.now().add(const Duration(minutes: 2)));
+      m.rota.updatePosition(m.pos,
+          now: DateTime.now().add(const Duration(minutes: 2)));
       expect(m.rota.statusOf(0), StopStatus.delivered);
 
       // Segue para a empresa.
       m.pos = const LatLng(-22.8950, -43.1729);
       m.rota.updatePosition(m.pos);
-      m.rota.updatePosition(m.pos, now: DateTime.now().add(const Duration(minutes: 2)));
+      m.rota.updatePosition(m.pos,
+          now: DateTime.now().add(const Duration(minutes: 2)));
       expect(m.rota.statusOf(1), StopStatus.delivered);
       expect(m.rota.consumeCompanyReachedEvent(), isTrue);
       expect(m.rota.consumeRouteFinishedEvent(), isTrue);
     });
 
     test('sair do raio antes da parada devolve a entrega para pendente', () {
-      final m = Motorista('Volta', 'drv_volta', const LatLng(-22.9068, -43.1729));
+      final m =
+          Motorista('Volta', 'drv_volta', const LatLng(-22.9068, -43.1729));
       m.rota.addStop(const RouteStopEntry(
         label: 'Cliente',
         customer: 'Cliente',
@@ -163,9 +169,13 @@ void main() {
   });
 
   group('Bateria: rede de sinais entre os motoristas', () {
-    test('sinal de um motorista aparece para quem esta perto e nao para quem esta longe', () {
-      final perto = Motorista('Perto', 'drv_perto', const LatLng(-22.9068, -43.1729));
-      final longe = Motorista('Longe', 'drv_longe', const LatLng(-20.0000, -40.0000));
+    test(
+        'sinal de um motorista aparece para quem esta perto e nao para quem esta longe',
+        () {
+      final perto =
+          Motorista('Perto', 'drv_perto', const LatLng(-22.9068, -43.1729));
+      final longe =
+          Motorista('Longe', 'drv_longe', const LatLng(-20.0000, -40.0000));
 
       final alerta = AlertModel(
         id: 'alerta_1',
@@ -190,7 +200,8 @@ void main() {
     test('cada motorista ve os caminhoes da rede V2X ao seu redor', () {
       final fleet = <Motorista>[
         for (var i = 0; i < 6; i++)
-          Motorista('Rede $i', 'drv_rede_$i', LatLng(-22.9068 + i * 0.001, -43.1729)),
+          Motorista(
+              'Rede $i', 'drv_rede_$i', LatLng(-22.9068 + i * 0.001, -43.1729)),
       ];
       // O primeiro ve os outros 5 (todos perto).
       final radar = [
@@ -215,8 +226,10 @@ void main() {
       expect(fleet.first.rede.isEmpty, isTrue);
     });
 
-    test('sinal escondido some da lista e volta quando o app reinicia', () async {
-      final m = Motorista('Oculta', 'drv_oculta', const LatLng(-22.9068, -43.1729));
+    test('sinal escondido some da lista e volta quando o app reinicia',
+        () async {
+      final m =
+          Motorista('Oculta', 'drv_oculta', const LatLng(-22.9068, -43.1729));
       final a = AlertModel(
         id: 'alerta_oculto',
         driverId: m.id,
@@ -252,8 +265,11 @@ void main() {
         driverId: 'drv_1',
       );
       expect(marcadores.markers.length, 1);
-      expect(marcadores.withinRadius(const LatLng(-22.9068, -43.1729), 500).length, 1);
-      expect(marcadores.withinRadius(const LatLng(-20, -40), 500).isEmpty, isTrue);
+      expect(
+          marcadores.withinRadius(const LatLng(-22.9068, -43.1729), 500).length,
+          1);
+      expect(
+          marcadores.withinRadius(const LatLng(-20, -40), 500).isEmpty, isTrue);
 
       // Tempo do app: 13 horas depois, o sinal antigo expira.
       final velho = MapMarkerModel(
@@ -272,7 +288,8 @@ void main() {
   });
 
   group('Bateria: uso geral e persistencia do app', () {
-    test('modelo de rota, clientes e agendamento sobrevivem ao reinicio', () async {
+    test('modelo de rota, clientes e agendamento sobrevivem ao reinicio',
+        () async {
       final r = RouteProvider();
       r.addStop(const RouteStopEntry(
         label: 'Cliente A',
@@ -288,7 +305,8 @@ void main() {
         lat: -22.9,
         lon: -43.17,
       ));
-      r.scheduleRoute('Rota da manha', DateTime.now().add(const Duration(days: 1)));
+      r.scheduleRoute(
+          'Rota da manha', DateTime.now().add(const Duration(days: 1)));
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       // Reinicio do app: novos providers leem do armazenamento.
@@ -305,7 +323,9 @@ void main() {
       expect(novo.stops.first.customer, 'Cliente A');
     });
 
-    test('rota exportada e importada continua igual (compartilhar com a empresa)', () {
+    test(
+        'rota exportada e importada continua igual (compartilhar com a empresa)',
+        () {
       final r = RouteProvider();
       r.addStop(const RouteStopEntry(
         label: 'Cliente 1',
@@ -341,7 +361,8 @@ void main() {
     });
 
     test('premium libera os recursos e o usuario comum ve o portao', () {
-      expect(PremiumPolicy.canUse(PremiumFeature.radio, isPremium: true), isTrue);
+      expect(
+          PremiumPolicy.canUse(PremiumFeature.radio, isPremium: true), isTrue);
       // Depois da promocao, o usuario comum volta a ver o portao.
       final depoisDaPromocao = DateTime(2027, 1, 1);
       expect(
@@ -371,7 +392,8 @@ void main() {
       final random = Random(7);
       final frota = <Motorista>[
         for (var i = 0; i < 10; i++)
-          Motorista('Carga $i', 'drv_carga_$i', LatLng(-22.9 + i * 0.01, -43.17)),
+          Motorista(
+              'Carga $i', 'drv_carga_$i', LatLng(-22.9 + i * 0.01, -43.17)),
       ];
       for (final m in frota) {
         for (var s = 0; s < 5; s++) {
@@ -400,12 +422,17 @@ void main() {
       // Nenhum motorista fica travado nem duplica entrega.
       for (final m in frota) {
         expect(m.rota.deliveredCount, lessThanOrEqualTo(5));
-        expect(m.rota.statusOf(0), anyOf(StopStatus.pending, StopStatus.arrived, StopStatus.delivered));
+        expect(
+            m.rota.statusOf(0),
+            anyOf(
+                StopStatus.pending, StopStatus.arrived, StopStatus.delivered));
       }
       expect(ms, lessThan(20000), reason: 'carga de GPS lenta demais ($ms ms)');
     });
 
-    test('10 motoristas montam 300 sinais e a lista continua ordenada e limitada', () {
+    test(
+        '10 motoristas montam 300 sinais e a lista continua ordenada e limitada',
+        () {
       final alertas = AlertProvider();
       for (var i = 0; i < 300; i++) {
         alertas.addAlert(AlertModel(

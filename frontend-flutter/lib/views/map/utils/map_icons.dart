@@ -263,7 +263,8 @@ class MapIcons {
           style: TextStyle(fontSize: r * 0.34),
         ),
       )..layout();
-      tp.paint(canvas, Offset(badge.dx - tp.width / 2, badge.dy - tp.height / 2));
+      tp.paint(
+          canvas, Offset(badge.dx - tp.width / 2, badge.dy - tp.height / 2));
     }
 
     _cache[key] = await _finish(recorder, size);
@@ -336,8 +337,8 @@ class MapIcons {
         ),
       ),
     )..layout(maxWidth: width - 40);
-    tp.paint(
-        canvas, Offset((width - tp.width) / 2, (height - 26 - tp.height) / 2 + 4));
+    tp.paint(canvas,
+        Offset((width - tp.width) / 2, (height - 26 - tp.height) / 2 + 4));
 
     _cache[key] = await _finishRect(recorder, width, height);
     return _cache[key]!;
@@ -345,7 +346,8 @@ class MapIcons {
 
   static Future<Uint8List> _finishRect(
       ui.PictureRecorder recorder, double width, double height) async {
-    final img = await recorder.endRecording().toImage(width.toInt(), height.toInt());
+    final img =
+        await recorder.endRecording().toImage(width.toInt(), height.toInt());
     final data = await img.toByteData(format: ui.ImageByteFormat.png);
     return data!.buffer.asUint8List();
   }

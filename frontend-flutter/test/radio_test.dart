@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -37,7 +37,8 @@ Map<String, dynamic> _estacao({
       'geo_long': lon,
     };
 
-RadioService _servicoMock(List<Map<String, dynamic>> itens, {int status = 200}) {
+RadioService _servicoMock(List<Map<String, dynamic>> itens,
+    {int status = 200}) {
   final cliente = MockClient((req) async {
     if (status != 200) return http.Response('erro', status);
     return http.Response(_json(itens), 200,
@@ -131,4 +132,3 @@ void main() {
     });
   });
 }
-

@@ -25,7 +25,8 @@ class InfoLua {
 /// Calcula a fase da lua para uma data (algoritmo do ciclo sinodico).
 InfoLua calcularLua({DateTime? agora}) {
   // Lua nova de referencia: 2000-01-06 18:14 UTC.
-  final referencia = DateTime.utc(2000, 1, 6, 18, 14);  const periodo = 29.530588853;
+  final referencia = DateTime.utc(2000, 1, 6, 18, 14);
+  const periodo = 29.530588853;
   final instante = (agora ?? DateTime.now()).toUtc();
   final dias = instante.difference(referencia).inSeconds / 86400.0;
   var idade = dias % periodo;

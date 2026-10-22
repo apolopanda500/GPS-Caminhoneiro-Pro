@@ -42,14 +42,14 @@ class SharedRoute {
   });
 
   /// Linha da rota (para desenhar no mapa).
-  List<List<double>> get linha => stops
-      .map((s) => [s.point.longitude, s.point.latitude])
-      .toList();
+  List<List<double>> get linha =>
+      stops.map((s) => [s.point.longitude, s.point.latitude]).toList();
 
   int get totalParadas => stops.length;
 
-  int get entregues =>
-      progress.values.where((s) => s == StatusParadaCompartilhada.entregue).length;
+  int get entregues => progress.values
+      .where((s) => s == StatusParadaCompartilhada.entregue)
+      .length;
 
   int get chegadas => progress.values
       .where((s) =>
@@ -76,9 +76,11 @@ class SharedRoute {
     return SharedRoute(
       shareId: (d['shareId'] ?? d['share_id'] ?? '').toString(),
       groupId: (d['groupId'] ?? d['group_id'] ?? '').toString(),
-      ownerDriverId:
-          (d['fromDriverId'] ?? d['ownerDriverId'] ?? d['owner_driver_id'] ?? '')
-              .toString(),
+      ownerDriverId: (d['fromDriverId'] ??
+              d['ownerDriverId'] ??
+              d['owner_driver_id'] ??
+              '')
+          .toString(),
       ownerName: (d['fromName'] ?? d['ownerName'] ?? '').toString(),
       nome: (d['nome'] ?? '').toString(),
       stops: stops,
@@ -91,18 +93,23 @@ class SharedRoute {
   /// Vem do REST (GET /api/groups/:id/routes).
   factory SharedRoute.fromRow(Map<String, dynamic> row) {
     final payload = row['payload'];
-    final p = payload is Map ? Map<String, dynamic>.from(payload) : <String, dynamic>{};
+    final p = payload is Map
+        ? Map<String, dynamic>.from(payload)
+        : <String, dynamic>{};
     final stops = <RouteStopEntry>[];
     final brutos = p['stops'];
     if (brutos is List) {
       for (final s in brutos) {
-        if (s is Map) stops.add(RouteStopEntry.fromJson(Map<String, dynamic>.from(s)));
+        if (s is Map) {
+          stops.add(RouteStopEntry.fromJson(Map<String, dynamic>.from(s)));
+        }
       }
     }
     final progress = <int, String>{};
     final prog = p['progress'];
     if (prog is Map) {
-      prog.forEach((k, v) => progress[int.tryParse(k.toString()) ?? -1] = v.toString());
+      prog.forEach(
+          (k, v) => progress[int.tryParse(k.toString()) ?? -1] = v.toString());
     }
     return SharedRoute(
       shareId: (row['id'] ?? '').toString(),
@@ -221,16 +228,16 @@ class SharedRoutesProvider extends ChangeNotifier {
     final novoProgresso = Map<int, String>.from(rota.progress);
     novoProgresso[indice] = status;
     _rotas[i] = SharedRoute(
-        shareId: rota.shareId,
-        groupId: rota.groupId,
-        ownerDriverId: rota.ownerDriverId,
-        ownerName: rota.ownerName,
-        nome: rota.nome,
-        stops: rota.stops,
-        progress: novoProgresso,
-        isPublic: rota.isPublic,
-        createdAt: rota.createdAt,
-      );
+      shareId: rota.shareId,
+      groupId: rota.groupId,
+      ownerDriverId: rota.ownerDriverId,
+      ownerName: rota.ownerName,
+      nome: rota.nome,
+      stops: rota.stops,
+      progress: novoProgresso,
+      isPublic: rota.isPublic,
+      createdAt: rota.createdAt,
+    );
     notifyListeners();
   }
 

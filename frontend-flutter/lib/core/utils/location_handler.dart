@@ -1,4 +1,4 @@
-﻿import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class LocationHandler {
@@ -35,7 +35,7 @@ class LocationHandler {
     if (permission == LocationPermission.deniedForever) return null;
 
     return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      desiredAccuracy: LocationAccuracy.bestForNavigation,
     );
   }
 
@@ -47,8 +47,8 @@ class LocationHandler {
       locationSettings: AndroidSettings(
         accuracy: highAccuracy
             ? LocationAccuracy.bestForNavigation
-            : LocationAccuracy.medium,
-        distanceFilter: 3,
+            : LocationAccuracy.high,
+        distanceFilter: 0,
         intervalDuration: Duration(seconds: intervalSeconds),
         forceLocationManager: false,
       ),

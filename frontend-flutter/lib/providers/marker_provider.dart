@@ -98,7 +98,8 @@ class MarkerProvider extends ChangeNotifier {
     const distance = Distance();
     return _markers
         .where((m) =>
-            distance.as(LengthUnit.Meter, center, LatLng(m.latitude, m.longitude)) <=
+            distance.as(
+                LengthUnit.Meter, center, LatLng(m.latitude, m.longitude)) <=
             radiusMeters)
         .toList();
   }
@@ -116,7 +117,8 @@ class MarkerProvider extends ChangeNotifier {
     final lat2 = to.latitude * math.pi / 180;
     final dLon = (to.longitude - from.longitude) * math.pi / 180;
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     final brng = math.atan2(y, x) * 180 / math.pi;
     return (brng + 360) % 360;
   }

@@ -26,9 +26,43 @@ class MarkerDialog extends StatefulWidget {
 
 class _MarkerDialogState extends State<MarkerDialog> {
   static const List<String> _emojis = [
-    '👋', '👍', '☕', '⚠️', '🚧', '🚓', '📡', '⛽', '🛑', '🅿️', '🐄', '💧', '🌧️', '🔥',
-    '🚚', '🍔', '🛠️', '⛔', '🚦', '🚸', '🛣️', '🔀', '🏗️', '🌫️', '❄️', '🌊', '🪵',
-    '🧱', '⛽', '🍽️', '🏨', '🛞', '🧯', '🚜', '🪣', '🌾', '📍',
+    '👋',
+    '👍',
+    '☕',
+    '⚠️',
+    '🚧',
+    '🚓',
+    '📡',
+    '⛽',
+    '🛑',
+    '🅿️',
+    '🐄',
+    '💧',
+    '🌧️',
+    '🔥',
+    '🚚',
+    '🍔',
+    '🛠️',
+    '⛔',
+    '🚦',
+    '🚸',
+    '🛣️',
+    '🔀',
+    '🏗️',
+    '🌫️',
+    '❄️',
+    '🌊',
+    '🪵',
+    '🧱',
+    '⛽',
+    '🍽️',
+    '🏨',
+    '🛞',
+    '🧯',
+    '🚜',
+    '🪣',
+    '🌾',
+    '📍',
   ];
   static const Map<String, String> _types = {
     'sinal': 'Sinal',
@@ -65,13 +99,15 @@ class _MarkerDialogState extends State<MarkerDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: kDarkBlack,
-      title: const Text('Sinalizar ponto no mapa', style: TextStyle(color: Colors.white, fontSize: 18)),
+      title: const Text('Sinalizar ponto no mapa',
+          style: TextStyle(color: Colors.white, fontSize: 18)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Emoji', style: TextStyle(color: kLightText, fontSize: 12)),
+            const Text('Emoji',
+                style: TextStyle(color: kLightText, fontSize: 12)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -92,14 +128,16 @@ class _MarkerDialogState extends State<MarkerDialog> {
               }).toList(),
             ),
             const SizedBox(height: 16),
-            const Text('Tipo', style: TextStyle(color: kLightText, fontSize: 12)),
+            const Text('Tipo',
+                style: TextStyle(color: kLightText, fontSize: 12)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: _type,
               dropdownColor: kDarkRedTransition,
               style: const TextStyle(color: Colors.white),
               items: _types.entries
-                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                  .map((e) =>
+                      DropdownMenuItem(value: e.key, child: Text(e.value)))
                   .toList(),
               onChanged: (v) => setState(() => _type = v ?? 'sinal'),
             ),
@@ -125,7 +163,10 @@ class _MarkerDialogState extends State<MarkerDialog> {
             final label = _labelController.text.trim();
             Navigator.pop(
               context,
-              MarkerDraft(emoji: _emoji, type: _type, label: label.isEmpty ? null : label),
+              MarkerDraft(
+                  emoji: _emoji,
+                  type: _type,
+                  label: label.isEmpty ? null : label),
             );
           },
           child: const Text('SINALIZAR'),

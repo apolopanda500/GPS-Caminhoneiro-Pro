@@ -51,7 +51,8 @@ class MapMarkerModel {
         'timestamp': createdAt.millisecondsSinceEpoch,
       };
 
-  MapMarkerModel copyWith({String? emoji, String? type, String? label}) => MapMarkerModel(
+  MapMarkerModel copyWith({String? emoji, String? type, String? label}) =>
+      MapMarkerModel(
         id: id,
         emoji: emoji ?? this.emoji,
         type: type ?? this.type,

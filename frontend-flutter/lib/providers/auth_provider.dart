@@ -136,7 +136,8 @@ class AuthProvider extends ChangeNotifier {
           return false;
         }
         // Erro do servidor (401/400/5xx): mostra a mensagem real.
-        _error = _erroDaResposta(resp) ?? 'Não foi possível entrar. Tente novamente.';
+        _error = _erroDaResposta(resp) ??
+            'Não foi possível entrar. Tente novamente.';
         _isLoading = false;
         notifyListeners();
         return false;

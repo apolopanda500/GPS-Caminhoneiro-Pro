@@ -1,4 +1,4 @@
-﻿class DriverModel {
+class DriverModel {
   final String driverId;
   final String email;
   final String? name;
@@ -52,8 +52,10 @@
         email: json['email'] ?? '',
         name: json['name'],
         isPremium: json['isPremium'] ?? json['is_premium'] ?? false,
-        truckHeight: (json['truckHeight'] ?? json['truck_height'] ?? 4.40).toDouble(),
-        truckWeight: (json['truckWeight'] ?? json['truck_weight'] ?? 45.00).toDouble(),
+        truckHeight:
+            (json['truckHeight'] ?? json['truck_height'] ?? 4.40).toDouble(),
+        truckWeight:
+            (json['truckWeight'] ?? json['truck_weight'] ?? 45.00).toDouble(),
         axleCount: json['axleCount'] ?? json['axle_count'] ?? 2,
         hazmat: json['hazmat'] ?? false,
         avatarUrl: json['avatarUrl'] ?? json['avatar_url'],

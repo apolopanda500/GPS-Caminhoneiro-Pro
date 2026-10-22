@@ -64,8 +64,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     ),
     _PermissaoItem(
       titulo: 'Notificações',
-      descricao:
-          'Avisos de alertas, chegadas, alarmes e a avis��o de que o app '
+      descricao: 'Avisos de alertas, chegadas, alarmes e o aviso de que o app '
           'está rodando em segundo plano.',
       permissao: Permission.notification,
       icone: Icons.notifications_active,
@@ -90,23 +89,22 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     ),
     _PermissaoItem(
       titulo: 'Bluetooth',
-      descricao:
-          'Comunicação por proximidade e sensores sem fio do ve��culo '
+      descricao: 'Comunicação por proximidade e sensores sem fio do veículo '
           '(telemetria, Tags e beacons na estrada).',
       permissao: Permission.bluetooth,
       icone: Icons.bluetooth,
     ),
     _PermissaoItem(
       titulo: 'Wi-Fi e rede móvel',
-      descricao:
-          'Ler a qualidade da rede para escolher a melhor conex��o e '
-          'continuar mandando a posi��o na estrada.',
+      descricao: 'Ler a qualidade da rede para escolher a melhor conexão e '
+          'continuar mandando a posição na estrada.',
       permissao: Permission.nearbyWifiDevices,
       icone: Icons.wifi,
     ),
     _PermissaoItem(
       titulo: 'Sensores do veículo',
-      descricao: 'Acelerômetro e sensores do caminhão para economizar bateria sem perder o rastreio.',
+      descricao:
+          'Acelerômetro e sensores do caminhão para economizar bateria sem perder o rastreio.',
       permissao: Permission.sensors,
       icone: Icons.vibration,
     ),
@@ -175,7 +173,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível abrir a permissão agora.')),
+        const SnackBar(
+            content: Text('Não foi possível abrir a permissão agora.')),
       );
     }
   }
@@ -204,7 +203,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     if (!mounted) return;
     setState(() => _pedindo = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Permissões revisadas. App pronto para a estrada.')),
+      const SnackBar(
+          content: Text('Permissões revisadas. App pronto para a estrada.')),
     );
   }
 
@@ -269,10 +269,12 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : const Icon(Icons.verified_user),
-                            label: Text(_pedindo ? 'PEDINDO...' : 'PERMITIR TUDO'),
+                            label:
+                                Text(_pedindo ? 'PEDINDO...' : 'PERMITIR TUDO'),
                           ),
                         ),
                       ],
@@ -350,7 +352,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
         ),
         trailing: ok
             ? const Text('OK',
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+                style:
+                    TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
             : TextButton(
                 onPressed: () => _solicitar(item),
                 child: Text(item.sistema ? 'ABRIR' : 'PERMITIR'),

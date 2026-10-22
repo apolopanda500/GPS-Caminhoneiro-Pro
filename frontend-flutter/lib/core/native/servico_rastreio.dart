@@ -21,7 +21,9 @@ class ServicoRastreio {
   bool get ligado => _ligado;
 
   /// Liga o rastreio em segundo plano.
-  Future<bool> iniciar({String titulo = 'GPS Caminhoneiro Pro', String texto = 'Rastreando sua viagem'}) async {
+  Future<bool> iniciar(
+      {String titulo = 'GPS Caminhoneiro Pro',
+      String texto = 'Rastreando sua viagem'}) async {
     try {
       await _canal.invokeMethod<bool>('servico/iniciar', {
         'titulo': titulo,

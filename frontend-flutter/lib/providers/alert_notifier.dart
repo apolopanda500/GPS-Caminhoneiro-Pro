@@ -17,9 +17,12 @@ class AlertNotifier {
   static void triggerCriticalDangerAlarm() {
     // Faz o celular tremer de forma violenta para o motorista frear o caminhão imediatamente
     HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(milliseconds: 200), () => HapticFeedback.heavyImpact());
-    Future.delayed(const Duration(milliseconds: 400), () => HapticFeedback.heavyImpact());
-    Future.delayed(const Duration(milliseconds: 600), () => HapticFeedback.heavyImpact());
+    Future.delayed(
+        const Duration(milliseconds: 200), () => HapticFeedback.heavyImpact());
+    Future.delayed(
+        const Duration(milliseconds: 400), () => HapticFeedback.heavyImpact());
+    Future.delayed(
+        const Duration(milliseconds: 600), () => HapticFeedback.heavyImpact());
 
     // Aqui integra o alerta de áudio por voz text-to-speech da IA Edge local
   }

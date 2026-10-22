@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,8 +70,7 @@ void main() {
       addTearDown(() => dir.deleteSync(recursive: true));
 
       SharedPreferences.setMockInitialValues({
-        'sons.customizados':
-            'inicioApp\u001fsom.mp3\u001f${arquivo.path}',
+        'sons.customizados': 'inicioApp\u001fsom.mp3\u001f${arquivo.path}',
       });
       final p = SonsProvider();
       await p.carregar(tocarInicio: false);
@@ -82,4 +81,3 @@ void main() {
     });
   });
 }
-

@@ -44,9 +44,10 @@ Color fieldText(BuildContext context) =>
 Color fieldTextFor(bool escuro) => escuro ? kLightText : kLightInk;
 
 /// Cor de apoio (dica, rotulo) dentro dos campos.
-Color fieldHint(BuildContext context) => Theme.of(context).brightness == Brightness.dark
-    ? Colors.white54
-    : kLightInk.withValues(alpha: 0.55);
+Color fieldHint(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? Colors.white54
+        : kLightInk.withValues(alpha: 0.55);
 
 /// Versao sem [BuildContext], para usar dentro da montagem do tema.
 Color fieldHintFor(bool escuro) =>
@@ -60,11 +61,9 @@ Color overlaySurface(
 }) {
   final escuro = Theme.of(context).brightness == Brightness.dark;
   final Color destaque = accent ?? Theme.of(context).colorScheme.primary;
-  final Color base = escuro
-      ? _tint(destaque, kDarkBlack, 0.16)
-      : kLightSurface;
-  return base
-      .withValues(alpha: (base.a * opacity.clamp(0.3, 1.0)).clamp(0.05, 1.0));
+  final Color base = escuro ? _tint(destaque, kDarkBlack, 0.16) : kLightSurface;
+  return base.withValues(
+      alpha: (base.a * opacity.clamp(0.3, 1.0)).clamp(0.05, 1.0));
 }
 
 Color overlayBorder(BuildContext context, {Color? accent}) =>
@@ -80,7 +79,9 @@ Color overlayText(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark ? Colors.white : kLightInk;
 
 Color overlayTextMuted(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark ? Colors.white70 : kLightInk;
+    Theme.of(context).brightness == Brightness.dark
+        ? Colors.white70
+        : kLightInk;
 
 Color overlayTextSoft(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
@@ -204,22 +205,25 @@ ThemeData appTheme({Color accent = kEmergencyRed}) {
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+        (states) => states.contains(WidgetState.selected)
+            ? Colors.white
+            : Colors.white70,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? accent : Colors.white24,
+        (states) =>
+            states.contains(WidgetState.selected) ? accent : Colors.white24,
       ),
     ),
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: kLightText, fontSize: 16),
       bodyMedium: TextStyle(color: kLightText, fontSize: 14),
       bodySmall: TextStyle(color: Colors.white70, fontSize: 12),
-      titleLarge:
-          TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-      titleMedium:
-          TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-      labelLarge:
-          TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+      titleLarge: TextStyle(
+          color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+      titleMedium: TextStyle(
+          color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+      labelLarge: TextStyle(
+          color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -282,7 +286,8 @@ ThemeData appTheme({Color accent = kEmergencyRed}) {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: fieldFillFor(accent, true),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: kDividerDark, width: 1),
@@ -390,22 +395,25 @@ ThemeData appLightTheme({Color accent = kEmergencyRed}) {
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+        (states) => states.contains(WidgetState.selected)
+            ? Colors.white
+            : Colors.white70,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? accent : Colors.black26,
+        (states) =>
+            states.contains(WidgetState.selected) ? accent : Colors.black26,
       ),
     ),
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: kLightInk, fontSize: 16),
       bodyMedium: TextStyle(color: Color(0xFF3A3A3A), fontSize: 14),
       bodySmall: TextStyle(color: Color(0xFF3A3A3A), fontSize: 12),
-      titleLarge:
-          TextStyle(color: kLightInk, fontSize: 20, fontWeight: FontWeight.bold),
-      titleMedium:
-          TextStyle(color: kLightInk, fontSize: 16, fontWeight: FontWeight.w600),
-      labelLarge:
-          TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+      titleLarge: TextStyle(
+          color: kLightInk, fontSize: 20, fontWeight: FontWeight.bold),
+      titleMedium: TextStyle(
+          color: kLightInk, fontSize: 16, fontWeight: FontWeight.w600),
+      labelLarge: TextStyle(
+          color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -468,7 +476,8 @@ ThemeData appLightTheme({Color accent = kEmergencyRed}) {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: fieldFillFor(accent, false),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: kDividerLight, width: 1),

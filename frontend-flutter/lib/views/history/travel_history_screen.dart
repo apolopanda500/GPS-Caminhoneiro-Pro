@@ -14,7 +14,8 @@ class TravelHistoryScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
-        title: const Text('Histórico de Viagens', style: TextStyle(color: Colors.white)),
+        title: const Text('Histórico de Viagens',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Theme.of(context).colorScheme.surface,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -52,7 +53,8 @@ class TravelHistoryScreen extends StatelessWidget {
             )
           : ListView(
               padding: const EdgeInsets.all(16),
-              children: trips.map((t) => _buildHistoryCard(context, t)).toList(),
+              children:
+                  trips.map((t) => _buildHistoryCard(context, t)).toList(),
             ),
     );
   }
@@ -112,16 +114,20 @@ class TravelHistoryScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(_formatDate(trip.startedAt), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(_formatDate(trip.startedAt),
+                    style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 Text('${trip.distanceKm.toStringAsFixed(1)} km',
-                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(
+                        color: Colors.redAccent, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 10),
-            Text('�??� Início: ${trip.startLat.toStringAsFixed(4)}, ${trip.startLon.toStringAsFixed(4)}',
+            Text(
+                'Início: ${trip.startLat.toStringAsFixed(4)}, ${trip.startLon.toStringAsFixed(4)}',
                 style: const TextStyle(color: Colors.white, fontSize: 14)),
             const SizedBox(height: 4),
-            Text('�?�� Fim: ${trip.endLat.toStringAsFixed(4)}, ${trip.endLon.toStringAsFixed(4)}',
+            Text(
+                'Fim: ${trip.endLat.toStringAsFixed(4)}, ${trip.endLon.toStringAsFixed(4)}',
                 style: const TextStyle(color: Colors.white, fontSize: 14)),
             const Divider(color: Colors.white12, height: 20),
             Row(

@@ -83,6 +83,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
   String get _chaveEstado => 'panel.state.${widget.id}';
   String get _chaveTamanho => 'panel.size.${widget.id}';
   String get _chaveOculto => 'panel.oculto.${widget.id}';
+  String get _chaveAlcas => 'panel.alcas.${widget.id}';
 
   @override
   void initState() {
@@ -99,6 +100,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
       final largura = prefs.getDouble('$_chaveTamanho.w');
       final altura = prefs.getDouble('$_chaveTamanho.h');
       final oculto = prefs.getBool(_chaveOculto) ?? false;
+      final alcas = prefs.getBool(_chaveAlcas) ?? false;
       if (!mounted) return;
       setState(() {
         if (x != null && y != null) {
@@ -112,6 +114,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
         if (largura != null) _largura = largura.clamp(_larguraMin, _larguraMax);
         if (altura != null) _altura = altura.clamp(_alturaMin, _alturaMax);
         _oculto = oculto;
+        _mostrarAlcas = alcas;
         // Nunca abre fora da tela: o painel volta sempre visivel.
         if (x != null && y != null) {
           _offset = OrientacaoLayout.limitarTela(
@@ -139,11 +142,16 @@ class _FloatingPanelState extends State<FloatingPanel> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('$_chavePos.x', _offset.dx);
       await prefs.setDouble('$_chavePos.y', _offset.dy);
-      if (_largura != null) await prefs.setDouble('$_chaveTamanho.w', _largura!);
-      if (_altura != null) await prefs.setDouble('$_chaveTamanho.h', _altura!);
+      if (_largura != null) {
+        await prefs.setDouble('$_chaveTamanho.w', _largura!);
+      }
+      if (_altura != null) {
+        await prefs.setDouble('$_chaveTamanho.h', _altura!);
+      }
       await prefs.setBool(_chaveOculto, _oculto);
-      await prefs.setString(
-          _chaveEstado, _minimizado ? 'min|${_ladoEsquerdo ? 'esq' : 'dir'}' : 'aberto');
+      await prefs.setBool(_chaveAlcas, _mostrarAlcas);
+      await prefs.setString(_chaveEstado,
+          _minimizado ? 'min|${_ladoEsquerdo ? 'esq' : 'dir'}' : 'aberto');
     } catch (_) {}
   }
 
@@ -186,7 +194,6 @@ class _FloatingPanelState extends State<FloatingPanel> {
       _altura = altura.clamp(_alturaMin, _alturaMax);
     });
   }
-
 
   void _arrastar(DragUpdateDetails d) {
     setState(() {
@@ -239,7 +246,9 @@ class _FloatingPanelState extends State<FloatingPanel> {
   void _alternarMinimizado() {
     setState(() {
       _minimizado = !_minimizado;
-      if (_minimizado) _ladoEsquerdo = _offset.dx < MediaQuery.of(context).size.width / 2;
+      if (_minimizado) {
+        _ladoEsquerdo = _offset.dx < MediaQuery.of(context).size.width / 2;
+      }
     });
     _salvar();
   }
@@ -370,11 +379,16 @@ class _FloatingPanelState extends State<FloatingPanel> {
             ),
             ListTile(
               leading: const Icon(Icons.open_with),
-              title: const Text('Mostrar as alças de redimensionar'),
+              title: Text(
+                _mostrarAlcas
+                    ? 'Ocultar as alças de redimensionar'
+                    : 'Mostrar as alças de redimensionar',
+              ),
               subtitle: const Text('Arraste as alças dos cantos'),
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() => _mostrarAlcas = !_mostrarAlcas);
+                _salvar();
               },
             ),
             ListTile(
@@ -415,21 +429,31 @@ class _FloatingPanelState extends State<FloatingPanel> {
           }),
           onVerticalDragEnd: (_) => _salvar(),
           child: Material(
-            color: Theme.of(context).colorScheme.surface,
-            shape: const CircleBorder(),
+            color: overlaySurface(context, opacity: 0.98),
+            shape: CircleBorder(
+              side: BorderSide(color: overlayBorder(context), width: 1.2),
+            ),
+            elevation: 8,
+            shadowColor: Colors.black54,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     _ladoEsquerdo ? Icons.chevron_right : Icons.chevron_left,
-                    size: 13,
-                    color: overlayTextMuted(context),
+                    size: 16,
+                    color: overlayText(context),
                   ),
                   const SizedBox(width: 2),
-                  widget.minimizedChild ??
-                      const Icon(Icons.open_in_full, size: 18),
+                  IconTheme(
+                    data: IconThemeData(
+                      color: overlayAccent(context),
+                      size: 20,
+                    ),
+                    child: widget.minimizedChild ??
+                        const Icon(Icons.open_in_full, size: 20),
+                  ),
                 ],
               ),
             ),
@@ -481,7 +505,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
               ],
             ),
           ),
-          if (widget.resizable) ...[
+          if (widget.resizable && _mostrarAlcas) ...[
             _alcaResize(0), // inferior direito
             _alcaResize(1), // inferior esquerdo
             _alcaResize(2), // superior direito
@@ -492,35 +516,48 @@ class _FloatingPanelState extends State<FloatingPanel> {
     );
   }
 
-  /// Alca de redimensionamento: escondida (o painel fica limpo). As alcas
-  /// so aparecem quando o usuario pede pelo menu do toque longo.
+  /// Alca de redimensionamento: so aparece quando o usuario pede pelo menu
+  /// do toque longo. Fica meio para fora do canto para nao cobrir o conteudo.
   Widget _alcaResize(int lado) {
-    final alinhamento = switch (lado) {
-      0 => Alignment.bottomRight,
-      1 => Alignment.bottomLeft,
-      2 => Alignment.topRight,
-      _ => Alignment.topLeft,
-    };
-    return Positioned.fill(
-      child: IgnorePointer(
-        ignoring: !_mostrarAlcas,
-        child: Align(
-          alignment: alinhamento,
-          child: GestureDetector(
-            onPanUpdate: (d) => _redimensionar(d, lado: lado),
-            onPanEnd: (_) => _salvar(),
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: Icon(
-                Icons.open_in_full,
-                size: 12,
-                color: overlayTextMuted(context).withValues(alpha: 0.6),
+    const tamanho = 30.0;
+    final direita = lado == 0 || lado == 2;
+    final baixo = lado == 0 || lado == 1;
+    return Positioned(
+      right: direita ? -tamanho / 2 : null,
+      left: direita ? null : -tamanho / 2,
+      bottom: baixo ? -tamanho / 2 : null,
+      top: baixo ? null : -tamanho / 2,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (d) => _redimensionar(d, lado: lado),
+        onPanEnd: (_) => _salvar(),
+        child: Container(
+          width: tamanho,
+          height: tamanho,
+          decoration: BoxDecoration(
+            color: overlaySurface(context, opacity: 0.98),
+            shape: BoxShape.circle,
+            border: Border.all(color: overlayAccent(context), width: 1.6),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black45,
+                blurRadius: 6,
+                offset: Offset(0, 2),
               ),
-            ),
+            ],
+          ),
+          child: Icon(
+            switch (lado) {
+              0 => Icons.south_east,
+              1 => Icons.south_west,
+              2 => Icons.north_east,
+              _ => Icons.north_west,
+            },
+            size: 15,
+            color: overlayAccent(context),
           ),
         ),
       ),
     );
   }
 }
-

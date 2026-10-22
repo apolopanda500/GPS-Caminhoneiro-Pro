@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -30,9 +30,26 @@ class ChatPanel extends StatefulWidget {
 
 class _ChatPanelState extends State<ChatPanel> {
   static const List<String> _quickEmojis = [
-    '🚨', '📷', '👍', '🙏', '🤝', '😂', '🤣', '❤️',
-    '🔥', '💯', '👀', '😎', '🎉', '🫶', '✅', '⭐',
-    '😡', '🐂', '⛽', '🛑',
+    '🚨',
+    '📷',
+    '👍',
+    '🙏',
+    '🤝',
+    '😂',
+    '🤣',
+    '❤️',
+    '🔥',
+    '💯',
+    '👀',
+    '😎',
+    '🎉',
+    '🫶',
+    '✅',
+    '⭐',
+    '😡',
+    '🐂',
+    '⛽',
+    '🛑',
   ];
 
   final _msgController = TextEditingController();
@@ -138,7 +155,8 @@ class _ChatPanelState extends State<ChatPanel> {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 10),
           Container(
@@ -159,7 +177,8 @@ class _ChatPanelState extends State<ChatPanel> {
                       final msg = _messages[i];
                       final name = (msg['driverName'] ?? '?').toString();
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 4, horizontal: 8),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -167,8 +186,11 @@ class _ChatPanelState extends State<ChatPanel> {
                               radius: 14,
                               backgroundColor: kEmergencyRed,
                               child: Text(
-                                name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?',
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                                name.isNotEmpty
+                                    ? name.substring(0, 1).toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -185,7 +207,8 @@ class _ChatPanelState extends State<ChatPanel> {
                                   ),
                                   Text(
                                     msg['message'] ?? '',
-                                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 14),
                                   ),
                                 ],
                               ),
@@ -238,8 +261,10 @@ class _ChatPanelState extends State<ChatPanel> {
                     hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,
                     fillColor: const Color(0xFF121212),
-                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.red)),
-                    focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: kEmergencyRed)),
+                    enabledBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.red)),
+                    focusedBorder: const UnderlineInputBorder(
+                        borderSide: BorderSide(color: kEmergencyRed)),
                   ),
                 ),
               ),

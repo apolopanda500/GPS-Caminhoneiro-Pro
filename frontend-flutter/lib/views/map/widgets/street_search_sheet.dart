@@ -274,7 +274,8 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                     onTap: _search,
                     child: const Padding(
                       padding: EdgeInsets.all(12),
-                      child: Icon(Icons.arrow_forward, color: Colors.white, size: 24),
+                      child: Icon(Icons.arrow_forward,
+                          color: Colors.white, size: 24),
                     ),
                   ),
                 ),
@@ -287,8 +288,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
               padding: const EdgeInsets.only(top: 6),
               child: Row(
                 children: [
-                  Icon(Icons.near_me,
-                      size: 13, color: sheetMuted(context)),
+                  Icon(Icons.near_me, size: 13, color: sheetMuted(context)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -320,9 +320,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                       if (_controller.text.trim().isNotEmpty) _search();
                     },
                     labelStyle: TextStyle(
-                      color: ativo
-                          ? Colors.white
-                          : sheetText(context),
+                      color: ativo ? Colors.white : sheetText(context),
                       fontSize: 12,
                     ),
                     selectedColor: destaque,
@@ -341,8 +339,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                 Icon(Icons.history, size: 15, color: sheetMuted(context)),
                 const SizedBox(width: 6),
                 Text('Buscas recentes',
-                    style: TextStyle(
-                        color: sheetMuted(context), fontSize: 12)),
+                    style: TextStyle(color: sheetMuted(context), fontSize: 12)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () async {
@@ -350,8 +347,8 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                     await _carregarHistorico();
                   },
                   child: Text('limpar',
-                      style: TextStyle(
-                          color: sheetAccent(context), fontSize: 12)),
+                      style:
+                          TextStyle(color: sheetAccent(context), fontSize: 12)),
                 ),
               ],
             ),
@@ -361,9 +358,11 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
               runSpacing: 6,
               children: _historico.map((t) {
                 return ActionChip(
-                  avatar: Icon(Icons.search, size: 14, color: sheetMuted(context)),
+                  avatar:
+                      Icon(Icons.search, size: 14, color: sheetMuted(context)),
                   label: Text(t,
-                      style: TextStyle(color: sheetText(context), fontSize: 12)),
+                      style:
+                          TextStyle(color: sheetText(context), fontSize: 12)),
                   backgroundColor: sheetDivider(context).withValues(alpha: 0.4),
                   onPressed: () {
                     _controller.text = t;
@@ -394,8 +393,8 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                 return ListTile(
                   leading: Icon(Icons.place, color: sheetAccent(context)),
                   title: Text(r.displayName,
-                      style: TextStyle(
-                          color: sheetText(context), fontSize: 13)),
+                      style:
+                          TextStyle(color: sheetText(context), fontSize: 13)),
                   subtitle: r.distanceKm != null
                       ? Text(
                           '${_distanciaTexto(r.distanceKm!)} de voce',

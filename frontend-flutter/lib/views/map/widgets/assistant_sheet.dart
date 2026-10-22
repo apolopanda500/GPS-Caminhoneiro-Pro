@@ -250,7 +250,8 @@ class _AssistantSheetState extends State<AssistantSheet> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(f.pergunta,
-                                      style: TextStyle(color: texto, fontSize: 13)),
+                                      style: TextStyle(
+                                          color: texto, fontSize: 13)),
                                 ),
                               ),
                               const SizedBox(height: 6),
@@ -281,8 +282,8 @@ class _AssistantSheetState extends State<AssistantSheet> {
                   SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: cor),
+                    child:
+                        CircularProgressIndicator(strokeWidth: 2, color: cor),
                   ),
                   const SizedBox(width: 10),
                   Text('Consultando o estado da estrada...',

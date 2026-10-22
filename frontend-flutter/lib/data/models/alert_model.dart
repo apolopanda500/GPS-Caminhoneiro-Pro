@@ -1,4 +1,4 @@
-﻿class AlertModel {
+class AlertModel {
   final String id;
   final String driverId;
   final String type;

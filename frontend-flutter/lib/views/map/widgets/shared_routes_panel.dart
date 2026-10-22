@@ -83,7 +83,8 @@ class SharedRoutesPanel extends StatelessWidget {
             decoration: BoxDecoration(
               color: visivel
                   ? kEmergencyRed.withValues(alpha: 0.10)
-                  : tema.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+                  : tema.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: visivel
@@ -99,7 +100,8 @@ class SharedRoutesPanel extends StatelessWidget {
                     Icon(
                       minha ? Icons.local_shipping : Icons.route,
                       size: 16,
-                      color: visivel ? kEmergencyRed : ink.withValues(alpha: 0.4),
+                      color:
+                          visivel ? kEmergencyRed : ink.withValues(alpha: 0.4),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -137,7 +139,8 @@ class SharedRoutesPanel extends StatelessWidget {
                             : Icons.visibility_off_outlined,
                         size: 18,
                       ),
-                      onPressed: () => provider.alternarVisibilidade(rota.shareId),
+                      onPressed: () =>
+                          provider.alternarVisibilidade(rota.shareId),
                     ),
                   ],
                 ),
@@ -164,7 +167,8 @@ class SharedRoutesPanel extends StatelessWidget {
                     TextButton.icon(
                       onPressed: () => onCentralizar(rota),
                       icon: const Icon(Icons.my_location, size: 16),
-                      label: const Text('VER NO MAPA', style: TextStyle(fontSize: 11)),
+                      label: const Text('VER NO MAPA',
+                          style: TextStyle(fontSize: 11)),
                     ),
                     const Spacer(),
                     if (!minha)
@@ -172,7 +176,9 @@ class SharedRoutesPanel extends StatelessWidget {
                         onPressed: () =>
                             seguindo ? onPararDeSeguir(rota) : onSeguir(rota),
                         icon: Icon(
-                          seguindo ? Icons.stop_circle_outlined : Icons.play_circle,
+                          seguindo
+                              ? Icons.stop_circle_outlined
+                              : Icons.play_circle,
                           size: 16,
                           color: seguindo ? kEmergencyRed : null,
                         ),

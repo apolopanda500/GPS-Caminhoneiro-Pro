@@ -21,7 +21,8 @@ void main() {
       var notified = 0;
       a.addListener(() => notified++);
 
-      final ok = await a.login(email: 'motorista@teste.com', password: '123456');
+      final ok =
+          await a.login(email: 'motorista@teste.com', password: '123456');
 
       expect(ok, isTrue);
       expect(a.isAuthenticated, isTrue);
@@ -58,7 +59,8 @@ void main() {
 
     test('register offline autentica e cria driver', () async {
       final a = AuthProvider();
-      final ok = await a.register(email: 'novo@teste.com', password: 'abc', name: 'Novo Motorista');
+      final ok = await a.register(
+          email: 'novo@teste.com', password: 'abc', name: 'Novo Motorista');
       expect(ok, isTrue);
       expect(a.isAuthenticated, isTrue);
       expect(a.driver!.name, 'Novo Motorista');
@@ -136,7 +138,8 @@ void main() {
 
     test('setTruckConfig e navegação', () {
       final n = NavigationProvider();
-      n.setTruckConfig(TruckConfig(driverId: 'd', height: 4, width: 2, length: 10, weight: 20));
+      n.setTruckConfig(TruckConfig(
+          driverId: 'd', height: 4, width: 2, length: 10, weight: 20));
       expect(n.truckConfig, isNotNull);
       n.startNavigation('SP-330 → Campinas');
       expect(n.isNavigating, isTrue);

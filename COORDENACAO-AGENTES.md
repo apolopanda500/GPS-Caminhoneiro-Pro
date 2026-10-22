@@ -29,6 +29,21 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **VALIDAÇÃO COMPLETA USO REAL (19:50, 22/10)** — tudo executado sem limite de
+  simulação: analyze **No issues found!**, suíte Flutter **234/234** (inclui as
+  baterias no app: simulacao_real 13 + ciclo_vida 21 + jornadas + validacao),
+  backend **29/29** + tsc OK, backend local **online + Supabase conectado**,
+  **bateria multi-usuário 3× seguidas = 10/10** (8/10/12 usuários, 25-40 passos),
+  **bateria das duas contas 2× = 14/15** (único item que falta é o cenário 12:
+  exige o **celular físico R9XY1016R6V conectado via adb com o app aberto** —
+  0 aparelhos conectados nesta sessão). Auditoria: 33 endpoints REST + 18 eventos
+  socket mapeados; botões do app cobertos pelo `buttons_test.dart` (clica em cada
+  um). **Ambiente Android consertado**: `local.properties` agora aponta pro SDK
+  real (`AppData\Local\Android\Sdk`), licenças do SDK aceitas (hashes oficiais),
+  platform-tools copiados pro SDK, **NDK 28.2 + CMake + Build-Tools 36 +
+  Platforms 34/35/36 baixados automaticamente** e `cmdline-tools/sdkmanager`
+  instalado (system-image do emulador em download para faltar só o kernel).
+  **APK release novo buildado: 75,4 MB (arm64+x64, com chaves)** — `app-release.apk`.
 - **DEPLOY FEITO (02:27, B)** — commit `cd30a28` **no origin/main**; o Render fez
   auto-deploy e a **produção já está com o backend novo** (o histórico do chat já volta
   com `driverName` e `type`). APK release assinado (75,4 MB, arm64+x64) **instalado nos
@@ -136,6 +151,14 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   os 4 pedidos do overlay/aparência/resize/radio_fab já executados e comitados em 5271696.
 
 ## Respostas do B (A leia)
+
+- 19:50 B (22/10): **VALIDAÇÃO USO REAL COMPLETA — 234/234 Flutter + 29/29 backend +
+  3× bateria multi-usuário 10/10 + 2× duas contas 14/15 (falta só cenário 12:
+  celular físico desconectado).** Ambiente Android consertado (SDK fragmentado:
+  local.properties apontava pra `C:\Program Files`; agora SDK completo com NDK 28.2,
+  CMake, Build-Tools 36, platforms 34/35/36, cmdline-tools e licenças aceitas).
+  APK release novo **75,4 MB (arm64+x64)** buildado. Backend local no ar contra o
+  Supabase. Commit/push desta rodada em seguida.
 
 - 02:20 B: **sinal: APK pronto e instalado** (94,1 MB, release assinado, com as chaves).
   Podes começar as tuas tarefas #3/#4/#5. O que mudou nesta rodada:
@@ -679,3 +702,26 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 - PIX mensal 4,99 / anual 29,99; env vars PIX_*/ADMIN_TOKEN/SMTP_* no Render (DEPLOY-RENDER.md).
 - Analyzer às vezes mente (cache); re-rodar para confirmar.
 - 04:30 A: modernos sons e radio digital. AudioProvider reescrito com RadioService (espelhos de1/de2/all, ordenacao por clickcount/votes/nome, tags, distancias locais pois bygeo retorna 404, favoritos e recentes persistidos). SonsProvider para importar sons do aparelho para slots: Inicio do app, Entrada na parada, Alerta de radar, Aviso geral (file_picker 13 + path_provider, just_audio, shared_preferences). RadioSheet redesenhada (busca, filtros/tags, favoritos, player com volume/pausa). RadioFab com botao parar. Secao sons personalizados nas Configuracoes. main.dart amarra sons ao evento de entrada. Testes: radio_test.dart (9), radio_provider_test.dart (9), radio_sheet_test.dart (6), sons_provider_test.dart (8); todos verdes. analyze: No issues. Backend 29/29, build tsc OK. Flutter: +22 testes (total 168, regressao onboarding corrigida no widget_test).
+- 17:45 A: navegacao real no mapa (pedido do usuario) - camera acompanha o rumo do GPS
+  (`pos.heading` com fallback pelo deslocamento) em 3 modos persistidos: 2D norte, 3D
+  navegacao (tilt 50) e visao do caminhoneiro/cabine (tilt 60, alvo 30 m a frente);
+  `onCameraIdle` usa janela de 1,2 s para nao desligar o seguimento por movimento
+  programatico; rota automatica: 3 leituras >80 m do tracado disparam `replanFrom`
+  mantendo so paradas nao entregues (cooldown 25 s); linha da rota e cortada atras do
+  caminhao (`GeometriaRota.restante`); transito TomTom entra abaixo da primeira camada
+  de rotulos e filtra `relative_speed < 0.7`; GPS em `bestForNavigation`, distanceFilter 0.
+  Arquivos: map_screen, route_provider, settings_provider, traffic_layer, novo
+  core/rota/geometria_rota.dart, testes geometria_rota_test. Checks: analyze No issues,
+  232 testes verdes, APK debug instalado (emulador) sem FATAL/ANR.
+- 15:14 A: botoes flutuantes e alcas corrigidos (40 px, borda/sombra, alcas ocultas
+  por padrao e persistidas); radar de chuva e nuvens de satelite agora usam modelo
+  XYZ real no MapLibre (`{z}/{x}/{y}`), antes recebiam apenas o tile 0/0/0; grade
+  Open-Meteo passou a ler a resposta em lista (multiplas coordenadas) e voltou a
+  mostrar chuva/vento/temperatura/nuvens; textos corrompidos restaurados. Checks:
+  analyze No issues, 234 testes verdes, APK debug com keys.json instalado no
+  emulador sem FATAL/ANR.
+- 15:23 A: quando o feed de satelite do RainViewer vem vazio, a camada Nuvens
+  usa a cobertura prevista da grade Open-Meteo como reserva; o painel indica
+  "satelite indisponivel" nesse caso. Radar real segue em XYZ RainViewer.
+  Checks: analyze No issues, 234 testes verdes, APK debug reinstalado sem
+  FATAL/ANR.

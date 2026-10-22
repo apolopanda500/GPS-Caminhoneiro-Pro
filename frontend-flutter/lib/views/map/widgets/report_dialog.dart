@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 
 class ReportDialog extends StatefulWidget {
-  final void Function(String type, String message, double lat, double lon) onSubmit;
+  final void Function(String type, String message, double lat, double lon)
+      onSubmit;
   final double latitude;
   final double longitude;
 
@@ -47,27 +48,43 @@ class _ReportDialogState extends State<ReportDialog> {
               labelStyle: TextStyle(color: kLightText),
             ),
             items: const [
-              DropdownMenuItem(value: 'texto_livre', child: Text('Texto livre')),
-              DropdownMenuItem(value: 'radar', child: Text('Radar / velocidade')),
-              DropdownMenuItem(value: 'ponte_baixa', child: Text('Ponte baixa')),
-              DropdownMenuItem(value: 'policia', child: Text('Polícia / blitz')),
-              DropdownMenuItem(value: 'balanca', child: Text('Balança obrigatória')),
+              DropdownMenuItem(
+                  value: 'texto_livre', child: Text('Texto livre')),
+              DropdownMenuItem(
+                  value: 'radar', child: Text('Radar / velocidade')),
+              DropdownMenuItem(
+                  value: 'ponte_baixa', child: Text('Ponte baixa')),
+              DropdownMenuItem(
+                  value: 'policia', child: Text('Polícia / blitz')),
+              DropdownMenuItem(
+                  value: 'balanca', child: Text('Balança obrigatória')),
               DropdownMenuItem(value: 'perigo', child: Text('Perigo na pista')),
               DropdownMenuItem(value: 'pedagio', child: Text('Pedágio')),
               DropdownMenuItem(value: 'acidente', child: Text('Acidente')),
-              DropdownMenuItem(value: 'obstrucao', child: Text('Obra / obstrução')),
-              DropdownMenuItem(value: 'zmrc', child: Text('Zona restrita (ZMRC)')),
-              DropdownMenuItem(value: 'descanso', child: Text('Área de descanso')),
-              DropdownMenuItem(value: 'estacionamento', child: Text('Estacionamento')),
-              DropdownMenuItem(value: 'combustivel', child: Text('Posto de combustível')),
-              DropdownMenuItem(value: 'restaurante', child: Text('Restaurante')),
-              DropdownMenuItem(value: 'borracharia', child: Text('Borracharia')),
-              DropdownMenuItem(value: 'ponto_apoio', child: Text('Ponto de apoio')),
-              DropdownMenuItem(value: 'serra', child: Text('Serra / descida forte')),
+              DropdownMenuItem(
+                  value: 'obstrucao', child: Text('Obra / obstrução')),
+              DropdownMenuItem(
+                  value: 'zmrc', child: Text('Zona restrita (ZMRC)')),
+              DropdownMenuItem(
+                  value: 'descanso', child: Text('Área de descanso')),
+              DropdownMenuItem(
+                  value: 'estacionamento', child: Text('Estacionamento')),
+              DropdownMenuItem(
+                  value: 'combustivel', child: Text('Posto de combustível')),
+              DropdownMenuItem(
+                  value: 'restaurante', child: Text('Restaurante')),
+              DropdownMenuItem(
+                  value: 'borracharia', child: Text('Borracharia')),
+              DropdownMenuItem(
+                  value: 'ponto_apoio', child: Text('Ponto de apoio')),
+              DropdownMenuItem(
+                  value: 'serra', child: Text('Serra / descida forte')),
               DropdownMenuItem(value: 'curva', child: Text('Curva perigosa')),
-              DropdownMenuItem(value: 'fiscalizacao', child: Text('Fiscalização')),
+              DropdownMenuItem(
+                  value: 'fiscalizacao', child: Text('Fiscalização')),
             ],
-            onChanged: (val) => setState(() => _selectedType = val ?? 'texto_livre'),
+            onChanged: (val) =>
+                setState(() => _selectedType = val ?? 'texto_livre'),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -96,7 +113,8 @@ class _ReportDialogState extends State<ReportDialog> {
             );
             Navigator.pop(context);
           },
-          child: const Text('Publicar no Mapa', style: TextStyle(color: Colors.white)),
+          child: const Text('Publicar no Mapa',
+              style: TextStyle(color: Colors.white)),
         ),
       ],
     );

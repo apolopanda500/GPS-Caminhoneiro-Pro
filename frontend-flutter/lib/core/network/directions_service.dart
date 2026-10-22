@@ -175,7 +175,8 @@ class DirectionsService {
         )
         .timeout(const Duration(seconds: 25));
     if (resp.statusCode != 200) {
-      throw Exception('Falha ao calcular rota no TomTom (HTTP ${resp.statusCode}).');
+      throw Exception(
+          'Falha ao calcular rota no TomTom (HTTP ${resp.statusCode}).');
     }
     final data =
         jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
@@ -191,8 +192,8 @@ class DirectionsService {
       final coords = (path?['coordinates'] as List?) ?? const [];
       for (final c in coords) {
         if (c is List && c.length >= 2) {
-          polyline.add(
-              LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()));
+          polyline
+              .add(LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()));
         }
       }
     }
@@ -422,8 +423,7 @@ class DirectionsService {
       'https://router.project-osrm.org/route/v1/driving/$pontos'
       '?overview=full&geometries=geojson',
     );
-    final resp =
-        await _client.get(uri).timeout(const Duration(seconds: 20));
+    final resp = await _client.get(uri).timeout(const Duration(seconds: 20));
     if (resp.statusCode != 200) {
       throw Exception('Falha ao calcular rota (OSRM HTTP ${resp.statusCode}).');
     }

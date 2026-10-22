@@ -192,8 +192,8 @@ void main() {
   });
 
   testWidgets('botoes da tela de premium nao estouram', (tester) async {
-    await tester.pumpWidget(
-        _app(const PaymentGateScreen(driverId: 'drv_teste')));
+    await tester
+        .pumpWidget(_app(const PaymentGateScreen(driverId: 'drv_teste')));
     await tester.pumpAndSettle();
     expect(find.byType(Scaffold), findsOneWidget);
     await testarTodosOsBotoes(

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:gps_camioneiro_pro/data/models/truck_config.dart';
 
 class NavigationProvider extends ChangeNotifier {

@@ -19,8 +19,7 @@ class SpeedHUD extends StatelessWidget {
     this.streetName,
   });
 
-  bool get _overLimit =>
-      limitKmh != null && speedKmh > (limitKmh! + 8);
+  bool get _overLimit => limitKmh != null && speedKmh > (limitKmh! + 8);
 
   /// Preferencias de aparencia (transparencia e cor). Pode faltar em testes.
   SettingsProvider? _ajustes(BuildContext context) {

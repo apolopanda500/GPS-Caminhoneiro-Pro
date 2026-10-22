@@ -21,14 +21,16 @@ class SomDaParada {
   const SomDaParada._();
 
   /// O sino de chegada toca **so na chegada** (nunca na saida/entrega).
-  static bool tocaSino(MomentoParada momento) => momento == MomentoParada.chegada;
+  static bool tocaSino(MomentoParada momento) =>
+      momento == MomentoParada.chegada;
 
   /// O sino de estacao (sino de trem) toca junto com o sino de chegada.
   static bool tocaSinoEstacao(MomentoParada momento) =>
       momento == MomentoParada.chegada;
 
   /// O som de saida toca **so na saida**.
-  static bool tocaSomSaida(MomentoParada momento) => momento == MomentoParada.saida;
+  static bool tocaSomSaida(MomentoParada momento) =>
+      momento == MomentoParada.saida;
 
   /// A voz fala na chegada e na saida (anuncia a proxima parada).
   static bool fala(MomentoParada momento) =>

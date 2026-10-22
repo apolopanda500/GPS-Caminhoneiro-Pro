@@ -83,7 +83,8 @@ class _SonsScreenState extends State<SonsScreen> {
             activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
           ),
           SwitchListTile(
-            secondary: Icon(Icons.notifications, color: ink.withValues(alpha: 0.7)),
+            secondary:
+                Icon(Icons.notifications, color: ink.withValues(alpha: 0.7)),
             title: Text('Notificações', style: TextStyle(color: ink)),
             subtitle: Text('Avisos de alertas e mensagens',
                 style: TextStyle(color: muted, fontSize: 12)),
@@ -150,8 +151,10 @@ class _SonsScreenState extends State<SonsScreen> {
           const Divider(height: 28),
           _titulo(context, 'VOZ DAS PARADAS'),
           SwitchListTile(
-            secondary: Icon(Icons.notifications_active, color: ink.withValues(alpha: 0.7)),
-            title: Text('Só o sino (sem falar as ruas)', style: TextStyle(color: ink)),
+            secondary: Icon(Icons.notifications_active,
+                color: ink.withValues(alpha: 0.7)),
+            title: Text('Só o sino (sem falar as ruas)',
+                style: TextStyle(color: ink)),
             subtitle: Text(
               'Toca apenas o sino de chegada e de estação. A voz fica muda.',
               style: TextStyle(color: muted, fontSize: 12),
@@ -242,7 +245,8 @@ class _SonsScreenState extends State<SonsScreen> {
             ),
           ),
           SwitchListTile(
-            secondary: Icon(Icons.record_voice_over, color: ink.withValues(alpha: 0.7)),
+            secondary: Icon(Icons.record_voice_over,
+                color: ink.withValues(alpha: 0.7)),
             title: Text('Voz das paradas', style: TextStyle(color: ink)),
             subtitle: Text(
               'Fala a chegada em cada cliente e a próxima parada',
@@ -293,7 +297,8 @@ class _SonsScreenState extends State<SonsScreen> {
           const SizedBox(height: 14),
           _titulo(context, 'VOZ DO APPARELHO'),
           ListTile(
-            leading: Icon(Icons.record_voice_over, color: ink.withValues(alpha: 0.7)),
+            leading: Icon(Icons.record_voice_over,
+                color: ink.withValues(alpha: 0.7)),
             title: Text('Voz', style: TextStyle(color: ink)),
             subtitle: Text(
               voz.vozEscolhida ?? 'Padrão do aparelho',
@@ -335,7 +340,9 @@ class _SonsScreenState extends State<SonsScreen> {
           ListTile(
             leading: Icon(
               audio.radioTocando ? Icons.radio : Icons.radio_outlined,
-              color: audio.radioTocando ? kEmergencyRed : ink.withValues(alpha: 0.7),
+              color: audio.radioTocando
+                  ? kEmergencyRed
+                  : ink.withValues(alpha: 0.7),
             ),
             title: Text(
               audio.radioTocando
@@ -370,8 +377,7 @@ class _SonsScreenState extends State<SonsScreen> {
               style: TextStyle(color: muted, fontSize: 12),
             ),
           ),
-          for (final slot in SlotSom.values)
-            _SlotSomTile(slot: slot),
+          for (final slot in SlotSom.values) _SlotSomTile(slot: slot),
         ],
       ),
     );
@@ -393,13 +399,15 @@ class _SonsScreenState extends State<SonsScreen> {
       label: Text(rotulo, style: const TextStyle(fontSize: 11)),
       style: OutlinedButton.styleFrom(
         foregroundColor: tema.colorScheme.onSurface,
-        side: BorderSide(color: tema.colorScheme.onSurface.withValues(alpha: 0.3)),
+        side: BorderSide(
+            color: tema.colorScheme.onSurface.withValues(alpha: 0.3)),
         visualDensity: VisualDensity.compact,
       ),
     );
   }
 
-  Widget _titulo(BuildContext context, String texto) {    final tema = Theme.of(context);
+  Widget _titulo(BuildContext context, String texto) {
+    final tema = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
       child: Text(
@@ -436,7 +444,8 @@ class _SonsScreenState extends State<SonsScreen> {
                 child: Text(titulo, style: TextStyle(color: ink)),
               ),
               Text(rotulo(valor),
-                  style: TextStyle(color: ink.withValues(alpha: 0.6), fontSize: 12)),
+                  style: TextStyle(
+                      color: ink.withValues(alpha: 0.6), fontSize: 12)),
             ],
           ),
         ),
@@ -493,9 +502,11 @@ class _SonsScreenState extends State<SonsScreen> {
                 leading: const Icon(Icons.record_voice_over_outlined),
                 title: Text(v.rotulo, style: TextStyle(color: ink)),
                 subtitle: Text(v.local,
-                    style: TextStyle(color: ink.withValues(alpha: 0.6), fontSize: 11)),
+                    style: TextStyle(
+                        color: ink.withValues(alpha: 0.6), fontSize: 11)),
                 onTap: () async {
-                  await VoiceService.instance.definirVoz(v.nome, local: v.local);
+                  await VoiceService.instance
+                      .definirVoz(v.nome, local: v.local);
                   if (ctx.mounted) Navigator.pop(ctx);
                   setState(() {});
                 },
@@ -506,7 +517,8 @@ class _SonsScreenState extends State<SonsScreen> {
                 child: Text(
                   'Nenhuma voz em portugues encontrada no aparelho. '
                   'Instale o pacote de voz do Google em Configuracoes > Idioma.',
-                  style: TextStyle(color: ink.withValues(alpha: 0.6), fontSize: 12),
+                  style: TextStyle(
+                      color: ink.withValues(alpha: 0.6), fontSize: 12),
                 ),
               ),
           ],

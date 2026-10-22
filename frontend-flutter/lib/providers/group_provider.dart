@@ -29,8 +29,8 @@ class ConvoyGroup {
     return ConvoyGroup(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? 'Grupo').toString(),
-      ownerDriverId: (json['owner_driver_id'] ?? json['ownerDriverId'] ?? '')
-          .toString(),
+      ownerDriverId:
+          (json['owner_driver_id'] ?? json['ownerDriverId'] ?? '').toString(),
       isPublic: (json['is_public'] ?? json['isPublic'] ?? true) == true,
       myRole: roles.isNotEmpty
           ? roles
@@ -154,11 +154,13 @@ class GroupProvider extends ChangeNotifier {
     required Map<String, String> auth,
   }) async {
     try {
-      final resp = await http.post(
-        _url('/'),
-        headers: _headers(auth),
-        body: jsonEncode({'name': name, 'driverId': driverId}),
-      ).timeout(const Duration(seconds: 10));
+      final resp = await http
+          .post(
+            _url('/'),
+            headers: _headers(auth),
+            body: jsonEncode({'name': name, 'driverId': driverId}),
+          )
+          .timeout(const Duration(seconds: 10));
       final ok = resp.statusCode == 201 || resp.statusCode == 200;
       if (ok) await load(driverId: driverId, auth: auth);
       return ok;
@@ -175,11 +177,13 @@ class GroupProvider extends ChangeNotifier {
     required Map<String, String> auth,
   }) async {
     try {
-      final resp = await http.post(
-        _url('/$groupId/join'),
-        headers: _headers(auth),
-        body: jsonEncode({'driverId': driverId}),
-      ).timeout(const Duration(seconds: 10));
+      final resp = await http
+          .post(
+            _url('/$groupId/join'),
+            headers: _headers(auth),
+            body: jsonEncode({'driverId': driverId}),
+          )
+          .timeout(const Duration(seconds: 10));
       final ok = resp.statusCode == 200 || resp.statusCode == 201;
       if (ok) await load(driverId: driverId, auth: auth);
       return ok;
@@ -196,11 +200,13 @@ class GroupProvider extends ChangeNotifier {
     required Map<String, String> auth,
   }) async {
     try {
-      final resp = await http.post(
-        _url('/$groupId/leave'),
-        headers: _headers(auth),
-        body: jsonEncode({'driverId': driverId}),
-      ).timeout(const Duration(seconds: 10));
+      final resp = await http
+          .post(
+            _url('/$groupId/leave'),
+            headers: _headers(auth),
+            body: jsonEncode({'driverId': driverId}),
+          )
+          .timeout(const Duration(seconds: 10));
       final ok = resp.statusCode == 200 || resp.statusCode == 201;
       if (ok) {
         _members.remove(groupId);

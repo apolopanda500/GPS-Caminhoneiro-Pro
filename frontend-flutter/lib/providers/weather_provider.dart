@@ -122,7 +122,9 @@ class WeatherProvider extends ChangeNotifier {
     if (_lastAlertKey == key) return key;
     _lastAlertKey = key;
     return null;
-  }  List<String> dicasIA() {
+  }
+
+  List<String> dicasIA() {
     final tips = <String>[];
     final n = _now;
     if (n == null) return tips;
@@ -167,8 +169,7 @@ class WeatherProvider extends ChangeNotifier {
     _lon = lon;
     notifyListeners();
     try {
-      final url = Uri.parse(
-          'https://api.open-meteo.com/v1/forecast'
+      final url = Uri.parse('https://api.open-meteo.com/v1/forecast'
           '?latitude=$lat&longitude=$lon'
           '&current=temperature_2m,precipitation,weather_code,wind_speed_10m'
           '&hourly=temperature_2m,precipitation,precipitation_probability,'
@@ -176,8 +177,7 @@ class WeatherProvider extends ChangeNotifier {
           '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,'
           'weather_code'
           '&timezone=auto&wind_speed_unit=kmh&forecast_days=5');
-      final resp =
-          await http.get(url).timeout(const Duration(seconds: 10));
+      final resp = await http.get(url).timeout(const Duration(seconds: 10));
       if (resp.statusCode != 200) {
         throw Exception('HTTP ${resp.statusCode}');
       }
@@ -204,14 +204,16 @@ class WeatherProvider extends ChangeNotifier {
             time: _parseLocal(times[i] as String),
             tempC: _num(temps.length > i ? temps[i] : null) ?? 0,
             precipMm: _num(prec.length > i ? prec[i] : null) ?? 0,
-            precipProb:
-                (_num(probs.length > i ? probs[i] : null) ?? 0).toInt(),
+            precipProb: (_num(probs.length > i ? probs[i] : null) ?? 0).toInt(),
             windKmh: _num(winds.length > i ? winds[i] : null) ?? 0,
             code: (_num(codes.length > i ? codes[i] : null) ?? 0).toInt(),
           )
-      ].where((h) =>
-          h.time.isAfter(nowUtc) ||
-          nowUtc.difference(h.time).inMinutes < 60).take(24).toList();
+      ]
+          .where((h) =>
+              h.time.isAfter(nowUtc) ||
+              nowUtc.difference(h.time).inMinutes < 60)
+          .take(24)
+          .toList();
       final daily = body['daily'] as Map<String, dynamic>? ?? {};
       final dTimes = (daily['time'] as List?) ?? [];
       final dMax = (daily['temperature_2m_max'] as List?) ?? [];

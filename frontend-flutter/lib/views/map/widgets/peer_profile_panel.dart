@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/utils/fotos_motorista.dart';
 
@@ -25,8 +25,24 @@ class PeerProfilePanel extends StatelessWidget {
   });
 
   static const List<String> _emojis = [
-    '👋', '👍', '🤝', '😄', '😂', '🙏', '❤️', '🔥', '😎', '🫡', '💯', '🎉', '🫶', '🚨',
-    '🐂', '⛽', '✅', '👀',
+    '👋',
+    '👍',
+    '🤝',
+    '😄',
+    '😂',
+    '🙏',
+    '❤️',
+    '🔥',
+    '😎',
+    '🫡',
+    '💯',
+    '🎉',
+    '🫶',
+    '🚨',
+    '🐂',
+    '⛽',
+    '✅',
+    '👀',
   ];
 
   @override
@@ -88,11 +104,16 @@ class PeerProfilePanel extends StatelessWidget {
           const SizedBox(height: 18),
           Row(
             children: [
-              _QuickAction(icon: Icons.chat_bubble_outline, label: 'Mensagem', onTap: onMessage),
+              _QuickAction(
+                  icon: Icons.chat_bubble_outline,
+                  label: 'Mensagem',
+                  onTap: onMessage),
               const SizedBox(width: 10),
-              _QuickAction(icon: Icons.warning_amber, label: 'Sinal', onTap: onSignal),
+              _QuickAction(
+                  icon: Icons.warning_amber, label: 'Sinal', onTap: onSignal),
               const SizedBox(width: 10),
-              _QuickAction(icon: Icons.vibration, label: 'Vibrar', onTap: onVibration),
+              _QuickAction(
+                  icon: Icons.vibration, label: 'Vibrar', onTap: onVibration),
               const SizedBox(width: 10),
               _QuickAction(icon: Icons.call, label: 'Ligar', onTap: onCall),
             ],
@@ -101,7 +122,10 @@ class PeerProfilePanel extends StatelessWidget {
             const SizedBox(height: 18),
             const Text(
               'FOTO DO BRUTO',
-              style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             ClipRRect(
@@ -114,7 +138,8 @@ class PeerProfilePanel extends StatelessWidget {
                   photo,
                   fit: BoxFit.cover,
                   fallback: const Center(
-                    child: Icon(Icons.local_shipping, color: Colors.white24, size: 50),
+                    child: Icon(Icons.local_shipping,
+                        color: Colors.white24, size: 50),
                   ),
                 ),
               ),
@@ -125,7 +150,8 @@ class PeerProfilePanel extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'ENVIAR SAUDAÇÃO RÁPIDA',
-            style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -136,7 +162,8 @@ class PeerProfilePanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => onSendReaction(emoji),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1C0303),
                     borderRadius: BorderRadius.circular(12),
@@ -171,7 +198,8 @@ class _QuickAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _QuickAction({required this.icon, required this.label, required this.onTap});
+  const _QuickAction(
+      {required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +221,10 @@ class _QuickAction extends StatelessWidget {
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),

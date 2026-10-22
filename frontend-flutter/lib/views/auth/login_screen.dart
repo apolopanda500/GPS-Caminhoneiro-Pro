@@ -62,8 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.local_shipping,
-                  size: 80, color: kEmergencyRed),
+              const Icon(Icons.local_shipping, size: 80, color: kEmergencyRed),
               const SizedBox(height: 12),
               Text(
                 'GPS Caminhoneiro Pro',
@@ -182,7 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _voltar() {    final navigator = Navigator.of(context);
+  void _voltar() {
+    final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
     } else {
@@ -212,104 +212,107 @@ class _LoginScreenState extends State<LoginScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-        title: const Text('Criar conta'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'motorista',
-                    label: Text('Motorista'),
-                    icon: Icon(Icons.local_shipping, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: 'ajudante',
-                    label: Text('Ajudante'),
-                    icon: Icon(Icons.handshake, size: 16),
-                  ),
-                ],
-                selected: {role},
-                onSelectionChanged: (v) => setState(() => role = v.first),
-                showSelectedIcon: false,
-              ),
-              const SizedBox(height: 12),
-              if (role == 'ajudante') ...[
-                DropdownButtonFormField<String>(
-                  initialValue: helpType,
-                  items: AppConstants.helperTypes
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                      .toList(),
-                  onChanged: (v) => setState(() => helpType = v ?? helpType),
+          title: const Text('Criar conta'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: 'motorista',
+                      label: Text('Motorista'),
+                      icon: Icon(Icons.local_shipping, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: 'ajudante',
+                      label: Text('Ajudante'),
+                      icon: Icon(Icons.handshake, size: 16),
+                    ),
+                  ],
+                  selected: {role},
+                  onSelectionChanged: (v) => setState(() => role = v.first),
+                  showSelectedIcon: false,
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  height: 56,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: AppConstants.helperIcons.map((e) {
-                      final selected = e == helperIcon;
-                      return GestureDetector(
-                        onTap: () => setState(() => helperIcon = e),
-                        child: Container(
-                          width: 48,
-                          margin: const EdgeInsets.only(right: 8),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? kEmergencyRed.withValues(alpha: 0.25)
-                                : Colors.white10,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: selected ? kEmergencyRed : Colors.white24,
+                if (role == 'ajudante') ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: helpType,
+                    items: AppConstants.helperTypes
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (v) => setState(() => helpType = v ?? helpType),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 56,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: AppConstants.helperIcons.map((e) {
+                        final selected = e == helperIcon;
+                        return GestureDetector(
+                          onTap: () => setState(() => helperIcon = e),
+                          child: Container(
+                            width: 48,
+                            margin: const EdgeInsets.only(right: 8),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? kEmergencyRed.withValues(alpha: 0.25)
+                                  : Colors.white10,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color:
+                                    selected ? kEmergencyRed : Colors.white24,
+                              ),
                             ),
+                            child:
+                                Text(e, style: const TextStyle(fontSize: 22)),
                           ),
-                          child: Text(e, style: const TextStyle(fontSize: 22)),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: role == 'ajudante'
+                        ? 'Nome do ajudante'
+                        : 'Nome do motorista',
                   ),
                 ),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'E-mail',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Senha',
+                  ),
+                ),
               ],
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText:
-                      role == 'ajudante' ? 'Nome do ajudante' : 'Nome do motorista',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'E-mail',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Senha',
-                ),
-              ),
-            ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('CADASTRAR'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('CADASTRAR'),
-          ),
-        ],
-      ),
       ),
     );
 
@@ -482,7 +485,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (senha.length < 6) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('A senha precisa ter ao menos 6 caracteres.'),
+                      content:
+                          Text('A senha precisa ter ao menos 6 caracteres.'),
                     ),
                   );
                   return;
@@ -504,7 +508,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (redefinido == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Senha redefinida. Faça login novamente.')),
+        const SnackBar(
+            content: Text('Senha redefinida. Faça login novamente.')),
       );
     }
   }

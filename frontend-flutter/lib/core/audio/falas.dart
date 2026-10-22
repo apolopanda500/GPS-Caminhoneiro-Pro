@@ -50,7 +50,8 @@ class Falas {
     bool porNome = false,
   }) {
     final buf = StringBuffer();
-    final alvo = porNome && (nome ?? '').trim().isNotEmpty ? nome!.trim() : null;
+    final alvo =
+        porNome && (nome ?? '').trim().isNotEmpty ? nome!.trim() : null;
 
     if (perfil == PerfilVoz.waze) {
       // Waze: "Próxima: 3" e a distancia so quando ta perto.
@@ -159,9 +160,8 @@ class Falas {
       : 'Você chegou na empresa. Viagem concluída.';
 
   /// Fim da viagem.
-  static String viagemConcluida({required PerfilVoz perfil}) => perfil.curto
-      ? 'Viagem concluída.'
-      : 'Viagem concluída. Bom trabalho!';
+  static String viagemConcluida({required PerfilVoz perfil}) =>
+      perfil.curto ? 'Viagem concluída.' : 'Viagem concluída. Bom trabalho!';
 
   /// Distancia curta (sem "quilometros" quando perto).
   static void _distancia(StringBuffer buf, double? distanciaKm,

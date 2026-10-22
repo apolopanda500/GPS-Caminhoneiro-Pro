@@ -13,7 +13,8 @@ class RadioPlayer extends StatelessWidget {
 
   const RadioPlayer({super.key, this.extras = const []});
 
-  static Future<void> show(BuildContext context, {List<EstacaoRadio> extras = const []}) {
+  static Future<void> show(BuildContext context,
+      {List<EstacaoRadio> extras = const []}) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -58,7 +59,8 @@ class RadioPlayer extends StatelessWidget {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+                    icon: const Icon(Icons.keyboard_arrow_down,
+                        color: Colors.white70),
                   ),
                   Expanded(
                     child: Text(
@@ -76,7 +78,9 @@ class RadioPlayer extends StatelessWidget {
                     tooltip: 'Favoritar',
                     onPressed: estacao == null
                         ? null
-                        : () => context.read<AudioProvider>().alternarFavorita(estacao),
+                        : () => context
+                            .read<AudioProvider>()
+                            .alternarFavorita(estacao),
                     icon: Icon(
                       (estacao != null && audio.ehFavorita(estacao))
                           ? Icons.favorite
@@ -124,7 +128,9 @@ class RadioPlayer extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 22),
                       child: Text(
-                        audio.radioEstacao.isEmpty ? 'Nada tocando' : audio.radioEstacao,
+                        audio.radioEstacao.isEmpty
+                            ? 'Nada tocando'
+                            : audio.radioEstacao,
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -147,12 +153,14 @@ class RadioPlayer extends StatelessWidget {
                   tooltip: 'Anterior',
                   iconSize: 34,
                   color: Colors.white70,
-                  onPressed: () => context.read<AudioProvider>().anteriorEstacao(),
+                  onPressed: () =>
+                      context.read<AudioProvider>().anteriorEstacao(),
                   icon: const Icon(Icons.skip_previous),
                 ),
                 const SizedBox(width: 18),
                 GestureDetector(
-                  onTap: () => context.read<AudioProvider>().alternarReproducao(),
+                  onTap: () =>
+                      context.read<AudioProvider>().alternarReproducao(),
                   child: Container(
                     width: 74,
                     height: 74,
@@ -172,7 +180,8 @@ class RadioPlayer extends StatelessWidget {
                   tooltip: 'Próxima',
                   iconSize: 34,
                   color: Colors.white70,
-                  onPressed: () => context.read<AudioProvider>().proximaEstacao(),
+                  onPressed: () =>
+                      context.read<AudioProvider>().proximaEstacao(),
                   icon: const Icon(Icons.skip_next),
                 ),
               ],
@@ -182,11 +191,13 @@ class RadioPlayer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(22, 14, 22, 4),
               child: Row(
                 children: [
-                  const Icon(Icons.volume_down, color: Colors.white54, size: 18),
+                  const Icon(Icons.volume_down,
+                      color: Colors.white54, size: 18),
                   Expanded(
                     child: Slider(
                       value: audio.volume,
-                      onChanged: (v) => context.read<AudioProvider>().setVolume(v),
+                      onChanged: (v) =>
+                          context.read<AudioProvider>().setVolume(v),
                       activeColor: kEmergencyRed,
                       inactiveColor: Colors.white24,
                     ),
@@ -223,19 +234,25 @@ class RadioPlayer extends StatelessWidget {
                       style: TextStyle(
                         color: tocando ? kEmergencyRed : Colors.white,
                         fontSize: 13,
-                        fontWeight: tocando ? FontWeight.bold : FontWeight.normal,
+                        fontWeight:
+                            tocando ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                     subtitle: Text(
                       (e.tags == '' ? 'Rádio da estrada' : e.tags),
-                      style: const TextStyle(color: Colors.white38, fontSize: 11),
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 11),
                     ),
                     trailing: IconButton(
                       tooltip: 'Favoritar',
                       icon: Icon(
-                        audio.ehFavorita(e) ? Icons.favorite : Icons.favorite_border,
+                        audio.ehFavorita(e)
+                            ? Icons.favorite
+                            : Icons.favorite_border,
                         size: 18,
-                        color: audio.ehFavorita(e) ? kEmergencyRed : Colors.white38,
+                        color: audio.ehFavorita(e)
+                            ? kEmergencyRed
+                            : Colors.white38,
                       ),
                       onPressed: () =>
                           context.read<AudioProvider>().alternarFavorita(e),

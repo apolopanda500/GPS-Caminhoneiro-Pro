@@ -1,4 +1,4 @@
-﻿class TruckConfig {
+class TruckConfig {
   final String driverId;
   final double height;
   final double width;

@@ -47,7 +47,8 @@ void main() {
   });
 
   testWidgets('SpeedHUD renderiza a velocidade', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SpeedHUD(speedKmh: 82))));
+    await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: SpeedHUD(speedKmh: 82))));
     expect(find.text('82'), findsOneWidget);
     expect(find.text('km/h'), findsOneWidget);
     expect(find.byIcon(Icons.speed), findsOneWidget);
@@ -100,13 +101,15 @@ void main() {
     expect(find.text('Nome do motorista'), findsOneWidget);
   });
 
-  testWidgets('LoginScreen autentica (offline) e vai para Configurar Caminhão', (tester) async {
+  testWidgets('LoginScreen autentica (offline) e vai para Configurar Caminhão',
+      (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(_wrap(const LoginScreen(), settings: await _perfilPronto()));
+    await tester.pumpWidget(
+        _wrap(const LoginScreen(), settings: await _perfilPronto()));
 
     await tester.enterText(find.byType(TextField).at(0), 'motorista@teste.com');
     await tester.enterText(find.byType(TextField).at(1), '123456');
@@ -126,7 +129,8 @@ void main() {
     expect(find.text('ENVIAR CÓDIGO'), findsOneWidget);
   });
 
-  testWidgets('TruckSetupScreen renderiza todos os campos e HAZMAT', (tester) async {
+  testWidgets('TruckSetupScreen renderiza todos os campos e HAZMAT',
+      (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);

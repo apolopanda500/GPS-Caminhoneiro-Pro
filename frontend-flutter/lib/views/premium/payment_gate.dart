@@ -202,8 +202,7 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _planCard('Mensal', 'R\$ 4,99', 'mensal', 4.99),
-                      _planCard(
-                          'Anual', 'R\$ 29,99', 'anual', 29.99,
+                      _planCard('Anual', 'R\$ 29,99', 'anual', 29.99,
                           badge: 'economize 50%'),
                     ],
                   ),
@@ -284,13 +283,17 @@ class _PaymentGateScreenState extends State<PaymentGateScreen> {
               Text(
                 badge,
                 style: const TextStyle(
-                    color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
+                    color: Colors.amber,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold),
               ),
             const SizedBox(height: 6),
             Text(
               preco,
               style: const TextStyle(
-                  color: Colors.amber, fontSize: 20, fontWeight: FontWeight.bold),
+                  color: Colors.amber,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -363,7 +366,8 @@ class _CartaoCambioState extends State<_CartaoCambio> {
         children: [
           Row(
             children: [
-              const Icon(Icons.currency_exchange, color: Colors.amber, size: 18),
+              const Icon(Icons.currency_exchange,
+                  color: Colors.amber, size: 18),
               const SizedBox(width: 8),
               const Text('Câmbio de hoje',
                   style: TextStyle(
@@ -373,8 +377,8 @@ class _CartaoCambioState extends State<_CartaoCambio> {
               const Spacer(),
               GestureDetector(
                 onTap: _carregar,
-                child: const Icon(Icons.refresh,
-                    size: 16, color: Colors.white54),
+                child:
+                    const Icon(Icons.refresh, size: 16, color: Colors.white54),
               ),
             ],
           ),

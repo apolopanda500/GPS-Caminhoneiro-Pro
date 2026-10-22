@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
@@ -67,8 +67,7 @@ class GpsCamioneiroProApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: appLightTheme(accent: accent),
       darkTheme: appTheme(accent: accent),
-      themeMode:
-          settings.nightMode ? ThemeMode.dark : ThemeMode.light,
+      themeMode: settings.nightMode ? ThemeMode.dark : ThemeMode.light,
       home: const SplashScreen(),
     );
   }

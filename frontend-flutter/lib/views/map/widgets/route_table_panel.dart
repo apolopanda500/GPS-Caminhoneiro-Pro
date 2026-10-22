@@ -96,8 +96,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                 accent: settings?.overlayColor),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: overlayBorder(context,
-                    accent: settings?.overlayColor),
+                color: overlayBorder(context, accent: settings?.overlayColor),
                 width: 1.4),
           ),
           child: Column(
@@ -151,18 +150,18 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
                       : '$entregues de $total concluídas${route != null ? ' • ${route.distanceKm.toStringAsFixed(1)} km' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: overlayTextMuted(context), fontSize: 11),
+                  style:
+                      TextStyle(color: overlayTextMuted(context), fontSize: 11),
                 ),
                 if (route != null) _chegada(context, route),
               ],
             ),
           ),
-          _botaoCabecalho(Icons.center_focus_strong, 'Mostrar rota',
-              widget.onShowRoute),
+          _botaoCabecalho(
+              Icons.center_focus_strong, 'Mostrar rota', widget.onShowRoute),
           _botaoCorRota(),
-          _botaoCabecalho(Icons.share_location, 'Compartilhar rota',
-              widget.onShare),
+          _botaoCabecalho(
+              Icons.share_location, 'Compartilhar rota', widget.onShare),
           _botaoCabecalho(Icons.edit, 'Editar rota', () {
             setState(() => _editando = !_editando);
           }, ativo: widget.canManageRoute),
@@ -200,7 +199,8 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
           height: 20,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: Color(int.parse('FF${cor.replaceFirst('#', '')}', radix: 16)),
+            color:
+                Color(int.parse('FF${cor.replaceFirst('#', '')}', radix: 16)),
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white24, width: 1),
           ),
@@ -352,7 +352,8 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
           ),
         ),
         Divider(
-            color: overlayTextMuted(context).withValues(alpha: 0.18), height: 1),
+            color: overlayTextMuted(context).withValues(alpha: 0.18),
+            height: 1),
         Flexible(
           child: ListView.builder(
             shrinkWrap: true,
@@ -561,12 +562,14 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
   }
 
   /// Confirmacao real antes de marcar a entrega.
-  Future<void> _confirmarEntrega(int index) async {    final provider = context.read<RouteProvider>();
+  Future<void> _confirmarEntrega(int index) async {
+    final provider = context.read<RouteProvider>();
     final stops = provider.stops;
     if (index < 0 || index >= stops.length) return;
     final stop = stops[index];
-    final cliente =
-        stop.customer.isNotEmpty ? stop.customer : (stop.label.isNotEmpty ? stop.label : 'parada ${index + 1}');
+    final cliente = stop.customer.isNotEmpty
+        ? stop.customer
+        : (stop.label.isNotEmpty ? stop.label : 'parada ${index + 1}');
     final resposta = await confirmarAcao(
       context,
       titulo: 'Confirmar entrega',

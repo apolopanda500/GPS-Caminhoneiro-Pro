@@ -98,7 +98,8 @@ void main() {
       final t0 = DateTime(2026, 10, 19, 10, 0, 0);
       provider.updatePosition(const LatLng(-22.60, -43.70), now: t0);
       expect(provider.statusOf(0), StopStatus.arrived);
-      provider.updatePosition(const LatLng(-22.90, -43.90), now: t0.add(const Duration(seconds: 5)));
+      provider.updatePosition(const LatLng(-22.90, -43.90),
+          now: t0.add(const Duration(seconds: 5)));
       expect(provider.statusOf(0), StopStatus.pending);
     });
 
@@ -235,14 +236,18 @@ void main() {
 
   group('Constantes e ícones', () {
     test('estilos de rua claros e escuros são URLs do OpenFreeMap', () {
-      expect(AppConstants.styleStreetsUrl, startsWith('https://tiles.openfreemap.org/styles/'));
-      expect(AppConstants.styleStreetsLightUrl, startsWith('https://tiles.openfreemap.org/styles/'));
-      expect(AppConstants.styleStreetsUrl, isNot(AppConstants.styleStreetsLightUrl));
+      expect(AppConstants.styleStreetsUrl,
+          startsWith('https://tiles.openfreemap.org/styles/'));
+      expect(AppConstants.styleStreetsLightUrl,
+          startsWith('https://tiles.openfreemap.org/styles/'));
+      expect(AppConstants.styleStreetsUrl,
+          isNot(AppConstants.styleStreetsLightUrl));
     });
 
     test('lista de ícones de caminhão é única e não vazia', () {
       expect(AppConstants.truckIcons, isNotEmpty);
-      expect(AppConstants.truckIcons.toSet().length, AppConstants.truckIcons.length);
+      expect(AppConstants.truckIcons.toSet().length,
+          AppConstants.truckIcons.length);
       expect(AppConstants.truckIcons.first, '🚚');
     });
   });

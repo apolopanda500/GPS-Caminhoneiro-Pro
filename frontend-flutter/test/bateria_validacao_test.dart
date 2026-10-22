@@ -36,7 +36,8 @@ void main() {
       expect(VoiceService.instance.modoFalaParada, ModoFalaParada.numero);
     });
 
-    test('o modo nome do cliente fica salvo e volta do armazenamento', () async {
+    test('o modo nome do cliente fica salvo e volta do armazenamento',
+        () async {
       await VoiceService.instance.definirModoFala(ModoFalaParada.nomeCliente);
       expect(VoiceService.instance.modoFalaParada, ModoFalaParada.nomeCliente);
       await VoiceService.instance.carregarPreferencia();
@@ -234,7 +235,8 @@ void main() {
     testWidgets('mostra o nome da rua', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: SpeedHUD(speedKmh: 40, streetName: 'Rua Brasil')),
+          home:
+              Scaffold(body: SpeedHUD(speedKmh: 40, streetName: 'Rua Brasil')),
         ),
       );
       await tester.pump();

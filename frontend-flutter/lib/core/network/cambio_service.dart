@@ -37,9 +37,9 @@ class CambioService {
   /// Taxas: 1 real vale X da moeda.
   Future<Map<String, double>> taxas() async {
     try {
-      final resp = await http
-          .get(Uri.parse(_url), headers: {'User-Agent': 'gps-camioneiro-pro/1.0'})
-          .timeout(const Duration(seconds: 12));
+      final resp = await http.get(Uri.parse(_url), headers: {
+        'User-Agent': 'gps-camioneiro-pro/1.0'
+      }).timeout(const Duration(seconds: 12));
       if (resp.statusCode != 200) return const {};
       final data =
           jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
@@ -58,9 +58,9 @@ class CambioService {
   /// Data da atualizacao da cotacao (texto do provedor).
   Future<String> atualizacao() async {
     try {
-      final resp = await http
-          .get(Uri.parse(_url), headers: {'User-Agent': 'gps-camioneiro-pro/1.0'})
-          .timeout(const Duration(seconds: 12));
+      final resp = await http.get(Uri.parse(_url), headers: {
+        'User-Agent': 'gps-camioneiro-pro/1.0'
+      }).timeout(const Duration(seconds: 12));
       if (resp.statusCode != 200) return '';
       final data =
           jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;

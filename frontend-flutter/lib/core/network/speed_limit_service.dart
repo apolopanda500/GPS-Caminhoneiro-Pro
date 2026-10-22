@@ -8,7 +8,8 @@ class SpeedLimitInfo {
   final String? streetName;
   final DateTime fetchedAt;
 
-  const SpeedLimitInfo({this.limitKmh, this.streetName, required this.fetchedAt});
+  const SpeedLimitInfo(
+      {this.limitKmh, this.streetName, required this.fetchedAt});
 
   bool get hasLimit => limitKmh != null && limitKmh! > 0;
 }

@@ -69,7 +69,8 @@ void main() {
       expect(b.message, a.message);
       expect(b.latitude, a.latitude);
       expect(b.longitude, a.longitude);
-      expect(b.createdAt.millisecondsSinceEpoch, a.createdAt.millisecondsSinceEpoch);
+      expect(b.createdAt.millisecondsSinceEpoch,
+          a.createdAt.millisecondsSinceEpoch);
     });
 
     test('fromJson le created_at em ISO da varredura SQL', () {
@@ -97,7 +98,8 @@ void main() {
 
   group('TruckConfig', () {
     test('defaults corretos', () {
-      final t = TruckConfig(driverId: 'd', height: 4.4, width: 2.5, length: 13.5, weight: 45);
+      final t = TruckConfig(
+          driverId: 'd', height: 4.4, width: 2.5, length: 13.5, weight: 45);
       expect(t.axleCount, 2);
       expect(t.hazmat, false);
     });

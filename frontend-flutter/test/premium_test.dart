@@ -21,8 +21,7 @@ void main() {
             isFalse,
             reason: feature.name);
         expect(
-            PremiumPolicy.canUse(feature, isPremium: false, now: antes),
-            isTrue,
+            PremiumPolicy.canUse(feature, isPremium: false, now: antes), isTrue,
             reason: feature.name);
       }
     });
@@ -31,12 +30,10 @@ void main() {
       final depois = DateTime(2026, 11, 30);
       expect(PremiumPolicy.promoActive(depois), isFalse);
       for (final feature in PremiumPolicy.features) {
-        expect(
-            PremiumPolicy.isLocked(feature, isPremium: false, now: depois),
+        expect(PremiumPolicy.isLocked(feature, isPremium: false, now: depois),
             isTrue,
             reason: feature.name);
-        expect(
-            PremiumPolicy.canUse(feature, isPremium: false, now: depois),
+        expect(PremiumPolicy.canUse(feature, isPremium: false, now: depois),
             isFalse,
             reason: feature.name);
       }

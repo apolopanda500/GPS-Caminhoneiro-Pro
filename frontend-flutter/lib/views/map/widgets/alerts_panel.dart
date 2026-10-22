@@ -62,7 +62,8 @@ class _AlertsPanelState extends State<AlertsPanel> {
     final alerts = widget.alerts;
     final texto = overlayText(context);
     final settings = _ajustes(context);
-    final cor = widget.accent ?? settings?.overlayColor ?? kOverlayAccents.first;
+    final cor =
+        widget.accent ?? settings?.overlayColor ?? kOverlayAccents.first;
     final superficie = widget.surface ??
         overlaySurface(context, opacity: settings?.overlayOpacity ?? 1.0);
 
@@ -87,16 +88,16 @@ class _AlertsPanelState extends State<AlertsPanel> {
               ),
             ],
           ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _cabecalho(alerts.length, texto, cor),
-                if (!_minimizado && alerts.isEmpty)
-                  _vazio(context, texto, cor)
-                else if (!_minimizado && alerts.isNotEmpty)
-                  Flexible(child: _lista(alerts, texto, cor)),
-              ],
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _cabecalho(alerts.length, texto, cor),
+              if (!_minimizado && alerts.isEmpty)
+                _vazio(context, texto, cor)
+              else if (!_minimizado && alerts.isNotEmpty)
+                Flexible(child: _lista(alerts, texto, cor)),
+            ],
+          ),
         ),
       ),
     );
@@ -160,7 +161,9 @@ class _AlertsPanelState extends State<AlertsPanel> {
               children: [
                 Flexible(
                   child: Text(
-                    total == 0 ? 'Sinais da estrada' : 'Sinais da estrada ($total)',
+                    total == 0
+                        ? 'Sinais da estrada'
+                        : 'Sinais da estrada ($total)',
                     style: TextStyle(
                       color: texto,
                       fontWeight: FontWeight.bold,
@@ -216,8 +219,8 @@ class _AlertsPanelState extends State<AlertsPanel> {
       itemBuilder: (context, index) {
         final alert = alerts[index];
         final cor = _corDoTipo(alert.type);
-        final selecionado = widget.selectedId != null &&
-            widget.selectedId == alert.id;
+        final selecionado =
+            widget.selectedId != null && widget.selectedId == alert.id;
         return Material(
           color: Colors.transparent,
           child: InkWell(
@@ -252,8 +255,9 @@ class _AlertsPanelState extends State<AlertsPanel> {
                           style: TextStyle(
                             color: texto,
                             fontSize: 12,
-                            fontWeight:
-                                selecionado ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: selecionado
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                         ),
                         const SizedBox(height: 2),

@@ -4,8 +4,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Camadas de mapa suportadas.
 enum MapLayerMode { satellite, streets, detailed }
+
 /// Perfis de desempenho gráfico (GPU/CPU).
 enum RenderQuality { economy, balanced, ultra }
+
+/// Modo da camera que acompanha o caminhao no mapa.
+enum CameraMode {
+  norte,
+  navegacao,
+  cabine,
+}
 
 /// Preferências avançadas do app (desempenho, mapa, GPS e hardware).
 /// Persistidas em SharedPreferences para sobreviver a reinícios.
@@ -36,6 +44,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kRegiao = 'settings.regiao';
   static const _kPerfilPronto = 'settings.perfilPronto';
   static const _kCorRota = 'settings.corRota';
+  static const _kCameraMode = 'settings.cameraMode';
 
   /// O mapa de ruas é recarregado a cada 12 h ou na virada do dia.
   static const Duration mapUpdateInterval = Duration(hours: 12);
@@ -44,7 +53,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _modoLeitura = false;
   int _targetFps = 60;
   MapLayerMode _layer = MapLayerMode.satellite;
-  int _gpsIntervalSeconds = 2;
+  int _gpsIntervalSeconds = 1;
   bool _highAccuracy = true;
   bool _backgroundLocation = true;
   bool _batterySaver = false;
@@ -66,6 +75,7 @@ class SettingsProvider extends ChangeNotifier {
   String _regiao = 'RJ';
   bool _perfilPronto = false;
   String _corRota = '#1D4ED8';
+  CameraMode _cameraMode = CameraMode.norte;
   bool _loaded = false;
 
   bool get showFps => _showFps;
@@ -109,7 +119,8 @@ class SettingsProvider extends ChangeNotifier {
   /// Índice da cor de destaque usada nos painéis e na barra de ferramentas.
   int get overlayAccentIndex => _overlayAccent;
 
-  Color get overlayColor => kOverlayAccents[_overlayAccent % kOverlayAccents.length];
+  Color get overlayColor =>
+      kOverlayAccents[_overlayAccent % kOverlayAccents.length];
 
   /// Mostra o botão flutuante do rádio sobre o mapa.
   bool get radioFabEnabled => _radioFabEnabled;
@@ -123,6 +134,9 @@ class SettingsProvider extends ChangeNotifier {
 
   /// Cor da linha da rota (hex, ex.: '#FF6D00').
   String get corRota => _corRota;
+
+  /// Camera de acompanhamento escolhida no mapa.
+  CameraMode get cameraMode => _cameraMode;
 
   String get dayStartedLabel {
     final start = _dayStartedAt;
@@ -216,7 +230,7 @@ class SettingsProvider extends ChangeNotifier {
     _modoLeitura = prefs.getBool(_kModoLeitura) ?? false;
     _targetFps = prefs.getInt(_kTargetFps) ?? 60;
     _layer = MapLayerMode.values[prefs.getInt(_kLayer) ?? 0];
-    _gpsIntervalSeconds = prefs.getInt(_kGpsInterval) ?? 2;
+    _gpsIntervalSeconds = prefs.getInt(_kGpsInterval) ?? 1;
     _highAccuracy = prefs.getBool(_kHighAccuracy) ?? true;
     _backgroundLocation = prefs.getBool(_kBackgroundLocation) ?? true;
     _batterySaver = prefs.getBool(_kBatterySaver) ?? false;
@@ -239,7 +253,8 @@ class SettingsProvider extends ChangeNotifier {
       _renderQuality = RenderQuality.values[quality];
     }
     _trackingEnabled = prefs.getBool(_kTracking) ?? true;
-    _overlayOpacity = (prefs.getDouble(_kOverlayOpacity) ?? 0.92).clamp(0.3, 1.0);
+    _overlayOpacity =
+        (prefs.getDouble(_kOverlayOpacity) ?? 0.92).clamp(0.3, 1.0);
     final accent = prefs.getInt(_kOverlayAccent) ?? 0;
     _overlayAccent =
         (accent >= 0 && accent < kOverlayAccents.length) ? accent : 0;
@@ -247,6 +262,10 @@ class SettingsProvider extends ChangeNotifier {
     _regiao = prefs.getString(_kRegiao) ?? 'RJ';
     _perfilPronto = prefs.getBool(_kPerfilPronto) ?? false;
     _corRota = prefs.getString(_kCorRota) ?? '#1D4ED8';
+    final cameraMode = prefs.getInt(_kCameraMode) ?? 0;
+    _cameraMode = (cameraMode >= 0 && cameraMode < CameraMode.values.length)
+        ? CameraMode.values[cameraMode]
+        : CameraMode.norte;
     final dayStart = prefs.getInt(_kDayStartedAt);
     _dayStartedAt =
         dayStart == null ? null : DateTime.fromMillisecondsSinceEpoch(dayStart);
@@ -288,6 +307,13 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kLayer, value.index);
+  }
+
+  Future<void> setCameraMode(CameraMode value) async {
+    _cameraMode = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kCameraMode, value.index);
   }
 
   Future<void> setGpsInterval(int seconds) async {

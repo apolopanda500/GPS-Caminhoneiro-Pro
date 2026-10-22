@@ -19,7 +19,8 @@ class VozDisponivel {
 
   String get rotulo {
     final g = (genero ?? '').toLowerCase();
-    final tipo = g.startsWith('f') ? 'feminina' : (g.startsWith('m') ? 'masculina' : '');
+    final tipo =
+        g.startsWith('f') ? 'feminina' : (g.startsWith('m') ? 'masculina' : '');
     return tipo.isEmpty ? nome : '$nome ($tipo)';
   }
 }
@@ -68,7 +69,8 @@ class VoiceService {
   Future<void> definirModoFala(ModoFalaParada modo) async {
     modoFalaParada = modo;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('audio_vozModo', modo == ModoFalaParada.nomeCliente ? 'nome' : 'numero');
+    await prefs.setString('audio_vozModo',
+        modo == ModoFalaParada.nomeCliente ? 'nome' : 'numero');
   }
 
   /// Troca o perfil de fala (Padrão, Waze, Uber, 99).

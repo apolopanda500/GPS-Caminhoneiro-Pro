@@ -139,7 +139,8 @@ class _RedeScreenState extends State<RedeScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.warning_amber_rounded, size: 44, color: Colors.white24),
+              const Icon(Icons.warning_amber_rounded,
+                  size: 44, color: Colors.white24),
               const SizedBox(height: 12),
               const Text(
                 'Nenhum sinal por perto agora.\n'
@@ -189,7 +190,8 @@ class _RedeScreenState extends State<RedeScreen>
                 'Nenhum caminhoneiro por perto agora.\n'
                 'Assim que aparecer, ele entra aqui.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: ink.withValues(alpha: 0.6), fontSize: 13),
+                style:
+                    TextStyle(color: ink.withValues(alpha: 0.6), fontSize: 13),
               ),
             ],
           ),
@@ -204,7 +206,9 @@ class _RedeScreenState extends State<RedeScreen>
         return ListTile(
           leading: _AvatarDoPeer(p: p, nome: nome),
           title: Text(nome, style: TextStyle(color: ink)),
-          subtitle: Text('Caminhoneiro na rede', style: TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.6))),
+          subtitle: Text('Caminhoneiro na rede',
+              style:
+                  TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.6))),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

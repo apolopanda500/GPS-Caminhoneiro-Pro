@@ -86,7 +86,8 @@ class _OndaAvisoState extends State<OndaAviso>
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.campaign, color: Colors.white, size: 26),
+                  child:
+                      const Icon(Icons.campaign, color: Colors.white, size: 26),
                 ),
               ),
             ],

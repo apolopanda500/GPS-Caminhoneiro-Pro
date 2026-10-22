@@ -37,9 +37,7 @@ class OrientacaoLayout {
       case 'camadas':
         return Offset(w - 320, 96);
       case 'chat':
-        return paisagem
-            ? Offset(w - 340, h - 380)
-            : Offset(w - 340, h - 520);
+        return paisagem ? Offset(w - 340, h - 380) : Offset(w - 340, h - 520);
       case 'route':
         return Offset(w - 340, 96);
       case 'alerts':
@@ -51,9 +49,7 @@ class OrientacaoLayout {
       case 'assistant':
         return Offset(w - 70, h - 380);
       case 'speed_hud':
-        return paisagem
-            ? Offset(w - 220, h - 130)
-            : Offset(w - 220, h - 230);
+        return paisagem ? Offset(w - 220, h - 130) : Offset(w - 220, h - 230);
       case 'peers':
         return Offset(w - 220, h - 390);
       case 'toolbar':

@@ -27,8 +27,7 @@ void main() {
     test('a musica de entrada e um MP3 valido (ID3)', () {
       final bytes = File('assets/audio/musica_custom.mp3').readAsBytesSync();
       final cabecalho = String.fromCharCodes(bytes.take(3));
-      expect(cabecalho, 'ID3',
-          reason: 'o arquivo deve ser um MP3 com tag ID3');
+      expect(cabecalho, 'ID3', reason: 'o arquivo deve ser um MP3 com tag ID3');
     });
 
     test('o provider de audio tem o sino e a musica de entrada', () {

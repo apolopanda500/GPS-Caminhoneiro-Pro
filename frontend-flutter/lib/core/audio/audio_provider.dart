@@ -53,8 +53,7 @@ class AudioProvider extends ChangeNotifier {
     return null;
   }
 
-  bool ehFavorita(EstacaoRadio e) =>
-      _favoritos.any((f) => f.chave == e.chave);
+  bool ehFavorita(EstacaoRadio e) => _favoritos.any((f) => f.chave == e.chave);
 
   /// Carrega apenas favoritos e recentes, sem tocar audio.
   /// Usado em testes, onde o plugin de audio nao esta disponivel.
@@ -169,6 +168,7 @@ class AudioProvider extends ChangeNotifier {
     await prefs.setBool('audio_estacao', ligar);
     notifyListeners();
   }
+
   /// Carrega as estacoes do Brasil com os filtros/ordenacao atuais.
   ///
   /// Retorna true quando a lista foi preenchida com sucesso.
@@ -299,7 +299,8 @@ class AudioProvider extends ChangeNotifier {
   }
 
   /// Pausa ou retoma a reproducao atual.
-  Future<void> alternarReproducao() async {    if (!radioTocando) return;
+  Future<void> alternarReproducao() async {
+    if (!radioTocando) return;
     try {
       if (_radio.playing) {
         await _radio.pause();
@@ -352,8 +353,9 @@ class AudioProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  String _codificar(List<EstacaoRadio> lista) =>
-      lista.map((e) => '${e.chave}\u001f${e.nome}\u001f${e.url}').join('\u001e');
+  String _codificar(List<EstacaoRadio> lista) => lista
+      .map((e) => '${e.chave}\u001f${e.nome}\u001f${e.url}')
+      .join('\u001e');
 
   List<EstacaoRadio> _decodificar(String bruto) {
     final resultado = <EstacaoRadio>[];
@@ -416,4 +418,3 @@ class AudioProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-

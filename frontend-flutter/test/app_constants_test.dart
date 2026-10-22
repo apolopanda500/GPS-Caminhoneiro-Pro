@@ -16,17 +16,20 @@ void main() {
     test('raios de alerta e chat corretos', () {
       expect(AppConstants.alertRadiusMeters, 2000);
       expect(AppConstants.chatRadiusMeters, 5000);
-      expect(AppConstants.chatRadiusMeters, greaterThan(AppConstants.alertRadiusMeters));
+      expect(AppConstants.chatRadiusMeters,
+          greaterThan(AppConstants.alertRadiusMeters));
     });
 
     test('lista de tipos de alerta contém os essenciais', () {
-      expect(AppConstants.alertTypes, containsAll([
-        'radar',
-        'ponte_baixa',
-        'policia',
-        'balanca',
-        'perigo',
-      ]));
+      expect(
+          AppConstants.alertTypes,
+          containsAll([
+            'radar',
+            'ponte_baixa',
+            'policia',
+            'balanca',
+            'perigo',
+          ]));
     });
 
     test('emojis de estrada não vazios', () {

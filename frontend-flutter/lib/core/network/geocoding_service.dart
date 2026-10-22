@@ -69,12 +69,30 @@ const Map<String, String> kEstadosBrasil = {
 /// Texto sem acentos e em minusculas, para comparar nomes de estado.
 String _semAcento(String texto) {
   const mapa = {
-    'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a',
-    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-    'ó': 'o', 'ò': 'o', 'õ': 'o', 'ô': 'o', 'ö': 'o',
-    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
-    'ç': 'c', 'ñ': 'n',
+    'á': 'a',
+    'à': 'a',
+    'ã': 'a',
+    'â': 'a',
+    'ä': 'a',
+    'é': 'e',
+    'è': 'e',
+    'ê': 'e',
+    'ë': 'e',
+    'í': 'i',
+    'ì': 'i',
+    'î': 'i',
+    'ï': 'i',
+    'ó': 'o',
+    'ò': 'o',
+    'õ': 'o',
+    'ô': 'o',
+    'ö': 'o',
+    'ú': 'u',
+    'ù': 'u',
+    'û': 'u',
+    'ü': 'u',
+    'ç': 'c',
+    'ñ': 'n',
   };
   final base = texto.toLowerCase();
   final buffer = StringBuffer();
@@ -101,7 +119,6 @@ String? _estadoDoTexto(String? texto) {
 /// Nome completo do estado usado na consulta (evita que o geocoder interprete
 /// a sigla como outra coisa).
 String _nomeDoEstado(String? texto) => _estadoDoTexto(texto) ?? '';
-
 
 /// Busca de enderecos/ruas: prioriza o que esta perto de voce.
 ///
@@ -149,8 +166,8 @@ class GeocodingService {
               displayName: r.displayName,
               latitude: r.latitude,
               longitude: r.longitude,
-              distanceKm: _distanciaKm(
-                  referencia, LatLng(r.latitude, r.longitude)),
+              distanceKm:
+                  _distanciaKm(referencia, LatLng(r.latitude, r.longitude)),
               region: r.region,
               state: r.state,
             ))
@@ -164,13 +181,12 @@ class GeocodingService {
         return (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9);
       });
     } else {
-      comDistancia.sort(
-          (a, b) => (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
+      comDistancia
+          .sort((a, b) => (a.distanceKm ?? 1e9).compareTo(b.distanceKm ?? 1e9));
     }
 
-    final dentro = comDistancia
-        .where((r) => (r.distanceKm ?? 0) <= raioKm)
-        .toList();
+    final dentro =
+        comDistancia.where((r) => (r.distanceKm ?? 0) <= raioKm).toList();
     // Se nada estiver perto, mantem os resultados (para nao sumir com a busca).
     return dentro.isNotEmpty ? dentro : comDistancia;
   }
@@ -178,12 +194,30 @@ class GeocodingService {
   /// Texto sem acentos e em minusculas.
   static String _semAcento(String texto) {
     const mapa = {
-      'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a',
-      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-      'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-      'ó': 'o', 'ò': 'o', 'õ': 'o', 'ô': 'o', 'ö': 'o',
-      'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
-      'ç': 'c', 'ñ': 'n',
+      'á': 'a',
+      'à': 'a',
+      'ã': 'a',
+      'â': 'a',
+      'ä': 'a',
+      'é': 'e',
+      'è': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'í': 'i',
+      'ì': 'i',
+      'î': 'i',
+      'ï': 'i',
+      'ó': 'o',
+      'ò': 'o',
+      'õ': 'o',
+      'ô': 'o',
+      'ö': 'o',
+      'ú': 'u',
+      'ù': 'u',
+      'û': 'u',
+      'ü': 'u',
+      'ç': 'c',
+      'ñ': 'n',
     };
     final buffer = StringBuffer();
     for (final r in texto.toLowerCase().runes) {
@@ -219,13 +253,19 @@ class GeocodingService {
 
     final engines = <Future<List<GeoResult>> Function()>[
       () => _searchTomTom(q,
-          limit: cotaPorMotor, near: near, cityName: cityName, stateName: stateName),
+          limit: cotaPorMotor,
+          near: near,
+          cityName: cityName,
+          stateName: stateName),
       () => _searchPhoton(q,
           limit: cotaPorMotor, near: near, stateName: stateName),
       () => _searchArcGis(q,
           limit: cotaPorMotor, near: near, stateName: stateName),
       () => _searchNominatim(q,
-          limit: cotaPorMotor, near: near, cityName: cityName, stateName: stateName),
+          limit: cotaPorMotor,
+          near: near,
+          cityName: cityName,
+          stateName: stateName),
     ];
 
     var lista = <GeoResult>[];
@@ -468,10 +508,9 @@ class GeocodingService {
         final pos = (r['position'] as Map?)?.cast<String, dynamic>() ?? {};
         final endereco = (r['address'] as Map?)?.cast<String, dynamic>() ?? {};
         final bairro = endereco['neighbourhood']?.toString() ?? '';
-        final cidade =
-            endereco['municipalitySubdivision']?.toString() ??
-                endereco['municipality']?.toString() ??
-                '';
+        final cidade = endereco['municipalitySubdivision']?.toString() ??
+            endereco['municipality']?.toString() ??
+            '';
         final estado = endereco['countrySubdivision']?.toString() ?? '';
         final nome = [
           endereco['streetName'],
@@ -480,9 +519,8 @@ class GeocodingService {
           estado,
         ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
         return GeoResult(
-          displayName: nome.isEmpty
-              ? (r['freeformAddress']?.toString() ?? query)
-              : nome,
+          displayName:
+              nome.isEmpty ? (r['freeformAddress']?.toString() ?? query) : nome,
           latitude: (pos['lat'] as num?)?.toDouble() ?? 0,
           longitude: (pos['lon'] as num?)?.toDouble() ?? 0,
           region: [bairro, cidade, estado]
@@ -536,7 +574,8 @@ class GeocodingService {
 
       final data = jsonDecode(utf8.decode(resp.bodyBytes)) as List<dynamic>;
       return data.whereType<Map<String, dynamic>>().map((item) {
-        final endereco = (item['address'] as Map?)?.cast<String, dynamic>() ?? {};
+        final endereco =
+            (item['address'] as Map?)?.cast<String, dynamic>() ?? {};
         final bairro = endereco['neighbourhood']?.toString() ??
             endereco['suburb']?.toString() ??
             '';
@@ -561,6 +600,7 @@ class GeocodingService {
       return [];
     }
   }
+
   /// Contorno (anel externo) de um bairro/região para destacar no mapa.
   Future<List<List<double>>?> searchPolygon(String query,
       {int limit = 1}) async {

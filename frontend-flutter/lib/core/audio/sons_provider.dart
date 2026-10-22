@@ -12,7 +12,8 @@ enum SlotSom {
   entradaParada('Sino de chegada', 'Dispara o sino ao chegar na parada'),
   sinoEstacao('Sino de estação', 'Sino de trem na chegada (sempre toca)'),
   saidaParada('Som de saída', 'Toca quando o caminhão sai da parada'),
-  proximaParada('Próxima parada', 'Toca quando o caminhão se aproxima da entrega'),
+  proximaParada(
+      'Próxima parada', 'Toca quando o caminhão se aproxima da entrega'),
   alertaRadar('Alerta de radar', 'Toca quando o radar esta proximo'),
   avisoGeral('Aviso geral', 'Som de aviso do app');
 
@@ -120,8 +121,7 @@ class SonsProvider extends ChangeNotifier {
     if (!await pasta.exists()) {
       await pasta.create(recursive: true);
     }
-    final seguro =
-        nomeArquivo.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final seguro = nomeArquivo.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     final destino =
         '${pasta.path}/${DateTime.now().millisecondsSinceEpoch}_$seguro';
     await File(origem).copy(destino);

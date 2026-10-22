@@ -87,7 +87,8 @@ class AppearanceScreen extends StatelessWidget {
                 style: TextStyle(color: texto, fontSize: 15)),
             subtitle: Text(
               'Mostra um botão fixo no mapa para abrir o rádio da estrada.',
-              style: TextStyle(color: texto.withValues(alpha: 0.7), fontSize: 12),
+              style:
+                  TextStyle(color: texto.withValues(alpha: 0.7), fontSize: 12),
             ),
             secondary: const Icon(Icons.radio_outlined),
           ),
@@ -96,7 +97,8 @@ class AppearanceScreen extends StatelessWidget {
     );
   }
 
-  Widget _preview(BuildContext context, SettingsProvider settings, Color texto) {
+  Widget _preview(
+      BuildContext context, SettingsProvider settings, Color texto) {
     final superficie =
         overlaySurface(context, opacity: settings.overlayOpacity);
     final cor = settings.overlayColor;
@@ -105,7 +107,8 @@ class AppearanceScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: superficie,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: overlayBorder(context, accent: cor), width: 1.4),
+        border:
+            Border.all(color: overlayBorder(context, accent: cor), width: 1.4),
       ),
       child: Row(
         children: [

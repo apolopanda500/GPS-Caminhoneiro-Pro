@@ -177,12 +177,13 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
     for (final bairro in bairros) {
       var ring = await _service.searchPolygon(bairro);
       if (ring == null && provider.stops.isNotEmpty) {
-        final ref = provider.stops
-            .firstWhere((s) => s.neighborhood == bairro)
-            .label;
+        final ref =
+            provider.stops.firstWhere((s) => s.neighborhood == bairro).label;
         ring = await _service.searchPolygon('$bairro, $ref');
       }
-      if (ring != null) areas.add(RouteAreaHighlight(ring: ring, label: bairro));
+      if (ring != null) {
+        areas.add(RouteAreaHighlight(ring: ring, label: bairro));
+      }
     }
     if (!mounted) return;
     setState(() => _contornando = false);
@@ -194,7 +195,8 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
     }
     provider.addHighlightedAreas(areas);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${areas.length} bairro(s) contornado(s) no mapa.')),
+      SnackBar(
+          content: Text('${areas.length} bairro(s) contornado(s) no mapa.')),
     );
   }
 
@@ -482,7 +484,10 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
                     ),
                   ),
                 ],
-                if (stops.where((s) => s.neighborhood.isNotEmpty).toSet().isNotEmpty) ...[
+                if (stops
+                    .where((s) => s.neighborhood.isNotEmpty)
+                    .toSet()
+                    .isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,

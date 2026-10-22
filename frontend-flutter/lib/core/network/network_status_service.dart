@@ -8,7 +8,8 @@ enum NetKind { none, mobile, wifi, other }
 /// - em dados moveis: mapa raster (leve), sem fotos dos colegas, GPS menos frequente
 /// - em WiFi: mapa vetorial detalhado, fotos e 3D liberados
 class NetworkStatusService {
-  static final NetworkStatusService _instance = NetworkStatusService._internal();
+  static final NetworkStatusService _instance =
+      NetworkStatusService._internal();
   factory NetworkStatusService() => _instance;
   NetworkStatusService._internal();
 

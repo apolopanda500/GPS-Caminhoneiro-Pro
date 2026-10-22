@@ -27,7 +27,8 @@ class ContactsScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.local_shipping_outlined, color: Colors.white24, size: 64),
+                    Icon(Icons.local_shipping_outlined,
+                        color: Colors.white24, size: 64),
                     SizedBox(height: 16),
                     Text(
                       'Nenhum caminhão por perto agora.',
@@ -46,7 +47,9 @@ class ContactsScreen extends StatelessWidget {
             )
           : ListView(
               padding: const EdgeInsets.all(16),
-              children: peers.map((peer) => _buildContactCard(context, peer)).toList(),
+              children: peers
+                  .map((peer) => _buildContactCard(context, peer))
+                  .toList(),
             ),
     );
   }
@@ -64,25 +67,34 @@ class ContactsScreen extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: hasLocation ? const Color(0xFFA80000) : Colors.white12, width: 1),
+        side: BorderSide(
+            color: hasLocation ? const Color(0xFFA80000) : Colors.white12,
+            width: 1),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          child: Icon(Icons.local_shipping, color: hasLocation ? Colors.redAccent : Colors.grey),
+          child: Icon(Icons.local_shipping,
+              color: hasLocation ? Colors.redAccent : Colors.grey),
         ),
-        title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(name,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Text(model, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(model,
+                style: const TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 4),
-            Text('Carga: $cargo', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text('Carga: $cargo',
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 4),
             Text(
-              hasLocation ? '�??� Online - ${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)}' : '�??� Sem posição',
+              hasLocation
+                  ? 'Online - ${lat.toStringAsFixed(3)}, ${lon.toStringAsFixed(3)}'
+                  : 'Sem posição',
               style: TextStyle(
                 color: hasLocation ? Colors.green : Colors.grey,
                 fontSize: 12,

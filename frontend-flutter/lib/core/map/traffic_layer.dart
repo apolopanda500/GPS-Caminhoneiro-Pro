@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
@@ -30,11 +31,16 @@ class CamadaTrafego {
     'interpolate',
     ['linear'],
     ['get', 'relative_speed'],
-    0.0, '#C62828',
-    0.2, '#E65100',
-    0.4, '#F9A825',
-    0.7, '#2E7D32',
-    1.0, '#1B5E20',
+    0.0,
+    '#C62828',
+    0.2,
+    '#E65100',
+    0.4,
+    '#F9A825',
+    0.7,
+    '#2E7D32',
+    1.0,
+    '#1B5E20',
   ];
 
   /// Largura da linha conforme o zoom (fina: o transito e um aviso, nao
@@ -43,11 +49,45 @@ class CamadaTrafego {
     'interpolate',
     ['linear'],
     ['zoom'],
-    8, 0.6,
-    12, 1.2,
-    15, 2.0,
-    18, 3.5,
+    8,
+    0.6,
+    12,
+    1.2,
+    15,
+    2.0,
+    18,
+    3.5,
   ];
+
+  /// Primeira camada do estilo que desenha nomes de ruas, bairros ou pontos.
+  ///
+  /// O transito entra ABAIXO dela para nao cobrir os nomes das ruas. Estilos
+  /// vetoriais usam camadas `symbol`; os estilos raster (satelite) tem uma
+  /// camada de nomes (ex.: `esri-nomes-overlay`).
+  Future<String?> _camadaDeRotulos(ml.MapLibreMapController controller) async {
+    try {
+      final raw = await controller.getStyle();
+      if (raw == null || raw.isEmpty) return null;
+      final estilo = jsonDecode(raw);
+      if (estilo is! Map) return null;
+      final layers = estilo['layers'];
+      if (layers is! List) return null;
+      for (final layer in layers) {
+        if (layer is! Map) continue;
+        final id = (layer['id'] ?? '').toString();
+        final tipo = (layer['type'] ?? '').toString();
+        final nome = id.toLowerCase();
+        final ehRotulo = tipo == 'symbol' ||
+            nome.contains('label') ||
+            nome.contains('name') ||
+            nome.contains('nomes') ||
+            nome.contains('places') ||
+            nome.contains('place-');
+        if (ehRotulo) return id;
+      }
+    } catch (_) {}
+    return null;
+  }
 
   /// Liga (ou desliga) a camada de transito no mapa.
   Future<void> aplicar(ml.MapLibreMapController controller) async {
@@ -72,6 +112,7 @@ class CamadaTrafego {
       return;
     }
 
+    final abaixoDe = await _camadaDeRotulos(controller);
     try {
       await controller.addLayer(
         idFonte,
@@ -79,9 +120,19 @@ class CamadaTrafego {
         ml.LineLayerProperties(
           lineColor: _cores,
           lineWidth: _largura,
-          lineOpacity: 0.75,
+          lineOpacity: 0.62,
+          lineCap: 'round',
+          lineJoin: 'round',
         ),
         sourceLayer: camadaDoTile,
+        belowLayerId: abaixoDe,
+        // So mostra o que esta lento: evita um emaranhado de linhas verdes
+        // por cima das ruas e dos nomes.
+        filter: [
+          '<',
+          ['get', 'relative_speed'],
+          0.7,
+        ],
       );
     } catch (_) {
       // Se a layer nao entrar, o mapa continua funcionando sem o transito.

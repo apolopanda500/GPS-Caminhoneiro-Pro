@@ -94,7 +94,6 @@ class SocketClient {
     socket.onDisconnect((_) => callback(false));
   }
 
-
   void sendLocationUpdate({
     required double lat,
     required double lon,
@@ -192,7 +191,8 @@ class SocketClient {
     });
   }
 
-  void sendPeerAlert({    required String fromDriverId,
+  void sendPeerAlert({
+    required String fromDriverId,
     required String fromName,
     required String targetDriverId,
     required String kind,

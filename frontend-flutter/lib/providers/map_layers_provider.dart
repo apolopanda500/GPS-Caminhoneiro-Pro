@@ -80,9 +80,16 @@ class MapLayersProvider extends ChangeNotifier {
     if (_nuvens == value) return;
     _nuvens = value;
     notifyListeners();
-    if (value) await _atualizarFrames();
+    if (value) {
+      await _atualizarFrames();
+      if (_frameInfrarrojo == null) await _atualizarGrade('nuvens');
+    }
     await aplicar(_controller);
   }
+
+  /// O satelite esta entregando nuvens agora. Quando o feed esta vazio, a
+  /// camada usa a cobertura de nuvens prevista (Open-Meteo) como reserva.
+  bool get nuvensPorSatelite => _frameInfrarrojo != null;
 
   /// Liga/desliga o relevo (hillshade com relevo real).
   Future<void> setRelevo(bool value) async {
@@ -174,7 +181,7 @@ class MapLayersProvider extends ChangeNotifier {
     _aplicarRaster(
       c,
       id: 'camada_radar',
-      url: (z, x, y) => WeatherLayers.urlRadar(f.path, z, x, y),
+      url: WeatherLayers.templateRadar(f.path),
       ativo: _radar,
       opacidade: 0.6,
     );
@@ -244,26 +251,30 @@ class MapLayersProvider extends ChangeNotifier {
       await _aplicarRaster(
         c,
         id: 'camada_radar',
-        url: (z, x, y) => _frameRadar == null
-            ? ''
-            : WeatherLayers.urlRadar(_frameRadar!, z, x, y),
-        ativo: _radar,
+        url: _frameRadar == null
+            ? null
+            : WeatherLayers.templateRadar(_frameRadar!),
+        ativo: _radar && _frameRadar != null,
         opacidade: 0.6,
       );
       await _aplicarRaster(
         c,
         id: 'camada_nuvens',
-        url: (z, x, y) => _frameInfrarrojo == null
-            ? ''
-            : WeatherLayers.urlInfrarrojo(_frameInfrarrojo!, z, x, y),
-        ativo: _nuvens,
+        url: _frameInfrarrojo == null
+            ? null
+            : WeatherLayers.templateInfrarrojo(_frameInfrarrojo!),
+        ativo: _nuvens && _frameInfrarrojo != null,
         opacidade: 0.45,
       );
       await _aplicarRelevo(c);
       await _aplicarGrade(c, 'precipitacao', _precipitacao);
       await _aplicarGrade(c, 'vento', _vento);
       await _aplicarGrade(c, 'temperatura', _temperatura);
-      await _aplicarGrade(c, 'nuvens', _nuvensPrevistas);
+      await _aplicarGrade(
+        c,
+        'nuvens',
+        _nuvensPrevistas || (_nuvens && _frameInfrarrojo == null),
+      );
     } catch (_) {
       // Estilo recarregado: a proxima atualizacao reaplica as camadas.
     }
@@ -272,14 +283,14 @@ class MapLayersProvider extends ChangeNotifier {
   Future<void> _aplicarRaster(
     ml.MapLibreMapController c, {
     required String id,
-    required String Function(int z, int x, int y) url,
+    required String? url,
     required bool ativo,
     required double opacidade,
   }) async {
     final sourceId = '${id}_fonte';
     final layerId = '${id}_camada';
 
-    if (!ativo) {
+    if (!ativo || url == null || url.isEmpty) {
       try {
         await c.removeLayer(layerId);
       } catch (_) {}
@@ -296,15 +307,20 @@ class MapLayersProvider extends ChangeNotifier {
       await c.removeSource(sourceId);
     } catch (_) {}
 
-    c.addSource(sourceId, ml.RasterSourceProperties(
-      tiles: [url(0, 0, 0)],
-      tileSize: 256,
-      minzoom: 0,
-      maxzoom: 7,
-    ));
-    c.addLayer(sourceId, layerId, ml.RasterLayerProperties(
-      rasterOpacity: opacidade,
-    ));
+    c.addSource(
+        sourceId,
+        ml.RasterSourceProperties(
+          tiles: [url],
+          tileSize: 256,
+          minzoom: 0,
+          maxzoom: 12,
+        ));
+    c.addLayer(
+        sourceId,
+        layerId,
+        ml.RasterLayerProperties(
+          rasterOpacity: opacidade,
+        ));
   }
 
   /// Desenha uma grade de previsao como circulos coloridos.
@@ -342,14 +358,17 @@ class MapLayersProvider extends ChangeNotifier {
     };
 
     c.addSource(sourceId, ml.GeojsonSourceProperties(data: geojson));
-    c.addLayer(sourceId, layerId, ml.CircleLayerProperties(
-      circleRadius: 42,
-      circleColor: _corDaCamada(camada),
-      circleOpacity: 0.42,
-      circleBlur: 0.6,
-      circleStrokeWidth: 1.4,
-      circleStrokeColor: '#FFFFFF55',
-    ));
+    c.addLayer(
+        sourceId,
+        layerId,
+        ml.CircleLayerProperties(
+          circleRadius: 42,
+          circleColor: _corDaCamada(camada),
+          circleOpacity: 0.42,
+          circleBlur: 0.6,
+          circleStrokeWidth: 1.4,
+          circleStrokeColor: '#FFFFFF55',
+        ));
   }
 
   /// Cor da camada de previsao (verde = pouco, vermelho = muito).
@@ -360,43 +379,62 @@ class MapLayersProvider extends ChangeNotifier {
           'interpolate',
           ['linear'],
           ['get', 'valor'],
-          0, '#FFFFFF00',
-          20, '#FFD54F',
-          50, '#FF8A65',
-          80, '#E53935',
-          100, '#B71C1C',
+          0,
+          '#FFFFFF00',
+          20,
+          '#FFD54F',
+          50,
+          '#FF8A65',
+          80,
+          '#E53935',
+          100,
+          '#B71C1C',
         ];
       case 'vento':
         return [
           'interpolate',
           ['linear'],
           ['get', 'valor'],
-          0, '#E1F5FE',
-          20, '#81D4FA',
-          40, '#29B6F6',
-          60, '#1E88E5',
-          90, '#0D47A1',
+          0,
+          '#E1F5FE',
+          20,
+          '#81D4FA',
+          40,
+          '#29B6F6',
+          60,
+          '#1E88E5',
+          90,
+          '#0D47A1',
         ];
       case 'temperatura':
         return [
           'interpolate',
           ['linear'],
           ['get', 'valor'],
-          0, '#1565C0',
-          12, '#64B5F6',
-          20, '#FFF176',
-          28, '#FF7043',
-          40, '#B71C1C',
+          0,
+          '#1565C0',
+          12,
+          '#64B5F6',
+          20,
+          '#FFF176',
+          28,
+          '#FF7043',
+          40,
+          '#B71C1C',
         ];
       default:
         return [
           'interpolate',
           ['linear'],
           ['get', 'valor'],
-          0, '#FFFFFF00',
-          40, '#B0BEC5',
-          80, '#78909C',
-          100, '#37474F',
+          0,
+          '#FFFFFF00',
+          40,
+          '#B0BEC5',
+          80,
+          '#78909C',
+          100,
+          '#37474F',
         ];
     }
   }
@@ -423,18 +461,23 @@ class MapLayersProvider extends ChangeNotifier {
       await c.removeSource(sourceId);
     } catch (_) {}
 
-    c.addSource(sourceId, const ml.RasterDemSourceProperties(
-      tiles: [
-        'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      encoding: 'terrarium',
-      maxzoom: 15,
-    ));
-    c.addLayer(sourceId, layerId, const ml.HillshadeLayerProperties(
-      hillshadeExaggeration: 0.4,
-      hillshadeShadowColor: '#1A1A1A',
-    ));
+    c.addSource(
+        sourceId,
+        const ml.RasterDemSourceProperties(
+          tiles: [
+            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+          ],
+          tileSize: 256,
+          encoding: 'terrarium',
+          maxzoom: 15,
+        ));
+    c.addLayer(
+        sourceId,
+        layerId,
+        const ml.HillshadeLayerProperties(
+          hillshadeExaggeration: 0.4,
+          hillshadeShadowColor: '#1A1A1A',
+        ));
   }
 
   @override
