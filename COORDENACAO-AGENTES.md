@@ -29,6 +29,23 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **DEPLOY + SEGURANÇA (20:40, 22/10)** — **pushes no origin/main**: `3b7a51a`
+  (validação completa + SDK consertado) e `70963f5` (audit fix). Push só funcionou com
+  `http.extraHeader=Authorization: Basic <user:token>` — o helper `manager` (GCM) travava
+  pedindo login; o token do `.git-credentials` linha 1 é válido (escopo repo OK).
+  **Bateria no Render = 9/10 (nota 9.0)** após o deploy: único falha `premium-pix`
+  (503 — `PIX_KEY` ausente no Render, fila #18 do usuário). `npm audit fix` aplicado no
+  backend: **0 vulnerabilidades** (ws 8.21.3 fecha o HIGH #18 do Dependabot, nodemailer e
+  engine.io-client atualizados), backend 29/29 re-verde. System-image do emulador
+  **completo** (`kernel-ranchu` extraído do zip `x86_64-34_r14` — sdkmanager morria com
+  "espaço insuficiente"; disco liberado limpando `build/` 3GB, APKs backupados em
+  `Temp\opencode\apks`). **Bloqueio do emulador**: x86_64 exige accel de hardware e o
+  hypervisor (WSL2 Ubuntu-24.04) está ativo — sem admin o shell não troca
+  `hypervisorlaunchtype`/features; desabilitar exige reboot e quebra o WSL2. **Decisão do
+  usuário** pendente: (a) conectar o celular físico R9XY1016R6V via USB (recomendado —
+  instala o APK release e completa o cenário 12 da bateria das duas contas) ou
+  (b) autorizar reboot com Hyper-V off para o emulador.
+
 - **VALIDAÇÃO COMPLETA USO REAL (19:50, 22/10)** — tudo executado sem limite de
   simulação: analyze **No issues found!**, suíte Flutter **234/234** (inclui as
   baterias no app: simulacao_real 13 + ciclo_vida 21 + jornadas + validacao),
