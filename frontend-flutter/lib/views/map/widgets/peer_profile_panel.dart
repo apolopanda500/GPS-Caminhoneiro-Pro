@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/core/utils/fotos_motorista.dart';
 
 class PeerProfilePanel extends StatelessWidget {
   final Map<String, dynamic> peerTruck;
@@ -45,8 +46,8 @@ class PeerProfilePanel extends StatelessWidget {
               CircleAvatar(
                 radius: 30,
                 backgroundColor: const Color(0xFF1C0303),
-                backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
-                child: avatar.isEmpty
+                backgroundImage: FotosMotorista.provider(avatar),
+                child: FotosMotorista.provider(avatar) == null
                     ? Text(icon, style: const TextStyle(fontSize: 28))
                     : null,
               ),
@@ -109,10 +110,10 @@ class PeerProfilePanel extends StatelessWidget {
                 height: 160,
                 width: double.infinity,
                 color: const Color(0xFF1C0303),
-                child: Image.network(
+                child: FotosMotorista.imagem(
                   photo,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Center(
+                  fallback: const Center(
                     child: Icon(Icons.local_shipping, color: Colors.white24, size: 50),
                   ),
                 ),

@@ -1,6 +1,12 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
+import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 
 class ChatPanel extends StatefulWidget {
   final String driverId;
@@ -46,6 +52,44 @@ class _ChatPanelState extends State<ChatPanel> {
       _scrollToBottom();
     };
     _socket.onReceiveChatMessage(_onMessage);
+    _carregarHistorico();
+  }
+
+  /// Busca no servidor as mensagens recentes perto de voce.
+  /// Sem isso, a conversa some quando o app fica em segundo plano.
+  Future<void> _carregarHistorico() async {
+    if (!AppConstants.serverConfigured) return;
+    final clima = context.read<WeatherProvider>();
+    final lat = clima.lastLatitude;
+    final lon = clima.lastLongitude;
+    if (lat == null || lon == null) return;
+    try {
+      final resp = await http
+          .get(Uri.parse('${AppConstants.baseUrl}/api/alerts/messages'
+              '?lon=$lon&lat=$lat&radius=5000'))
+          .timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) return;
+      final dados = jsonDecode(resp.body);
+      if (dados is! List || dados.isEmpty) return;
+      final antigas = dados.map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return <String, dynamic>{
+          'driverName': m['driverName'] ?? m['driver_name'] ?? '?',
+          'message': m['message'] ?? '',
+          'timestamp': m['timestamp'],
+          'driverId': m['driverId'] ?? m['driver_id'],
+        };
+      }).toList()
+        ..sort((a, b) => ((a['timestamp'] ?? 0) as int)
+            .compareTo((b['timestamp'] ?? 0) as int));
+      if (!mounted || _messages.isNotEmpty) return;
+      setState(() {
+        _messages.insertAll(0, antigas);
+      });
+      _scrollToBottom();
+    } catch (_) {
+      // Sem internet: o chat ao vivo continua funcionando.
+    }
   }
 
   @override

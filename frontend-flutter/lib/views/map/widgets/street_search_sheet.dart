@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
@@ -97,6 +99,10 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
   String? _error;
   List<String> _historico = const [];
 
+  /// Busca automatica enquanto digita (debounce) - nao precisa apertar a lupa.
+  Timer? _debounce;
+  String _ultimaBusca = '';
+
   /// Regiao em uso (pode ser trocada pelos atalhos). Vem do GPS: a busca
   /// nunca sai do estado onde o caminhao esta.
   late String _regiao = widget.stateName ?? 'RJ';
@@ -105,6 +111,13 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
   void initState() {
     super.initState();
     _carregarHistorico();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _carregarHistorico() async {
@@ -116,6 +129,8 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
   Future<void> _search() async {
     final q = _controller.text.trim();
     if (q.isEmpty) return;
+    if (q == _ultimaBusca && _results.isNotEmpty) return;
+    _ultimaBusca = q;
     setState(() {
       _loading = true;
       _error = null;
@@ -130,6 +145,12 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
       );
       await BuscaHistorico.registrar(q);
       if (!mounted) return;
+      if (_controller.text.trim() != q) {
+        // Digitou mais durante a busca: refaz com o texto novo.
+        _ultimaBusca = '';
+        _buscarAoDigitar(_controller.text);
+        return;
+      }
       setState(() {
         _results = r;
         _loading = false;
@@ -145,6 +166,24 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
         _error = 'Falha na busca. Verifique a conexão.';
       });
     }
+  }
+
+  /// Dispara a busca sozinha depois que o motorista para de digitar.
+  void _buscarAoDigitar(String texto) {
+    _debounce?.cancel();
+    final q = texto.trim();
+    if (q.length < 3) {
+      if (mounted) {
+        setState(() {
+          _results = [];
+          _loading = false;
+        });
+      }
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _search();
+    });
   }
 
   /// Copia o texto do resultado (endereco) para a area de transferencia.
@@ -211,6 +250,7 @@ class _StreetSearchSheetState extends State<StreetSearchSheet> {
                       fontWeight: FontWeight.w600,
                     ),
                     onSubmitted: (_) => _search(),
+                    onChanged: _buscarAoDigitar,
                     decoration: InputDecoration(
                       isDense: true,
                       border: InputBorder.none,

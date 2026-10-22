@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:gps_camioneiro_pro/core/utils/fotos_motorista.dart';
 
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
@@ -140,11 +141,11 @@ class _RedeScreenState extends State<RedeScreen>
             children: [
               const Icon(Icons.warning_amber_rounded, size: 44, color: Colors.white24),
               const SizedBox(height: 12),
-              Text(
+              const Text(
                 'Nenhum sinal por perto agora.\n'
                 'Avise a comunidade sobre radar, buraco ou via interditada.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: Colors.white54, fontSize: 13),
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
@@ -201,13 +202,7 @@ class _RedeScreenState extends State<RedeScreen>
         final p = peers[i];
         final nome = (p['name'] ?? 'Caminhoneiro').toString();
         return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: kEmergencyRed.withValues(alpha: 0.2),
-            child: Text(
-              nome.isNotEmpty ? nome[0].toUpperCase() : '?',
-              style: const TextStyle(color: kEmergencyRed),
-            ),
-          ),
+          leading: _AvatarDoPeer(p: p, nome: nome),
           title: Text(nome, style: TextStyle(color: ink)),
           subtitle: Text('Caminhoneiro na rede', style: TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.6))),
           trailing: Row(
@@ -235,6 +230,32 @@ class _RedeScreenState extends State<RedeScreen>
           onTap: widget.onContatos,
         );
       },
+    );
+  }
+}
+
+/// Foto (ou inicial) do caminhoneiro da rede.
+class _AvatarDoPeer extends StatelessWidget {
+  const _AvatarDoPeer({required this.p, required this.nome});
+
+  final Map<String, dynamic> p;
+  final String nome;
+
+  ImageProvider? _imagem() {
+    final url = (p['truckPhotoUrl'] ?? p['avatarUrl'])?.toString() ?? '';
+    return FotosMotorista.provider(url);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final img = _imagem();
+    final inicial = nome.isNotEmpty ? nome[0].toUpperCase() : '?';
+    return CircleAvatar(
+      backgroundColor: kEmergencyRed.withValues(alpha: 0.2),
+      backgroundImage: img,
+      child: img == null
+          ? Text(inicial, style: const TextStyle(color: kEmergencyRed))
+          : null,
     );
   }
 }

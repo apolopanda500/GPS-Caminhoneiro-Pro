@@ -29,6 +29,7 @@
     "@types/nodemailer": "^6.4.15",
     "@types/pg": "^8.11.6",
     "@types/uuid": "^9.0.8",
+    "socket.io-client": "^4.7.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

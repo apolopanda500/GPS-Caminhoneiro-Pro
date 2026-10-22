@@ -265,6 +265,21 @@ io.on('connection', (socket: Socket) => {
     };
     if (data.groupId) {
       console.log(`📡 Rota compartilhada no grupo ${data.groupId}`);
+      // Guarda a rota no historico do grupo (a lista do comboio).
+      try {
+        await db.query(
+          `INSERT INTO group_shared_routes (group_id, driver_id, driver_name, payload, is_public)
+           VALUES ($1, $2, $3, $4::jsonb, FALSE)`,
+          [
+            data.groupId,
+            fromDriverId,
+            data.fromName || '',
+            JSON.stringify({ routeJson: data.routeJson, speedKmh: data.speedKmh }),
+          ],
+        );
+      } catch (e) {
+        console.error('Erro ao salvar a rota no grupo.');
+      }
       io.to(`group:${data.groupId}`).emit('receive_shared_route', payload);
       return;
     }

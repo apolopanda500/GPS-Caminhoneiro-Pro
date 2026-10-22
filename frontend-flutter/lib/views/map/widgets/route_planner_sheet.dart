@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
@@ -41,8 +43,14 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
   bool _highlighting = false;
   bool _contornando = false;
 
+  /// Timer do debounce: a busca dispara sozinho enquanto o motorista digita
+  /// (nao precisa apertar a lupa do teclado).
+  Timer? _debounce;
+  String _ultimaBusca = '';
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     _bairroController.dispose();
     _clienteController.dispose();
@@ -50,18 +58,45 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
     super.dispose();
   }
 
-  Future<void> _buscar(String query) async {
-    if (query.trim().length < 3) {
-      setState(() => _results = const []);
+  /// Busca automatica com atraso curto: digita e os resultados aparecem.
+  void _buscarAoDigitar(String query) {
+    _debounce?.cancel();
+    final alvo = query.trim();
+    if (alvo.length < 3) {
+      setState(() {
+        _results = const [];
+        _searching = false;
+      });
       return;
     }
-    setState(() => _searching = true);
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      _buscar(alvo);
+    });
+  }
+
+  Future<void> _buscar(String query) async {
+    final alvo = query.trim();
+    if (alvo.length < 3) {
+      if (mounted) setState(() => _results = const []);
+      return;
+    }
+    // Evita refazer a mesma busca.
+    if (alvo == _ultimaBusca && _results.isNotEmpty) return;
+    _ultimaBusca = alvo;
+    if (mounted) setState(() => _searching = true);
     final r = await _service.search(
       query,
       near: widget.origin,
       stateName: _estadoLocal,
     );
     if (!mounted) return;
+    // Se o texto mudou durante a busca, o resultado antigo e descartado.
+    if (_controller.text.trim() != alvo) {
+      _ultimaBusca = '';
+      _buscarAoDigitar(_controller.text);
+      return;
+    }
     setState(() {
       _results = r;
       _searching = false;
@@ -90,6 +125,7 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
     _controller.clear();
     _clienteController.clear();
     _notaController.clear();
+    _ultimaBusca = '';
     setState(() => _results = const []);
   }
 
@@ -315,6 +351,7 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
                   hint: 'Buscar rua, número ou ponto do cliente',
                   icon: Icons.search,
                   onSubmitted: _buscar,
+                  onChanged: _buscarAoDigitar,
                   suffix: _searching
                       ? const Padding(
                           padding: EdgeInsets.all(12),
@@ -328,6 +365,33 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
                       : null,
                 ),
                 const SizedBox(height: 10),
+                // Resultados aparecem LOGO ABAIXO do campo: o motorista digita
+                // e ve as opcoes sem precisar apertar a lupa nem fechar o teclado.
+                if (_results.isNotEmpty)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 190),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _results.length,
+                      itemBuilder: (context, i) {
+                        final g = _results[i];
+                        return ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: const Icon(Icons.add_location_alt,
+                              color: Colors.redAccent, size: 20),
+                          title: Text(
+                            g.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13),
+                          ),
+                          onTap: () => _adicionarDestino(g),
+                        );
+                      },
+                    ),
+                  ),
                 Row(
                   children: [
                     Expanded(
@@ -441,30 +505,6 @@ class _RoutePlannerSheetState extends State<RoutePlannerSheet> {
                     ),
                   ),
                 ],
-                if (_results.isNotEmpty)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 200),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _results.length,
-                      itemBuilder: (context, i) {
-                        final g = _results[i];
-                        return ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.add_location_alt,
-                              color: Colors.redAccent),
-                          title: Text(
-                            g.displayName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13),
-                          ),
-                          onTap: () => _adicionarDestino(g),
-                        );
-                      },
-                    ),
-                  ),
                 if (stops.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   const Text(

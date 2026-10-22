@@ -45,15 +45,33 @@ export class AlertController {
 
   async getMessages(req: Request, res: Response): Promise<void> {
     const { lon, lat, radius = 5000 } = req.query;
+    if (lon == null || lat == null) {
+      res.status(400).json({ error: 'Coordenadas lon e lat são obrigatórias.' });
+      return;
+    }
     try {
       const result = await this.db.query(
-        `SELECT id, driver_id, driver_name, message, ST_X(geom) as lon, ST_Y(geom) as lat, created_at
+        `SELECT id::text, driver_id, driver_name, message,
+                ST_X(geom) as lon, ST_Y(geom) as lat,
+                ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint($1::numeric, $2::numeric), 4326)::geography) as distancia_m,
+                created_at
          FROM truck_messages
          WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1::numeric, $2::numeric), 4326)::geography, $3::int)
          ORDER BY created_at DESC LIMIT 100`,
         [lon, lat, radius]
       );
-      const sinais = result.rows.map((r) => ({ id: r.id, driverId: r.driver_id, type: r.alert_type, message: r.message, maxHeight: r.max_height_allowed, maxWeight: r.max_weight_allowed, lat: parseFloat(r.lat), lon: parseFloat(r.lon), distanciaM: Math.round(parseFloat(r.distancia_m)), timestamp: new Date(r.created_at).getTime(), })); res.json(sinais);
+      const mensagens = result.rows.map((r) => ({
+        id: r.id,
+        driverId: r.driver_id,
+        driverName: r.driver_name,
+        type: 'mensagem',
+        message: r.message,
+        lat: parseFloat(r.lat),
+        lon: parseFloat(r.lon),
+        distanciaM: Math.round(parseFloat(r.distancia_m ?? '0')),
+        timestamp: new Date(r.created_at).getTime(),
+      }));
+      res.json(mensagens);
     } catch {
       res.status(500).json({ error: 'Erro ao buscar mensagens do chat.' });
     }

@@ -28,6 +28,33 @@ services:
         generateValue: true
       - key: NODE_VERSION
         value: "20"
+      # --- Assinatura Premium via PIX (valores ficam no painel do Render) ---
+      - key: PIX_KEY
+        sync: false
+      - key: PIX_NAME
+        sync: false
+      - key: PIX_CITY
+        sync: false
+      - key: PIX_AMOUNT
+        value: "4.99"
+      - key: PIX_DESCRIPTION
+        sync: false
+      # --- Codigo de verificacao por e-mail (SMTP/Brevo) ---
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      # --- Token administrativo (confirmacao manual do Premium) ---
+      - key: ADMIN_TOKEN
+        sync: false
 
 # Passos manuais obrigatorios (2 no total):
 # 1) Habilitar PostGIS no banco: Render > gps-truck-postgis > Shell > rode:

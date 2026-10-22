@@ -84,6 +84,21 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 15 | Commit/push do B: correções de SSL do Postgres (`env.ts`, `database.ts`, `migrate_data.ts`) + `.env.example` + `.gitignore` | B | ✅ feito 05:20 (`8df76c2`, push feito) |
 | 16 | Copiar a `SUPABASE_SECRET_KEY` real no `.env` (hoje está com máscara `••••`) | USUÁRIO | pendente |
 | 17 | Registrar os 2 SHA-1 (release + debug) na chave do Routes API no Google Cloud Console | USUÁRIO | **pendente (05:45)** — rota funciona pelo ORS/TomTom/OSRM enquanto isso |
+| 18 | **Adicionar as envs de PIX no Render** (`PIX_KEY`, `PIX_NAME`, `PIX_CITY`, `PIX_AMOUNT`, `PIX_DESCRIPTION`) — sem isso o Premium devolve 503 em produção (achado pela bateria de simulação) | USUÁRIO | **pendente (18:55)** — valores prontos no `backend-api/.env` |
+| 19 | Rodar a bateria de simulação real no deploy depois da fila #18 | B | pendente (a bateria local já dá 10/10) |
+
+## Ferramentas de validação (novas)
+
+- `tools/bateria-simulacao-real.js` — bateria **multi-usuário real** (Node + Socket.io + Postgres):
+  sobe N motoristas virtuais com perfis diferentes, faz cadastro/login/e-mail, perfil e fotos,
+  rede V2X em movimento, alertas por proximidade, chat público/privado, reações, grupos
+  (rota compartilhada só para membros), Premium via PIX, segurança (token e identidade) e
+  robustez (desconexão/reconexão/carga). Roda local (`--local`) ou no deploy (`--url`).
+  Uso: `node tools/bateria-simulacao-real.js --usuarios 12 --passos 30`
+- `frontend-flutter/test/bateria_simulacao_real_test.dart` — bateria **no app** (13 testes):
+  frota de 10 motoristas com GPS e rotas próprias, empresa, rede de peers, sinais por
+  proximidade, ocultação, expiração de marcadores, persistência após reinício e carga de
+  GPS com teleporte.
 
 ## Respostas do A (B leia)
 
@@ -252,6 +267,84 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   do usuário: SMTP Brevo + cartão do Postgres.
 
 ## Log de atos (append-only)
+
+- 02:20 B: **DUAS CONTAS REAIS (celular + PC) - 12/12 - nota 10/10 + 5 BUGS REAIS CORRIGIDOS
+  + NOVO ICONE + BATERIAS NOVAS.**
+  1. **Ambiente de 2 aparelhos**: BlueStacks X instalado so com a "Loja" (motor do
+     emulador nao baixado), entao usei o **emulador Android (AVD `teste_apk`)** como o
+     "PC" - precisa de `-partition-size 2040` (o AVD nao tinha espaco em disco) e o
+     **APK precisa ser arm64+x64** (arm64-only nao roda em x86_64: crash `UnsatisfiedLinkError`).
+     As duas contas reais (`rickjax1234@gmail.com` no celular e `rickjax123@gmail.com` no PC)
+     ficaram na mesma posicao (GPS do emulador via `adb emu geo fix`).
+  2. **BUGS REAIS achados e corrigidos** (todos por simulacao entre os 2 aparelhos):
+     a) **Chat sem historico**: a tela Rede passava `messages: const []` - a conversa
+        sumia quando o app ficava em segundo plano. Agora o `ChatPanel` carrega do
+        servidor (`GET /api/alerts/messages`).
+     b) **Todas as fotos iguais**: o app so lia foto por http, mas o banco guarda **data URL
+        (base64)** -> todo caminhoneiro caia no icone padrao. Novo utilitario
+        `core/utils/fotos_motorista.dart` (data URL + http) usado no mapa, no perfil do
+        peer e na lista de contatos; o mapa ainda busca a foto no servidor
+        (`/api/auth/photo/:driverId`) quando o peer chega sem foto.
+     c) **Icones dos peers iguais**: o nome da imagem no MapLibre era derivado do tamanho
+        da foto -> todos os peers sem foto usavam a MESMA imagem. Agora o nome inclui o
+        id do motorista.
+     d) **Rota de grupo nao ficava salva**: `share_route` (socket) so emitia e nao gravava
+        em `group_shared_routes` -> a lista do comboio perdia a rota. O servidor agora
+        grava a rota do grupo.
+     e) **Busca de endereco travada**: era preciso apertar a lupa do teclado. Agora a
+        busca **dispara sozinha enquanto digita** (debounce de 600 ms) no planejador de
+        rotas e na busca de rua, com os resultados **logo abaixo do campo** (visiveis
+        mesmo com o teclado aberto).
+  3. **ICONE NOVO (preenchido, sem borda branca, estilo Chrome)**: `tools/gerar-icone.ps1`
+     gera fundo em gradiente vermelho + caminhao branco (camadas adaptive com fundo
+     100% e frente transparente). `pubspec.yaml` passou a usar a imagem de fundo.
+  4. **3 BATERIAS no repositorio**:
+     - `tools/bateria-simulacao-real.js` - 10 perfis diferentes (motorista, ajudante,
+       HAZMAT, premium): **10/10**.
+     - `frontend-flutter/test/bateria_simulacao_real_test.dart` - 13 testes no app
+       (frota de 10 motoristas com GPS, empresa, rede, sinais, ocultacao, expiracao,
+       persistencia, carga): **13/13** (205 testes no total).
+     - `tools/bateria-duas-contas.js` - **as DUAS contas reais** (celular + PC) no ciclo
+       completo: radar mútuo, fotos distintas, chat nos 2 sentidos, chat privado, reação,
+       sinal de estrada, grupo + rota compartilhada, convite, local compartilhado,
+       segurança, 450 requisições sem 5xx e app aberto nos 2 aparelhos: **12/12 (10/10)**.
+     - `tools/observador-v2x.js` - escuta a rede de fora e prova o que passou no fio.
+  5. **Checks**: analyze **No issues found!**, **205 testes** verdes, backend **29/29**,
+     APK release assinado (SHA-1 `2F:AE:30:A2:...:83:34`) 75,4 MB **instalado nos 2
+     aparelhos** e rodando contra o **Render** (`active_trucks: 2`).
+  6. **Falta SO o USUARIO**: as envs `PIX_*` no Render (Premium devolve 503 sem elas).
+     O `render.yaml` agora declara `PIX_*`, `SMTP_*` e `ADMIN_TOKEN` com `sync: false`
+     (para colar no painel do Render).
+
+- 18:55 B: **VALIDACAO 10/10 PARA USO REAL (baterias de simulacao + aparelho de verdade).**
+  1. **Nova bateria multi-usuario real**: `tools/bateria-simulacao-real.js` (Node + Socket.io +
+     Postgres). Simula N motoristas com perfis diferentes (motorista, ajudante, HAZMAT, premium):
+     cadastro com e-mail + verificacao, login, perfil e fotos, rede V2X com 12 caminhoes se
+     movendo, alertas por proximidade (REST + socket), chat publico e privado, reacoes,
+     grupos/comboios (rota compartilhada visivel so para membros; ajudante bloqueado),
+     Premium via PIX (BR Code + CRC16), seguranca (token invalido recusado, identidade pelo
+     token, payload hostil nao derruba o servico) e robustez (app fechando/abrindo, 160
+     requisicoes sem 5xx, assistente respondendo).
+  2. **Resultado: 10/10 no backend local e 9/10 no Render.** O unico item que falha no deploy
+     e o **PIX (503: "PIX nao configurado no servidor")** — as envs `PIX_*` nao estao no
+     Render. O codigo esta certo (10/10 local com o mesmo `.env`). Fila #18.
+  3. **Nova bateria no app**: `test/bateria_simulacao_real_test.dart` (13 testes) — frota de
+     10 motoristas com GPS e rotas proprias (cada um entrega 3 paradas sem se misturar),
+     empresa no fim da rota, saida do raio devolvendo a entrega, sinais por proximidade,
+     rede de peers, ocultacao que sobrevive ao reinicio, expiracao de marcadores em 12 h,
+     persistencia de rota/cliente/agendamento/configuracoes, portao do Premium e carga de
+     3.000 amostras de GPS.
+  4. **Aparelho real (R9XY1016R6V, Android 15)**: APK release **assinado** (SHA-1
+     `2F:AE:30:A2:...:83:34`, bate com o `keys.json`), 57,8 MB, instalado (`Success`).
+     Fluxo completo testado na mao: permissoes -> login real no Render -> onboarding ->
+     mapa com satelite e ruas reais (Nova Iguacu/RJ), HUD de velocidade, botao STOP,
+     `GpsTrackingService` em primeiro plano (`isForeground=true`, tipo location) e app na
+     lista de isencao do otimizador de bateria. `active_trucks: 1` no `/status` do Render:
+     o aparelho esta na rede de verdade. **Zero crash** no logcat.
+  5. **Checks**: flutter analyze **No issues found!**, **205 testes** verdes (192 + 13 novos),
+     backend **29/29** + tsc OK, APK release 57,8 MB instalado.
+  6. Corrigidos 3 avisos de lint (`prefer_const`) que existed no repositorio
+     (`rede_screen.dart`).
 
 - 20:20 B: **Reconstrucao final do app (tudo no mapa, menus enxutos) + clima
   profissional e voz configuravel.**

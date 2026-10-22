@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -964,22 +965,63 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   final Map<String, Uint8List> _photoCache = {};
+  final Map<String, String?> _fotoServidorCache = {};
 
   Future<Uint8List?> _fotoDoMotorista(Map peer) async {
-    final url = (peer['truckPhotoUrl'] ?? peer['avatarUrl'])?.toString();
-    if (url == null || url.isEmpty || url.startsWith('https://placehold.co')) {
-      return null;
+    final url = (peer['truckPhotoUrl'] ?? peer['avatarUrl'])?.toString() ?? '';
+    final driverId = (peer['driverId'] ?? '').toString();
+    var fonte = url;
+    if (fonte.isEmpty || fonte.startsWith('https://placehold.co')) {
+      // Sem foto no payload: busca no servidor pela foto do motorista.
+      final doServidor = await _buscarFotoNoServidor(driverId);
+      if (doServidor == null) return null;
+      fonte = doServidor;
     }
-    final cached = _photoCache[url];
+    final cached = _photoCache[fonte];
     if (cached != null) return cached;
     try {
-      final response = await http.get(Uri.parse(url)).timeout(
-            const Duration(seconds: 8),
-          );
-      if (response.statusCode != 200) return null;
-      final bytes = response.bodyBytes;
-      _photoCache[url] = bytes;
+      final Uint8List bytes;
+      if (fonte.startsWith('data:')) {
+        // O banco guarda a foto como data URL (base64) - decodifica local.
+        final partes = fonte.split(',');
+        if (partes.length < 2) return null;
+        bytes = base64Decode(partes[1]);
+      } else {
+        final response = await http.get(Uri.parse(fonte)).timeout(
+              const Duration(seconds: 8),
+            );
+        if (response.statusCode != 200) return null;
+        bytes = response.bodyBytes;
+      }
+      _photoCache[fonte] = bytes;
       return bytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Foto do motorista no servidor (quando o peer chega sem foto no payload).
+  Future<String?> _buscarFotoNoServidor(String driverId) async {
+    if (driverId.isEmpty || !AppConstants.serverConfigured) return null;
+    if (_fotoServidorCache.containsKey(driverId)) return _fotoServidorCache[driverId];
+    try {
+      final resp = await http
+          .get(Uri.parse('${AppConstants.baseUrl}/api/auth/photo/$driverId'))
+          .timeout(const Duration(seconds: 6));
+      if (resp.statusCode != 200) {
+        _fotoServidorCache[driverId] = null;
+        return null;
+      }
+      final dados = jsonDecode(resp.body);
+      final foto = (dados is Map ? (dados['truckPhotoUrl'] ?? dados['avatarUrl']) : null)
+          ?.toString();
+      final util = (foto != null &&
+              foto.isNotEmpty &&
+              !foto.startsWith('https://placehold.co'))
+          ? foto
+          : null;
+      _fotoServidorCache[driverId] = util;
+      return util;
     } catch (_) {
       return null;
     }
@@ -1121,9 +1163,13 @@ class _MapScreenState extends State<MapScreen> {
         final helper = (p['role'] ?? 'motorista').toString() == 'ajudante';
         final emoji = (p['truckIcon'] ?? '🚚').toString();
         final photo = await _fotoDoMotorista(p);
-        final imgName = helper
-            ? 'peer_h_${photo?.length ?? 0}_${photo == null ? 0 : photo[0]}'
-            : 'peer_d_${photo?.length ?? 0}_${photo == null ? 0 : photo[0]}';
+        // Cada caminhao tem o SEU icone: o nome da imagem inclui o id do
+        // motorista e a versao da foto. Sem isso, todos os peers que nao tem
+        // foto compartilhavam a mesma imagem (todos iguais no mapa).
+        final peerId = (p['driverId'] ?? '').toString();
+        final fotoUrl = (p['truckPhotoUrl'] ?? p['avatarUrl'])?.toString() ?? '';
+        final imgName =
+            'peer_${helper ? 'h' : 'd'}_${peerId}_${fotoUrl.hashCode.abs()}_${emoji.hashCode.abs()}';
         if (photo != null) {
           await _addImageOnce(imgName,
               await MapIcons.photoBadge(photo, helper: helper, mine: false));

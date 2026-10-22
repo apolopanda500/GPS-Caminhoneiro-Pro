@@ -94,7 +94,7 @@ void main() {
 
     test('mil jornadas: parado dentro da parada nunca anuncia saida', () {
       for (var j = 0; j < 1000; j++) {
-        final ponto = LatLng(-22.9, -43.2);
+        const ponto = LatLng(-22.9, -43.2);
         const raio = 120.0;
         final monitor = MonitorDeParadas();
         var saidas = 0;
@@ -164,7 +164,7 @@ void main() {
       for (var j = 0; j < 1000; j++) {
         final monitor = MonitorDeParadas();
         final pontos = [
-          LatLng(-22.9, -43.2),
+          const LatLng(-22.9, -43.2),
           const LatLng(-23.5, -44.0),
           const LatLng(0, 0),
           const LatLng(-15.7, -47.9),
