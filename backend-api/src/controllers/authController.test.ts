@@ -171,6 +171,11 @@ test('requestPasswordReset nao revela se o e-mail nao existe', async () => {
 test('requestPasswordReset recusa e-mail invalido', async () => {
   const { controller } = criarController();
 
+  const res = fakeRes();
+  await controller.requestPasswordReset({ body: { email: 'abc' } } as any, res);
+  assert.equal(res.statusCode, 400);
+});
+
 test('resetPassword troca a senha e consome o codigo', async () => {
   const { db, controller } = criarController();
   db.drivers.push({
@@ -208,6 +213,17 @@ test('resetPassword recusa codigo invalido', async () => {
     passwordHash: 'antigo',
   });
 
+  const res = fakeRes();
+  await controller.resetPassword(
+    {
+      body: { email: 'joao@teste.com', code: '000000', password: 'novasenha' },
+    } as any,
+    res,
+  );
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(db.drivers[0].passwordHash, 'antigo');
+});
 
 test('resetPassword recusa senha curta', async () => {
   const { controller } = criarController();
@@ -356,21 +372,4 @@ test('fluxo HTTP: cadastrar, recuperar senha e entrar com a senha nova', async (
   } finally {
     server.close();
   }
-});
-
-  const res = fakeRes();
-  await controller.resetPassword(
-    {
-      body: { email: 'joao@teste.com', code: '000000', password: 'novasenha' },
-    } as any,
-    res,
-  );
-
-  assert.equal(res.statusCode, 400);
-  assert.equal(db.drivers[0].passwordHash, 'antigo');
-});
-
-  const res = fakeRes();
-  await controller.requestPasswordReset({ body: { email: 'abc' } } as any, res);
-  assert.equal(res.statusCode, 400);
 });
