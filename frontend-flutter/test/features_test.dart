@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,7 +6,6 @@ import 'package:gps_camioneiro_pro/data/models/map_marker_model.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/providers/marker_provider.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/fps_overlay.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -140,7 +138,6 @@ void main() {
 
     test('defaults corretos', () {
       final s = SettingsProvider();
-      expect(s.showFps, false);
       expect(s.targetFps, 60);
       expect(s.layer, MapLayerMode.satellite);
       expect(s.gpsIntervalSeconds, 1);
@@ -150,7 +147,6 @@ void main() {
 
     test('load lê valores persistidos', () async {
       SharedPreferences.setMockInitialValues({
-        'settings.showFps': true,
         'settings.targetFps': 120,
         'settings.layer': 1,
         'settings.gpsInterval': 5,
@@ -158,7 +154,6 @@ void main() {
       });
       final s = SettingsProvider();
       await s.load();
-      expect(s.showFps, true);
       expect(s.targetFps, 120);
       expect(s.layer, MapLayerMode.streets);
       expect(s.gpsIntervalSeconds, 5);
@@ -171,14 +166,12 @@ void main() {
       await s.load();
       var notified = 0;
       s.addListener(() => notified++);
-      await s.setShowFps(true);
       await s.setTargetFps(120);
       await s.setLayer(MapLayerMode.streets);
       await s.setGpsInterval(10);
       await s.setHighAccuracy(false);
-      expect(notified, 5);
+      expect(notified, 4);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('settings.showFps'), true);
       expect(prefs.getInt('settings.targetFps'), 120);
       expect(prefs.getInt('settings.gpsInterval'), 10);
     });
@@ -205,16 +198,6 @@ void main() {
       expect(g.displayName, 'Av. Paulista');
       expect(g.latitude, closeTo(-23.56, 1e-9));
       expect(g.longitude, closeTo(-46.65, 1e-9));
-    });
-  });
-
-  group('FpsOverlay', () {
-    testWidgets('renderiza sem erro', (tester) async {
-      await tester.pumpWidget(
-          const MaterialApp(home: Scaffold(body: FpsOverlay(targetFps: 60))));
-      await tester.pump();
-      expect(find.byType(FpsOverlay), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
     });
   });
 }

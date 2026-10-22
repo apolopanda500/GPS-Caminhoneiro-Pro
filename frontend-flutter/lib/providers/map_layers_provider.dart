@@ -191,12 +191,29 @@ class MapLayersProvider extends ChangeNotifier {
   Future<void> ligar(ml.MapLibreMapController controller) async {
     _controller = controller;
     _timer ??= Timer.periodic(const Duration(minutes: 10), (_) async {
-      if (!_radar && !_nuvens) return;
-      await _atualizarFrames();
+      final temRaster = _radar || _nuvens;
+      final temGrade = _precipitacao ||
+          _vento ||
+          _temperatura ||
+          _nuvensPrevistas ||
+          (_nuvens && _frameInfrarrojo == null);
+      if (!temRaster && !temGrade) return;
+      if (temRaster) await _atualizarFrames();
+      if (temGrade) await _atualizarGradesAtivas();
       await aplicar(_controller);
     });
     await _atualizarFrames();
     await aplicar(controller);
+  }
+
+  /// Recarrega so as camadas de grade que estao ligadas.
+  Future<void> _atualizarGradesAtivas() async {
+    if (_precipitacao) await _atualizarGrade('precipitacao');
+    if (_vento) await _atualizarGrade('vento');
+    if (_temperatura) await _atualizarGrade('temperatura');
+    if (_nuvensPrevistas || (_nuvens && _frameInfrarrojo == null)) {
+      await _atualizarGrade('nuvens');
+    }
   }
 
   Future<void> _atualizarFrames() async {
@@ -231,6 +248,7 @@ class MapLayersProvider extends ChangeNotifier {
       },
     );
     _grades[camada] = pontos;
+    _centroDaGrade = pos;
     _carregando = false;
     notifyListeners();
   }
@@ -238,9 +256,36 @@ class MapLayersProvider extends ChangeNotifier {
   /// Posicao usada como centro das grades de previsao.
   LatLng? _posicaoAtual;
 
+  /// Centro da grade que esta na tela (para re-centrar quando o caminhao
+  /// anda ~15 km e as areas de clima sao atualizadas ao vivo).
+  LatLng? _centroDaGrade;
+  bool _atualizandoGrade = false;
+
   /// Atualiza o centro das camadas de previsao (a posicao do caminhao).
+  /// Quando o caminhao anda longe do centro da grade, as areas de clima
+  /// sao recarregadas na nova regiao (ao vivo, conforme dirige).
   void definirPosicao(LatLng pos) {
     _posicaoAtual = pos;
+    final centro = _centroDaGrade;
+    if (centro == null || _atualizandoGrade) return;
+    final temGrade = _precipitacao ||
+        _vento ||
+        _temperatura ||
+        _nuvensPrevistas ||
+        (_nuvens && _frameInfrarrojo == null);
+    if (!temGrade) return;
+    const dist = Distance();
+    final km = dist.as(LengthUnit.Kilometer, centro, pos);
+    if (km < 15) return;
+    _atualizandoGrade = true;
+    unawaited(() async {
+      try {
+        await _atualizarGradesAtivas();
+        await aplicar(_controller);
+      } finally {
+        _atualizandoGrade = false;
+      }
+    }());
   }
 
   /// Aplica (ou remove) as camadas no mapa.
@@ -362,12 +407,12 @@ class MapLayersProvider extends ChangeNotifier {
         sourceId,
         layerId,
         ml.CircleLayerProperties(
-          circleRadius: 42,
+          circleRadius: 46,
           circleColor: _corDaCamada(camada),
-          circleOpacity: 0.42,
-          circleBlur: 0.6,
-          circleStrokeWidth: 1.4,
-          circleStrokeColor: '#FFFFFF55',
+          circleOpacity: 0.4,
+          circleBlur: 0.12,
+          circleStrokeWidth: 2.5,
+          circleStrokeColor: '#FFFFFFFF',
         ));
   }
 

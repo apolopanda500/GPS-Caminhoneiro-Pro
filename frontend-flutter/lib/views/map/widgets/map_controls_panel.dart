@@ -6,8 +6,8 @@ import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
-/// Painel unico do mapa: camada (satelite/ruas/3D), predios 3D, chuva,
-/// nuvens, relevo, qualidade grafica (leve/medio/pesado) e medidor de FPS.
+/// Painel unico do mapa: camada (satelite/ruas/3D), predios 3D, clima ao
+/// vivo, qualidade grafica (leve/medio/pesado) e elementos da tela.
 ///
 /// Tudo em um so lugar, aberto por um unico botao.
 class MapControlsPanel extends StatelessWidget {
@@ -290,15 +290,6 @@ class MapControlsPanel extends StatelessWidget {
                 selected: {settings.renderQuality},
                 onSelectionChanged: (v) => settings.setRenderQuality(v.first),
               ),
-            ),
-
-            // FPS
-            linha(
-              Icons.speed,
-              'Mostrar FPS',
-              'Medidor de desempenho na tela',
-              settings.showFps,
-              settings.setShowFps,
             ),
 
             // Mostrar/ocultar os elementos da tela (antes era um botao solto)

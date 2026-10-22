@@ -23,15 +23,13 @@ class OrientacaoLayout {
   /// Posicao inicial de um painel pela sua funcao e orientacao atual.
   ///
   /// Os [ids] suportados sao os mesmos usados no FloatingPanel da tela do
-  /// mapa ('fps', 'clima', 'camadas', 'chat', 'route', 'alerts', 'radio',
+  /// mapa ('clima', 'camadas', 'chat', 'route', 'alerts', 'radio',
   /// 'assistant', 'speed_hud', 'peers', 'toolbar', 'groups', 'traffic').
   static Offset inicial(BuildContext context, String id, Size tamanho) {
     final w = tamanho.width;
     final h = tamanho.height;
     final paisagem = w > h;
     switch (id) {
-      case 'fps':
-        return Offset(w - 150, 96);
       case 'clima':
         return paisagem ? Offset(16, h - 300) : Offset(16, h - 430);
       case 'camadas':

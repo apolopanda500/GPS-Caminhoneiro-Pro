@@ -18,7 +18,6 @@ enum CameraMode {
 /// Preferências avançadas do app (desempenho, mapa, GPS e hardware).
 /// Persistidas em SharedPreferences para sobreviver a reinícios.
 class SettingsProvider extends ChangeNotifier {
-  static const _kShowFps = 'settings.showFps';
   static const _kModoLeitura = 'settings.modoLeitura';
   static const _kTargetFps = 'settings.targetFps';
   static const _kLayer = 'settings.layer';
@@ -49,7 +48,6 @@ class SettingsProvider extends ChangeNotifier {
   /// O mapa de ruas é recarregado a cada 12 h ou na virada do dia.
   static const Duration mapUpdateInterval = Duration(hours: 12);
 
-  bool _showFps = false;
   bool _modoLeitura = false;
   int _targetFps = 60;
   MapLayerMode _layer = MapLayerMode.satellite;
@@ -78,7 +76,6 @@ class SettingsProvider extends ChangeNotifier {
   CameraMode _cameraMode = CameraMode.norte;
   bool _loaded = false;
 
-  bool get showFps => _showFps;
   bool get modoLeitura => _modoLeitura;
   int get targetFps => _targetFps;
   MapLayerMode get layer => _layer;
@@ -226,7 +223,6 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    _showFps = prefs.getBool(_kShowFps) ?? false;
     _modoLeitura = prefs.getBool(_kModoLeitura) ?? false;
     _targetFps = prefs.getInt(_kTargetFps) ?? 60;
     _layer = MapLayerMode.values[prefs.getInt(_kLayer) ?? 0];
@@ -279,12 +275,6 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> _setBool(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
-  }
-
-  Future<void> setShowFps(bool value) async {
-    _showFps = value;
-    notifyListeners();
-    await _setBool(_kShowFps, value);
   }
 
   /// Liga/desliga o modo de leitura acessivel (textos e toques maiores).

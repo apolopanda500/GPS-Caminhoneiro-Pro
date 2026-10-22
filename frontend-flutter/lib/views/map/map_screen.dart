@@ -925,16 +925,17 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Proxima camera de acompanhamento (2D -> navegacao 3D -> cabine 3D).
+  /// Nao religa o modo centralizado: a camera so volta ao caminhao pelo
+  /// botao de centralizar.
   void _alternarCamera() {
     const modos = CameraMode.values;
     final proximo = modos[(_cameraMode.index + 1) % modos.length];
-    setState(() {
-      _cameraMode = proximo;
-      _seguirVeiculo = true;
-    });
+    setState(() => _cameraMode = proximo);
     unawaited(context.read<SettingsProvider>().setCameraMode(proximo));
     final pos = _currentPosition;
-    if (pos != null) _aplicarCameraNoVeiculo(pos, instant: true);
+    if (pos != null && _seguirVeiculo) {
+      _aplicarCameraNoVeiculo(pos, instant: true);
+    }
     _showSnackBar('Camera: ${_nomeCamera(proximo)}');
   }
 
@@ -2993,7 +2994,7 @@ class _MapScreenState extends State<MapScreen> {
   /// - **Economico**: desliga predios 3D, radar de chuva e nuvens (poupa bateria
   ///   e dados) e limita os marcadores na tela.
   /// - **Equilibrado**: padrao do app.
-  /// - **Ultra**: tudo ligado e contadores de FPS sempre ativos.
+  /// - **Ultra**: camadas de clima ligadas.
   void _aplicarPerfilDeGraficos(RenderQuality quality) {
     final camadas = context.read<MapLayersProvider>();
     if (quality == RenderQuality.economy) {
@@ -3002,13 +3003,8 @@ class _MapScreenState extends State<MapScreen> {
       if (camadas.relevo) camadas.setRelevo(false);
     }
     if (quality == RenderQuality.ultra) {
-      // Ultra: garante as camadas de clima e o medidor de FPS na tela.
       if (!camadas.radar) camadas.setRadar(true);
       if (!camadas.nuvens) camadas.setNuvens(true);
-      final settings = _settingsProvider;
-      if (settings != null && !settings.showFps) {
-        settings.setShowFps(true);
-      }
     }
     if (mounted) setState(() {});
   }
@@ -3360,9 +3356,12 @@ class _MapScreenState extends State<MapScreen> {
               height: 52,
               dragWholeChild: true,
               resizable: false,
-              minimizedChild: const Icon(Icons.center_focus_strong, size: 18),
-              child: _botaoFlutuante(Icons.center_focus_strong,
-                  'Centralizar a camera no caminhao', _recentralizarNoCaminhao),
+              minimizedChild: Icon(
+                  _seguirVeiculo
+                      ? Icons.center_focus_strong
+                      : Icons.center_focus_weak,
+                  size: 18),
+              child: _botaoCentralizar(),
             ),
           // Modo de camera: 2D norte -> 3D navegacao -> visao do caminhoneiro.
           if (ui)
@@ -3459,6 +3458,50 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Botao flutuante pequeno (usado na coluna de acoes do mapa).
+  /// Modo centralizado (camera segue o caminhao) com ativar/desativar:
+  /// ligado = a camera acompanha; toque de novo = a tela fica solta.
+  /// Arrastar o mapa tambem solta a tela; volta ao centro so pelo botao.
+  Widget _botaoCentralizar() {
+    final accent = _settingsProvider?.overlayColor ?? kEmergencyRed;
+    final ativo = _seguirVeiculo;
+    return Tooltip(
+      message: ativo
+          ? 'Modo centralizado ativo (toque para deixar a tela solta)'
+          : 'Ativar modo centralizado (centralizar no caminhao)',
+      child: Material(
+        color: ativo ? accent : _superficie(context),
+        shape: CircleBorder(
+          side: BorderSide(
+            color: accent.withValues(alpha: 0.65),
+            width: 1.3,
+          ),
+        ),
+        elevation: 4,
+        shadowColor: Colors.black54,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () {
+            if (ativo) {
+              setState(() => _seguirVeiculo = false);
+              _showSnackBar('📷 Tela solta. Centralize pelo botao quando quiser.');
+            } else {
+              _recentralizarNoCaminhao();
+            }
+          },
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              ativo ? Icons.center_focus_strong : Icons.center_focus_weak,
+              color: ativo ? Colors.white : accent,
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _botaoFlutuante(IconData icone, String dica, VoidCallback onTap) {
     final accent = _settingsProvider?.overlayColor ?? kEmergencyRed;
     return Tooltip(

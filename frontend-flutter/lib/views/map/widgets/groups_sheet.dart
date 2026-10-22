@@ -39,9 +39,13 @@ class GroupsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final grupos = context.watch<GroupProvider>();
     final tema = Theme.of(context);
+    final media = MediaQuery.of(context);
+    final altura = (media.size.height - media.viewInsets.bottom) * 0.78;
     return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.78,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+        child: SizedBox(
+          height: altura,
         child: Column(
           children: [
             const SizedBox(height: 12),
@@ -167,7 +171,8 @@ class GroupsSheet extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   void _sair(BuildContext context, String groupId) async {
@@ -276,20 +281,67 @@ class _FutureBuilderWrapperState extends State<FutureBuilderWrapper> {
   }
 }
 
-class _CriarGrupo extends StatelessWidget {
+class _CriarGrupo extends StatefulWidget {
   final String driverId;
   final Map<String, String> auth;
 
   const _CriarGrupo({required this.driverId, required this.auth});
 
   @override
+  State<_CriarGrupo> createState() => _CriarGrupoState();
+}
+
+class _CriarGrupoState extends State<_CriarGrupo> {
+  final _controller = TextEditingController();
+  bool _criando = false;
+  String? _erroLocal;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _criar() async {
+    final nome = _controller.text.trim();
+    if (nome.isEmpty || _criando) return;
+    setState(() {
+      _criando = true;
+      _erroLocal = null;
+    });
+    final ok = await context.read<GroupProvider>().create(
+          name: nome,
+          driverId: widget.driverId,
+          auth: widget.auth,
+        );
+    if (!mounted) return;
+    setState(() {
+      _criando = false;
+      if (ok) {
+        _controller.clear();
+      } else {
+        _erroLocal =
+            'Nao deu para criar o grupo. Confira o nome e tente de novo.';
+      }
+    });
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Comboio criado! Ele ja aparece na lista.')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = TextEditingController();
     final tema = Theme.of(context);
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         TextField(
-          controller: controller,
+          controller: _controller,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _criar(),
           decoration: InputDecoration(
             hintText: 'Nome do seu comboio (ex.: Rota SP→Rio)',
             filled: true,
@@ -299,19 +351,27 @@ class _CriarGrupo extends StatelessWidget {
             ),
           ),
         ),
+        if (_erroLocal != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _erroLocal!,
+              style: TextStyle(color: tema.colorScheme.error, fontSize: 12),
+            ),
+          ),
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: () {
-              final nome = controller.text.trim();
-              if (nome.isEmpty) return;
-              context
-                  .read<GroupProvider>()
-                  .create(name: nome, driverId: driverId, auth: auth);
-            },
-            icon: const Icon(Icons.flag, size: 18),
-            label: const Text('CRIAR GRUPO (COMBOIO)'),
+            onPressed: _criando ? null : _criar,
+            icon: _criando
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.flag, size: 18),
+            label: Text(_criando ? 'CRIANDO...' : 'CRIAR GRUPO (COMBOIO)'),
           ),
         ),
       ],
