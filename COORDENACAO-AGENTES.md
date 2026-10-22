@@ -29,6 +29,19 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **DEPLOY FEITO (02:27, B)** — commit `cd30a28` **no origin/main**; o Render fez
+  auto-deploy e a **produção já está com o backend novo** (o histórico do chat já volta
+  com `driverName` e `type`). APK release assinado (75,4 MB, arm64+x64) **instalado nos
+  2 aparelhos** e rodando contra o Render (`active_trucks: 2`).
+  Checks: analyze **No issues found!**, **205 testes** verdes, backend **29/29**,
+  bateria multi-usuário **10/10**, bateria de 2 contas **12/12 (10/10)**, bateria no app **13/13**.
+- **ATENÇÃO — os dois bancos divergiram:** a **produção (Render) ainda usa o Postgres do
+  Render** (expira 18/11/2026) e o `.env` local usa o **Supabase**. As contas de teste
+  `bateria.*` e os dados das baterias existem **só no Supabase**; as conversas do app em
+  produção estão **no Postgres do Render**. Fila #20 (trocar o `DATABASE_URL`) e #21
+  (re-salvar o perfil no celular para restaurar a foto original).
+- **Falta o USUÁRIO**: envs `PIX_*` no Render (Premium devolve 503 sem elas) — fila #18.
+
 - **PROJETO FINALIZADO 10/10 (05:50, B)** — APK release 94,0 MB **assinado**
   (SHA-1 `2F:AE:30:A2:...:83:34`) e **instalado no aparelho** (`Success`), rodando com o
   mapa nativo e lendo os **sinais já migrados para o Supabase** no painel "Sinais da
@@ -86,6 +99,8 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 | 17 | Registrar os 2 SHA-1 (release + debug) na chave do Routes API no Google Cloud Console | USUÁRIO | **pendente (05:45)** — rota funciona pelo ORS/TomTom/OSRM enquanto isso |
 | 18 | **Adicionar as envs de PIX no Render** (`PIX_KEY`, `PIX_NAME`, `PIX_CITY`, `PIX_AMOUNT`, `PIX_DESCRIPTION`) — sem isso o Premium devolve 503 em produção (achado pela bateria de simulação) | USUÁRIO | **pendente (18:55)** — valores prontos no `backend-api/.env` |
 | 19 | Rodar a bateria de simulação real no deploy depois da fila #18 | B | pendente (a bateria local já dá 10/10) |
+| 20 | **Trocar o `DATABASE_URL` do Render para o pooler do Supabase** (fila #14) — **ATENÇÃO**: a produção ainda usa o Postgres do Render (expira 18/11/2026) e o `.env` local usa o Supabase: os dois bancos **divergiram** (as contas de teste `bateria.*` só existem no Supabase) | USUÁRIO | **pendente** — URI: `postgresql://postgres.<ref>:<senha>@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require` |
+| 21 | Depois da fila #20: abrir **Perfil no celular e tocar em SALVAR** — o app reenvia a foto original (que está no Postgres do Render) para o Supabase (no Supabase ficaram as fotos de teste PC/CEL) | USUÁRIO | **pendente** |
 
 ## Ferramentas de validação (novas)
 

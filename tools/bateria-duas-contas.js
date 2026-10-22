@@ -120,6 +120,24 @@ async function carregarContas() {
   const pc = r.rows.find((x) => x.driver_id === PC_ID);
   if (!celular) throw new Error('conta do celular nao encontrada: ' + CELULAR_ID);
   if (!pc) throw new Error('conta do PC nao encontrada: ' + PC_ID);
+
+  // Com e-mail e senha: login de verdade (funciona em qualquer servidor,
+  // ate quando o JWT_SECRET do Render e diferente do local).
+  const emailCel = arg('celular-email', '');
+  const emailPc = arg('pc-email', '');
+  const senha = arg('senha', '');
+  if (emailCel && emailPc && senha) {
+    const lc = await api('POST', '/api/auth/login', { email: emailCel, password: senha });
+    const lp = await api('POST', '/api/auth/login', { email: emailPc, password: senha });
+    if (lc.status !== 200 || !lc.body.token) throw new Error('login do celular: ' + lc.status);
+    if (lp.status !== 200 || !lp.body.token) throw new Error('login do PC: ' + lp.status);
+    return {
+      celular: { ...celular, token: lc.body.token, idReal: lc.body.driverId },
+      pc: { ...pc, token: lp.body.token, idReal: lp.body.driverId },
+    };
+  }
+
+  // Sem e-mail: cria o token do mesmo jeito que o servidor cria.
   return {
     celular: { ...celular, token: criarToken(celular.driver_id) },
     pc: { ...pc, token: criarToken(pc.driver_id) },
@@ -361,6 +379,8 @@ cenario('10. Seguranca: token, identidade e payload hostil', async () => {
   await api('POST', '/api/auth/profile', { driverId: contas.pc.driver_id, name: 'PC hackeado' }, contas.celular.token);
   const check = await db.query('SELECT name FROM drivers WHERE driver_id = $1', [contas.pc.driver_id]);
   if (check.rows[0].name !== contas.pc.name) throw new Error('perfil do PC foi alterado por outro');
+  // A propria conta do celular recebeu o nome do corpo: devolve o original.
+  await api('POST', '/api/auth/profile', { name: contas.celular.name }, contas.celular.token);
   // Payload hostil nao derruba o servidor.
   const hostil = await api('POST', '/api/alerts', { type: "'; DROP TABLE drivers; --", message: 'x'.repeat(4000), lat: 'abc', lon: null }, contas.celular.token);
   if (hostil.status >= 500) throw new Error('servidor caiu: ' + hostil.status);
