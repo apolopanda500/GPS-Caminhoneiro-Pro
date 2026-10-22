@@ -13,5 +13,15 @@ router.post('/:id/join', requireAuth, groupController.join.bind(groupController)
 router.post('/:id/leave', requireAuth, groupController.leave.bind(groupController));
 router.post('/:id/routes', requireAuth, groupController.shareRoute.bind(groupController));
 router.get('/:id/routes', requireAuth, groupController.listRoutes.bind(groupController));
+router.patch(
+  '/:id/routes/:shareId',
+  requireAuth,
+  groupController.editarRota.bind(groupController),
+);
+router.delete(
+  '/:id/routes/:shareId',
+  requireAuth,
+  groupController.removerRota.bind(groupController),
+);
 
 export default router;

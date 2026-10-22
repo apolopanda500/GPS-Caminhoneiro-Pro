@@ -219,6 +219,7 @@ class SocketClient {
     required String routeJson,
     String? targetDriverId,
     String? groupId,
+    String? shareId,
   }) {
     if (!socket.connected) return;
     socket.emit('share_route', {
@@ -227,11 +228,69 @@ class SocketClient {
       'routeJson': routeJson,
       if (targetDriverId != null) 'targetDriverId': targetDriverId,
       if (groupId != null && groupId.isNotEmpty) 'groupId': groupId,
+      if (shareId != null && shareId.isNotEmpty) 'shareId': shareId,
     });
   }
 
   void onReceiveSharedRoute(void Function(dynamic data) callback) {
     socket.on('receive_shared_route', callback);
+  }
+
+  /// Acompanha a rota de outro motorista (linha + paradas ao vivo).
+  void followRoute({
+    required String shareId,
+    required String driverId,
+    String? name,
+  }) {
+    if (!socket.connected) return;
+    socket.emit('follow_route', {
+      'shareId': shareId,
+      'driverId': driverId,
+      if (name != null) 'name': name,
+    });
+  }
+
+  void unfollowRoute({required String shareId}) {
+    if (!socket.connected) return;
+    socket.emit('unfollow_route', {'shareId': shareId});
+  }
+
+  /// Avisa que uma parada da rota compartilhada mudou (chegou/entregou).
+  void sendRouteProgress({
+    required String shareId,
+    required int stopIndex,
+    required String status,
+    double? lat,
+    double? lon,
+    String? driverId,
+    String? driverName,
+  }) {
+    if (!socket.connected) return;
+    socket.emit('route_progress', {
+      'shareId': shareId,
+      'stopIndex': stopIndex,
+      'status': status,
+      if (lat != null) 'lat': lat,
+      if (lon != null) 'lon': lon,
+      if (driverId != null) 'driverId': driverId,
+      if (driverName != null) 'driverName': driverName,
+    });
+  }
+
+  void onRouteProgress(void Function(dynamic data) callback) {
+    socket.on('route_progress', callback);
+  }
+
+  void onRouteSharedState(void Function(dynamic data) callback) {
+    socket.on('route_shared_state', callback);
+  }
+
+  void onRouteFollowerJoined(void Function(dynamic data) callback) {
+    socket.on('route_follower_joined', callback);
+  }
+
+  void onRouteFollowError(void Function(dynamic data) callback) {
+    socket.on('route_follow_error', callback);
   }
 
   /// Convite para entrar num grupo/comboio.

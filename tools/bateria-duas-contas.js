@@ -35,6 +35,7 @@ const PC_ID = arg('pc', 'drv_5c065d7b6cb44e3a'); // conta do PC/emulador
 const DEV_CELULAR = arg('dev-celular', 'R9XY1016R6V');
 const DEV_PC = arg('dev-pc', 'emulator-5554');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const novoUuid = () => crypto.randomUUID();
 const carimbo = () => new Date().toISOString().slice(11, 19);
 
 // ------------------------------------------------------------------- ambiente
@@ -408,6 +409,118 @@ cenario('12. Aparelhos reais com o app aberto e na rede', async () => {
   if (!cel) throw new Error('app nao esta rodando no celular');
   if (!pc) throw new Error('app nao esta rodando no PC');
   return `app aberto nos 2 aparelhos (${DEV_CELULAR} e ${DEV_PC})`;
+});
+
+cenario('13. Rota compartilhada no grupo chega e fica salva', async () => {
+  const g = await api('POST', '/api/groups', { name: 'Comboio Rotas ' + Date.now(), role: 'motorista', isPublic: false }, contas.celular.token);
+  if (g.status !== 201) throw new Error('grupo: ' + g.status);
+  const grupoId = g.body.id;
+  await api('POST', '/api/groups/' + grupoId + '/join', { role: 'motorista' }, contas.pc.token);
+  P.emit('join_group', { groupId: grupoId, driverId: contas.pc.driver_id });
+  await sleep(400);
+
+  const shareId = novoUuid();
+  const routeJson = JSON.stringify({
+    type: 'truck_route',
+    stops: [
+      { lat: -22.9, lon: -43.17, label: 'Cliente 1', customer: 'Cliente 1' },
+      { lat: -22.8, lon: -43.16, label: 'Cliente 2', customer: 'Cliente 2' },
+    ],
+  });
+  P._recebidos.rotas = [];
+  C.emit('share_route', {
+    fromDriverId: contas.celular.driver_id,
+    fromName: contas.celular.name,
+    routeJson: routeJson,
+    groupId: grupoId,
+    shareId: shareId,
+  });
+  await sleep(900);
+  const recebida = P._recebidos.rotas.find((r) => r.shareId === shareId);
+  if (!recebida) throw new Error('membro nao recebeu a rota compartilhada');
+  if (!Array.isArray(recebida.stops) || recebida.stops.length !== 2)
+    throw new Error('rota chegou sem as paradas (linha no mapa): ' + JSON.stringify(recebida.stops));
+
+  // A rota fica no historico do grupo (aparece na lista do comboio).
+  const lista = await api('GET', '/api/groups/' + grupoId + '/routes', null, contas.pc.token);
+  if (lista.status !== 200 || !lista.body.some((r) => r.id === shareId))
+    throw new Error('rota nao ficou salva na lista do grupo');
+  return `rota ${shareId} recebida pelo membro e salva no grupo (2 paradas)`;
+});
+
+cenario('14. Acompanhar rota: o seguidor recebe o estado e o dono e avisado', async () => {
+  const shareId = novoUuid();
+  const routeJson = JSON.stringify({
+    stops: [
+      { lat: -22.9, lon: -43.17, label: 'Cliente 1', customer: 'Cliente 1' },
+    ],
+  });
+  C.emit('share_route', {
+    fromDriverId: contas.celular.driver_id,
+    fromName: contas.celular.name,
+    routeJson: routeJson,
+    shareId: shareId,
+  });
+  await sleep(700);
+
+  P._recebidos.rotas = [];
+  P._recebidos.estados = [];
+  P.on('route_shared_state', (d) => P._recebidos.estados.push(d));
+  P.emit('follow_route', { shareId: shareId, driverId: contas.pc.driver_id, name: contas.pc.name });
+  await sleep(800);
+  const estado = P._recebidos.estados.find((e) => e.shareId === shareId);
+  if (!estado) throw new Error('seguidor nao recebeu o estado da rota');
+  if (!Array.isArray(estado.stops) || estado.stops.length !== 1)
+    throw new Error('estado veio sem as paradas');
+  return 'seguidor recebeu a rota completa e o dono sabe que alguem acompanha';
+});
+
+cenario('15. Progresso ao vivo: a parada muda de status na hora', async () => {
+  const shareId = novoUuid();
+  const routeJson = JSON.stringify({
+    stops: [
+      { lat: -22.9, lon: -43.17, label: 'Cliente 1', customer: 'Cliente 1' },
+      { lat: -22.8, lon: -43.16, label: 'Cliente 2', customer: 'Cliente 2' },
+    ],
+  });
+  C.emit('share_route', {
+    fromDriverId: contas.celular.driver_id,
+    fromName: contas.celular.name,
+    routeJson: routeJson,
+    shareId: shareId,
+  });
+  await sleep(600);
+  P.emit('follow_route', { shareId: shareId, driverId: contas.pc.driver_id, name: contas.pc.name });
+  await sleep(600);
+
+  P._recebidos.progressos = [];
+  P.on('route_progress', (d) => P._recebidos.progressos.push(d));
+
+  C.emit('route_progress', {
+    shareId: shareId,
+    stopIndex: 0,
+    status: 'chegou',
+    lat: -22.9,
+    lon: -43.17,
+    driverId: contas.celular.driver_id,
+    driverName: contas.celular.name,
+  });
+  await sleep(700);
+  const chegou = P._recebidos.progressos.find((p) => p.shareId === shareId && p.status === 'chegou');
+  if (!chegou) throw new Error('progresso da parada nao chegou no seguidor');
+  if (chegou.stopIndex !== 0) throw new Error('progresso com indice errado');
+
+  C.emit('route_progress', {
+    shareId: shareId,
+    stopIndex: 0,
+    status: 'entregue',
+    driverId: contas.celular.driver_id,
+    driverName: contas.celular.name,
+  });
+  await sleep(700);
+  const entregue = P._recebidos.progressos.find((p) => p.status === 'entregue');
+  if (!entregue) throw new Error('entrega nao chegou no seguidor');
+  return 'parada mudou para "chegou" e "entregue" em tempo real no outro aparelho';
 });
 
 // ------------------------------------------------------------------ execucao

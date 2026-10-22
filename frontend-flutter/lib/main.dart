@@ -8,6 +8,7 @@ import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/providers/marker_provider.dart';
 import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
 import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
+import 'package:gps_camioneiro_pro/providers/shared_routes_provider.dart';
 import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/group_provider.dart';
@@ -40,6 +41,7 @@ void main() {
         ChangeNotifierProvider(create: (context) => SettingsProvider()..load()),
         ChangeNotifierProvider(create: (_) => MarkerProvider()),
         ChangeNotifierProvider(create: (_) => PeerProvider()),
+        ChangeNotifierProvider(create: (_) => SharedRoutesProvider()),
         ChangeNotifierProvider(create: (_) => TripProvider()..load()),
         ChangeNotifierProvider(create: (_) => RouteProvider()),
         ChangeNotifierProvider(create: (_) => GroupProvider()),

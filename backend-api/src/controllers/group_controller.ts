@@ -184,4 +184,87 @@ export class GroupController {
       res.status(500).json({ error: 'Falha ao listar rotas do grupo.' });
     }
   }
+
+  /**
+   * Edita uma rota compartilhada do grupo (visibilidade, nome).
+   * So o dono da rota ou o dono do grupo pode mexer.
+   */
+  async editarRota(req: Request, res: Response): Promise<void> {
+    const { shareId } = req.params;
+    const driverId = req.driverId;
+    if (!shareId || !driverId) {
+      res.status(400).json({ error: 'Rota e motorista são obrigatórios.' });
+      return;
+    }
+    try {
+      const rota = await this.db.query(
+        `SELECT r.driver_id, g.owner_driver_id
+           FROM group_shared_routes r
+           JOIN convoy_groups g ON g.id = r.group_id
+          WHERE r.id = $1::uuid`,
+        [shareId],
+      );
+      if (rota.rowCount === 0) {
+        res.status(404).json({ error: 'Rota compartilhada não encontrada.' });
+        return;
+      }
+      const pode =
+        rota.rows[0].driver_id === driverId || rota.rows[0].owner_driver_id === driverId;
+      if (!pode) {
+        res.status(403).json({ error: 'Só o dono da rota ou do grupo pode editar.' });
+        return;
+      }
+      const { isPublic, nome } = req.body ?? {};
+      if (typeof isPublic === 'boolean') {
+        await this.db.query(
+          'UPDATE group_shared_routes SET is_public = $2 WHERE id = $1::uuid',
+          [shareId, isPublic],
+        );
+      }
+      if (typeof nome === 'string' && nome.trim().length > 0) {
+        await this.db.query(
+          `UPDATE group_shared_routes
+              SET payload = jsonb_set(payload, '{nome}', to_jsonb($2::text))
+            WHERE id = $1::uuid`,
+          [shareId, nome.trim().slice(0, 80)],
+        );
+      }
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Falha ao editar a rota compartilhada.' });
+    }
+  }
+
+  /** Remove uma rota compartilhada do grupo (dono da rota ou dono do grupo). */
+  async removerRota(req: Request, res: Response): Promise<void> {
+    const { shareId } = req.params;
+    const driverId = req.driverId;
+    if (!shareId || !driverId) {
+      res.status(400).json({ error: 'Rota e motorista são obrigatórios.' });
+      return;
+    }
+    try {
+      const rota = await this.db.query(
+        `SELECT r.driver_id, g.owner_driver_id
+           FROM group_shared_routes r
+           JOIN convoy_groups g ON g.id = r.group_id
+          WHERE r.id = $1::uuid`,
+        [shareId],
+      );
+      if (rota.rowCount === 0) {
+        res.status(404).json({ error: 'Rota compartilhada não encontrada.' });
+        return;
+      }
+      const pode =
+        rota.rows[0].driver_id === driverId || rota.rows[0].owner_driver_id === driverId;
+      if (!pode) {
+        res.status(403).json({ error: 'Só o dono da rota ou do grupo pode remover.' });
+        return;
+      }
+      await this.db.query('DELETE FROM group_shared_routes WHERE id = $1::uuid', [shareId]);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Falha ao remover a rota compartilhada.' });
+    }
+  }
 }

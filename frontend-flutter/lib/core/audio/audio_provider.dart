@@ -270,9 +270,36 @@ class AudioProvider extends ChangeNotifier {
     }
   }
 
+  /// Lista de rejeicao (favoritos + recentes + estacoes) do tocador.
+  List<EstacaoRadio> get filaDoTocador {
+    final lista = <EstacaoRadio>[];
+    final vistos = <String>{};
+    for (final e in [..._recentes, ..._favoritos, ..._estacoes]) {
+      if (vistos.add(e.nome)) lista.add(e);
+    }
+    return lista;
+  }
+
+  /// Proxima estacao da fila (estilo tocador de musica).
+  Future<void> proximaEstacao() async {
+    final fila = filaDoTocador;
+    if (fila.isEmpty) return;
+    final atual = fila.indexWhere((e) => e.nome == radioEstacao);
+    final proxima = fila[(atual + 1) % fila.length];
+    await tocarEstacao(proxima);
+  }
+
+  /// Estacao anterior da fila.
+  Future<void> anteriorEstacao() async {
+    final fila = filaDoTocador;
+    if (fila.isEmpty) return;
+    final atual = fila.indexWhere((e) => e.nome == radioEstacao);
+    final anterior = fila[(atual - 1 + fila.length) % fila.length];
+    await tocarEstacao(anterior);
+  }
+
   /// Pausa ou retoma a reproducao atual.
-  Future<void> alternarReproducao() async {
-    if (!radioTocando) return;
+  Future<void> alternarReproducao() async {    if (!radioTocando) return;
     try {
       if (_radio.playing) {
         await _radio.pause();

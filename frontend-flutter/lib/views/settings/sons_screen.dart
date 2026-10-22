@@ -150,6 +150,98 @@ class _SonsScreenState extends State<SonsScreen> {
           const Divider(height: 28),
           _titulo(context, 'VOZ DAS PARADAS'),
           SwitchListTile(
+            secondary: Icon(Icons.notifications_active, color: ink.withValues(alpha: 0.7)),
+            title: Text('Só o sino (sem falar as ruas)', style: TextStyle(color: ink)),
+            subtitle: Text(
+              'Toca apenas o sino de chegada e de estação. A voz fica muda.',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            value: voz.somenteSino,
+            onChanged: (v) async {
+              await voz.definirSomenteSino(v);
+              setState(() {});
+            },
+            activeThumbColor: kEmergencyRed,
+            activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              'Como a voz fala (perfil)',
+              style: TextStyle(color: ink, fontWeight: FontWeight.bold),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final p in PerfilVoz.values)
+                  ChoiceChip(
+                    label: Text(p.rotulo),
+                    selected: voz.perfil == p,
+                    onSelected: (_) async {
+                      await voz.definirPerfil(p);
+                      setState(() {});
+                    },
+                    selectedColor: kEmergencyRed.withValues(alpha: 0.35),
+                    labelStyle: TextStyle(
+                      color: ink,
+                      fontSize: 12,
+                      fontWeight:
+                          voz.perfil == p ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+            child: Text(
+              voz.perfil.descricao,
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _botaoTeste(
+                  context,
+                  icone: Icons.notifications,
+                  rotulo: 'OUVIR O SINO DE CHEGADA',
+                  onTap: () async {
+                    final audio = context.read<AudioProvider>();
+                    final sons = context.read<SonsProvider>();
+                    await audio.tocarChegada();
+                    await sons.tocar(SlotSom.sinoEstacao);
+                  },
+                ),
+                _botaoTeste(
+                  context,
+                  icone: Icons.train,
+                  rotulo: 'OUVIR O SINO DE ESTAÇÃO',
+                  onTap: () {
+                    final sons = context.read<SonsProvider>();
+                    return sons.tocar(SlotSom.sinoEstacao);
+                  },
+                ),
+                _botaoTeste(
+                  context,
+                  icone: Icons.exit_to_app,
+                  rotulo: 'OUVIR O SOM DE SAÍDA',
+                  onTap: () {
+                    final sons = context.read<SonsProvider>();
+                    return sons.tocar(SlotSom.saidaParada);
+                  },
+                ),
+              ],
+            ),
+          ),
+          SwitchListTile(
             secondary: Icon(Icons.record_voice_over, color: ink.withValues(alpha: 0.7)),
             title: Text('Voz das paradas', style: TextStyle(color: ink)),
             subtitle: Text(
@@ -285,8 +377,29 @@ class _SonsScreenState extends State<SonsScreen> {
     );
   }
 
-  Widget _titulo(BuildContext context, String texto) {
+  /// Botao de teste de som (ouvir o sino, o som de saida, etc).
+  Widget _botaoTeste(
+    BuildContext context, {
+    required IconData icone,
+    required String rotulo,
+    required Future<void> Function() onTap,
+  }) {
     final tema = Theme.of(context);
+    return OutlinedButton.icon(
+      onPressed: () async {
+        await onTap();
+      },
+      icon: Icon(icone, size: 16),
+      label: Text(rotulo, style: const TextStyle(fontSize: 11)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: tema.colorScheme.onSurface,
+        side: BorderSide(color: tema.colorScheme.onSurface.withValues(alpha: 0.3)),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  Widget _titulo(BuildContext context, String texto) {    final tema = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
       child: Text(

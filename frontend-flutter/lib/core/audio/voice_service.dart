@@ -1,14 +1,9 @@
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Como a voz anuncia as paradas.
-enum ModoFalaParada {
-  /// "Chegou na parada numero 2 de 5"
-  numero,
+import 'package:gps_camioneiro_pro/core/audio/falas.dart';
 
-  /// "Chegou na empresa do cliente Joao"
-  nomeCliente,
-}
+export 'package:gps_camioneiro_pro/core/audio/falas.dart';
 
 /// Uma voz disponivel no aparelho.
 class VozDisponivel {
@@ -40,6 +35,12 @@ class VoiceService {
   /// Como falar as paradas: numero ou nome do cliente.
   ModoFalaParada modoFalaParada = ModoFalaParada.numero;
 
+  /// Perfil de fala (Padrão, Waze, Uber, 99).
+  PerfilVoz perfil = PerfilVoz.padrao;
+
+  /// Quando ligado, o app toca **apenas os sinos** (sem falar as ruas).
+  bool somenteSino = false;
+
   /// Voz escolhida (nome) e tom da fala.
   String? vozEscolhida;
   double velocidade = 0.48;
@@ -56,6 +57,8 @@ class VoiceService {
     modoFalaParada = (prefs.getString('audio_vozModo') ?? 'numero') == 'nome'
         ? ModoFalaParada.nomeCliente
         : ModoFalaParada.numero;
+    perfil = PerfilVoz.porChave(prefs.getString('audio_vozPerfil') ?? 'padrao');
+    somenteSino = prefs.getBool('audio_vozSomenteSino') ?? false;
     vozEscolhida = prefs.getString('audio_vozNome');
     velocidade = prefs.getDouble('audio_vozVelocidade') ?? 0.48;
     tom = prefs.getDouble('audio_vozTom') ?? 1.0;
@@ -66,6 +69,20 @@ class VoiceService {
     modoFalaParada = modo;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('audio_vozModo', modo == ModoFalaParada.nomeCliente ? 'nome' : 'numero');
+  }
+
+  /// Troca o perfil de fala (Padrão, Waze, Uber, 99).
+  Future<void> definirPerfil(PerfilVoz novo) async {
+    perfil = novo;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('audio_vozPerfil', novo.name);
+  }
+
+  /// Só o sino (sem falar as ruas).
+  Future<void> definirSomenteSino(bool v) async {
+    somenteSino = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('audio_vozSomenteSino', v);
   }
 
   /// Troca a voz do aparelho.
@@ -144,6 +161,7 @@ class VoiceService {
 
   Future<void> falar(String texto) async {
     if (!ligada) return;
+    if (somenteSino) return; // so o sino: sem falar as ruas
     await _garantir();
     if (!_iniciado) return;
     try {
@@ -165,30 +183,18 @@ class VoiceService {
     double? distanciaKm,
     int totalParadas = 0,
   }) async {
-    final buf = StringBuffer();
-    if (modoFalaParada == ModoFalaParada.nomeCliente &&
-        nome != null &&
-        nome.trim().isNotEmpty) {
-      buf.write('Próxima parada: ${nome.trim()}');
-    } else if (numero != null) {
-      buf.write('Próxima parada, número $numero');
-    } else {
-      buf.write('Rota concluída');
-    }
-    if (distanciaKm != null && distanciaKm > 0) {
-      if (distanciaKm < 0.1) {
-        buf.write(', logo ali');
-      } else if (distanciaKm < 1) {
-        buf.write(', a menos de um quilômetro');
-      } else {
-        buf.write(', a ${distanciaKm.toStringAsFixed(0)} quilometros');
-      }
-    }
-    await falar(buf.toString());
+    await falar(
+      Falas.proximaParada(
+        perfil: perfil,
+        numero: numero,
+        nome: nome,
+        distanciaKm: distanciaKm,
+        porNome: modoFalaParada == ModoFalaParada.nomeCliente,
+      ),
+    );
   }
 
-  /// Fala o inicio da rota: quantas paradas tem, qual e a proxima e o
-  /// "bom trabalho".
+  /// Fala o inicio da rota: quantas paradas tem e qual e a proxima.
   ///
   /// A proxima parada pode ser falada pelo **numero** ou pelo **nome do
   /// cliente**, conforme o motorista escolheu em Som e voz.
@@ -198,31 +204,21 @@ class VoiceService {
     String? proximoNome,
     bool temRetornoEmpresa = false,
   }) async {
-    final buf = StringBuffer();
-    buf.write('Rota iniciada');
-    if (totalParadas > 0) {
-      buf.write(', com $totalParadas parada${totalParadas == 1 ? '' : 's'}');
-      if (temRetornoEmpresa) buf.write(' e retorno a empresa');
-    }
-    buf.write('. ');
-
-    if (modoFalaParada == ModoFalaParada.nomeCliente &&
-        proximoNome != null &&
-        proximoNome.trim().isNotEmpty) {
-      buf.write('Próxima parada: ${proximoNome.trim()}. ');
-    } else if (proximoNumero != null) {
-      buf.write('Próxima parada, número $proximoNumero. ');
-    }
-
-    buf.write('Bom trabalho!');
-    await falar(buf.toString());
+    await falar(
+      Falas.rotaIniciada(
+        perfil: perfil,
+        totalParadas: totalParadas,
+        proximoNumero: proximoNumero,
+        nome: proximoNome,
+        porNome: modoFalaParada == ModoFalaParada.nomeCliente,
+        temRetornoEmpresa: temRetornoEmpresa,
+      ),
+    );
   }
 
   /// Fala a chegada na empresa: a rota acabou.
   Future<void> chegadaNaEmpresa() async {
-    await falar(
-      'Você chegou na empresa. Viagem concluída com sucesso. Bom trabalho!',
-    );
+    await falar(Falas.empresa(perfil: perfil));
   }
 
   /// "Chegou na parada numero 1... chegou na parada numero 2..." ate o
@@ -237,58 +233,20 @@ class VoiceService {
     String? proximoNome,
     double? distanciaProximaKm,
   }) async {
-    final buf = StringBuffer();
-    final porNome = modoFalaParada == ModoFalaParada.nomeCliente;
-
-    if (numero >= total) {
-      buf.write('Ultima entrega concluida. Agora volte para a empresa.');
-    } else if (porNome && proximoNome != null && proximoNome.trim().isNotEmpty) {
-      buf.write('Chegou em $proximoNome. ');
-      buf.write(_fraseProxima(proximoNumero, proximoNome, distanciaProximaKm, true));
-    } else {
-      buf.write('Chegou na parada numero $numero de $total. ');
-      buf.write(_fraseProxima(proximoNumero, proximoNome, distanciaProximaKm, porNome));
-    }
-    await falar(buf.toString());
+    await falar(
+      Falas.chegada(
+        perfil: perfil,
+        numero: numero,
+        total: total,
+        proximoNumero: proximoNumero,
+        nome: proximoNome,
+        distanciaProximaKm: distanciaProximaKm,
+        porNome: modoFalaParada == ModoFalaParada.nomeCliente,
+      ),
+    );
   }
-
-  /// Frase com a proxima parada (numero, nome e distancia).
-  String _fraseProxima(
-    int? proximoNumero,
-    String? proximoNome,
-    double? distanciaProximaKm,
-    bool porNome,
-  ) {
-    final buf = StringBuffer();
-    if (proximoNumero != null) {
-      buf.write('Proxima parada');
-      if (porNome && proximoNome != null && proximoNome.trim().isNotEmpty) {
-        buf.write(', $proximoNome');
-      } else {
-        buf.write(', numero $proximoNumero');
-      }
-    } else if (proximoNome != null && proximoNome.trim().isNotEmpty) {
-      buf.write('Proxima parada, $proximoNome');
-    } else {
-      buf.write('A proxima parada esta esperando por voce.');
-      return buf.toString();
-    }
-    if (distanciaProximaKm != null && distanciaProximaKm > 0) {
-      if (distanciaProximaKm < 0.1) {
-        buf.write(', logo ali');
-      } else if (distanciaProximaKm < 1) {
-        buf.write(', a menos de um quilometro');
-      } else {
-        buf.write(', a ${distanciaProximaKm.toStringAsFixed(0)} quilometros');
-      }
-    } else {
-      buf.write('.');
-    }
-    return buf.toString();
-  }
-
 
   Future<void> viagemConcluida() async {
-    await falar('Viagem concluída. Bom trabalho, caminhoneiro!');
+    await falar(Falas.viagemConcluida(perfil: perfil));
   }
 }

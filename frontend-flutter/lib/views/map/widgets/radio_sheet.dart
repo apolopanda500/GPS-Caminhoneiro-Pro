@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/radio_player.dart';
 
 /// Bottom sheet do radio digital: busca, filtros, favoritos e reproducao.
 class RadioSheet extends StatefulWidget {
@@ -379,6 +380,12 @@ class _RadioSheetState extends State<RadioSheet> {
                   onPressed: () => context.read<AudioProvider>().pararRadio(),
                   icon: const Icon(Icons.stop_circle,
                       color: kEmergencyRed, size: 26),
+                ),
+                IconButton(
+                  tooltip: 'Abrir o tocador',
+                  onPressed: () => RadioPlayer.show(context),
+                  icon: const Icon(Icons.open_in_full,
+                      color: Colors.white70, size: 22),
                 ),
               ],
             ),

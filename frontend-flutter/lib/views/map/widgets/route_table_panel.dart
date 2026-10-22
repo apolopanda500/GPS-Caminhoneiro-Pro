@@ -38,6 +38,9 @@ class RouteTablePanel extends StatefulWidget {
   /// Ajudante apenas acompanha: nao monta nem inicia rota.
   final bool canManageRoute;
 
+  /// Secao das rotas compartilhadas do grupo (linha + paradas ao vivo).
+  final Widget? sharedRoutesChild;
+
   const RouteTablePanel({
     super.key,
     required this.onShowRoute,
@@ -49,6 +52,7 @@ class RouteTablePanel extends StatefulWidget {
     this.onAddStop,
     this.onRecalcular,
     this.canManageRoute = true,
+    this.sharedRoutesChild,
   });
 
   @override
@@ -103,6 +107,7 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
               if (!_minimized) ...[
                 Flexible(child: _tabela(provider, stops)),
                 if (_editando) _barraEdicao(provider),
+                if (widget.sharedRoutesChild != null) widget.sharedRoutesChild!,
                 _rodape(provider),
                 _alcaResize(),
               ],

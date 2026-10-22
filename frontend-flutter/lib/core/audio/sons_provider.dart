@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum SlotSom {
   inicioApp('Inicio do app', 'Toca assim que o app abre'),
   entradaParada('Sino de chegada', 'Dispara o sino ao chegar na parada'),
+  sinoEstacao('Sino de estação', 'Sino de trem na chegada (sempre toca)'),
+  saidaParada('Som de saída', 'Toca quando o caminhão sai da parada'),
   proximaParada('Próxima parada', 'Toca quando o caminhão se aproxima da entrega'),
   alertaRadar('Alerta de radar', 'Toca quando o radar esta proximo'),
   avisoGeral('Aviso geral', 'Som de aviso do app');

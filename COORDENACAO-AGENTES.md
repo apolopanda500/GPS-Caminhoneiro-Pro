@@ -283,6 +283,36 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Log de atos (append-only)
 
+- 04:15 B: **ROTAS COMPARTILHADAS AO VIVO + SONS/VOZ + RADIO (Muzio) + 3 BATERIAS
+  NOVAS (10/10).**
+  1. **Rotas compartilhadas de verdade**: `share_route` agora gera um `shareId` (UUID) e
+     entrega as **paradas** (para o outro motorista desenhar a linha no mapa). Novos eventos
+     de socket: **`follow_route`** (acompanhar), **`unfollow_route`** e **`route_progress`**
+     (a parada mudou: chegou/entregue) - o progresso tambem e gravado no banco.
+     REST novo: `PATCH`/`DELETE /api/groups/:id/routes/:shareId` (editar e remover rota do
+     grupo; so o dono da rota ou do grupo).
+  2. **App**: `SharedRoutesProvider` (rotas do grupo, **escolha de quais ver** - 1 de 10,
+     9 de 10, todas - com a escolha salva), `SharedRoutesPanel` dentro da tabela de rotas
+     (olho por rota, **ACOMPANHAR**, status ao vivo de cada parada, remover), **linha da
+     rota compartilhada desenhada no mapa** e o dono avisando o progresso das suas paradas.
+  3. **Sons sincronizados**: o sino tocava **duas vezes** e o som de saida era o sino de
+     chegada. Agora: **sino so na chegada**, **sino de estacao** (sino de trem) junto com a
+     chegada, **som de saida** proprio e a entrega so fala. Regra centralizada em
+     `core/audio/som_da_parada.dart` (testavel).
+  4. **Voz resumida + perfis**: novo `core/audio/falas.dart` com 4 perfis - **Padrao**
+     (resumido), **Waze** ("Proxima: 3"), **Uber** (objetivo) e **99** ("3, 2 km").
+     Botao **"So o sino (sem falar as ruas)"** e botoes para ouvir cada som.
+  5. **Radio com tocador estilo Muzio**: `radio_player.dart` (capa grande, play/pause,
+     anterior/proxima, volume, fila e favoritos) + fila no `AudioProvider`.
+  6. **Baterias**: `tools/bateria-duas-contas.js` cresceu para **15 cenarios** (13/14/15 =
+     rota compartilhada, acompanhar e progresso ao vivo) - **15/15 (10/10)**;
+     `tools/bateria-simulacao-real.js` **10/10**; `test/bateria_ciclo_vida_test.dart`
+     **21/21**; total do Flutter **226 testes** verdes; backend **29/29**.
+  7. **Documentacao**: `docs/BATERIAS-DE-SIMULACAO.md` (como rodar tudo) e
+     `docs/HISTORICO-CONVERSAS.md` (o que foi pedido em cada rodada e o que foi feito).
+  8. APK release assinado (arm64+x64, 75,4 MB) **instalado nos 2 aparelhos** e rodando
+     contra o Render (`active_trucks: 2`), **zero crash**.
+
 - 02:20 B: **DUAS CONTAS REAIS (celular + PC) - 12/12 - nota 10/10 + 5 BUGS REAIS CORRIGIDOS
   + NOVO ICONE + BATERIAS NOVAS.**
   1. **Ambiente de 2 aparelhos**: BlueStacks X instalado so com a "Loja" (motor do

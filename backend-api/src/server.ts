@@ -1,5 +1,6 @@
 ﻿import express from 'express';
 import { createServer } from 'http';
+import crypto from 'crypto';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import { connectDatabase, db } from './config/database';
@@ -74,6 +75,26 @@ interface ActiveTruck {
 }
 
 const activeTrucksNetwork = new Map<string, ActiveTruck>();
+
+/**
+ * Rotas compartilhadas em tempo real.
+ *
+ * Cada rota compartilhada tem um `shareId` (o proprio id da linha em
+ * `group_shared_routes`). Quem acompanha ("seguir") recebe o estado da rota e
+ * as atualizacoes de cada parada (chegou / entregou) em tempo real.
+ */
+interface SharedRouteState {
+  shareId: string;
+  groupId?: string;
+  ownerDriverId: string;
+  ownerSocketId: string;
+  ownerName: string;
+  routeJson: string;
+  stops: any[];
+  seguidores: Set<string>;
+  atualizadoEm: number;
+}
+const sharedRoutes = new Map<string, SharedRouteState>();
 
 // Cache simples do perfil do motorista (evita query a cada posicao).
 const perfilCache = new Map<string, { dados: any; expira: number }>();
@@ -239,6 +260,7 @@ io.on('connection', (socket: Socket) => {
     routeJson: string;
     targetDriverId?: string;
     groupId?: string;
+    shareId?: string;
     speedKmh?: number;
     role?: string;
   }) => {
@@ -259,22 +281,56 @@ io.on('connection', (socket: Socket) => {
     } catch {
       // sem permissao de leitura, segue com o papel informado pelo cliente
     }
+
+    // As paradas vao junto para o mapa do outro motorista (linha + status).
+    let stops: any[] = [];
+    try {
+      const parsed = JSON.parse(data.routeJson);
+      if (parsed && Array.isArray(parsed.stops)) stops = parsed.stops;
+    } catch {
+      stops = [];
+    }
+    // O id da rota compartilhada e um UUID (a coluna do banco e uuid).
+    const shareId =
+      data.shareId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.shareId)
+        ? data.shareId
+        : crypto.randomUUID();
+
+    const estado: SharedRouteState = {
+      shareId,
+      groupId: data.groupId,
+      ownerDriverId: fromDriverId,
+      ownerSocketId: socket.id,
+      ownerName: data.fromName || '',
+      routeJson: data.routeJson,
+      stops,
+      seguidores: new Set<string>(),
+      atualizadoEm: Date.now(),
+    };
+    sharedRoutes.set(shareId, estado);
+
     const payload = {
       ...data,
+      shareId,
+      fromDriverId,
+      stops,
       timestamp: Date.now(),
     };
+
     if (data.groupId) {
-      console.log(`📡 Rota compartilhada no grupo ${data.groupId}`);
+      console.log(`📡 Rota compartilhada no grupo ${data.groupId} (${shareId})`);
       // Guarda a rota no historico do grupo (a lista do comboio).
       try {
         await db.query(
-          `INSERT INTO group_shared_routes (group_id, driver_id, driver_name, payload, is_public)
-           VALUES ($1, $2, $3, $4::jsonb, FALSE)`,
+          `INSERT INTO group_shared_routes (id, group_id, driver_id, driver_name, payload, is_public)
+           VALUES ($1::uuid, $2, $3, $4, $5::jsonb, FALSE)
+           ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload`,
           [
+            shareId,
             data.groupId,
             fromDriverId,
             data.fromName || '',
-            JSON.stringify({ routeJson: data.routeJson, speedKmh: data.speedKmh }),
+            JSON.stringify({ routeJson: data.routeJson, stops, progress: {} }),
           ],
         );
       } catch (e) {
@@ -283,10 +339,95 @@ io.on('connection', (socket: Socket) => {
       io.to(`group:${data.groupId}`).emit('receive_shared_route', payload);
       return;
     }
-    io.emit('receive_shared_route', {
-      ...data,
+    io.emit('receive_shared_route', payload);
+  });
+
+  /** Acompanha a rota de outro motorista (linha + paradas ao vivo). */
+  socket.on('follow_route', (data: { shareId: string; driverId?: string; name?: string }) => {
+    const shareId = data?.shareId;
+    if (!shareId) return;
+    const rota = sharedRoutes.get(shareId);
+    if (!rota) {
+      socket.emit('route_follow_error', { shareId, error: 'Rota compartilhada nao esta mais no ar.' });
+      return;
+    }
+    rota.seguidores.add(socket.id);
+    // O seguidor recebe a rota completa para desenhar no mapa.
+    socket.emit('route_shared_state', {
+      shareId,
+      groupId: rota.groupId,
+      ownerDriverId: rota.ownerDriverId,
+      ownerName: rota.ownerName,
+      routeJson: rota.routeJson,
+      stops: rota.stops,
       timestamp: Date.now(),
     });
+    // E o dono da rota sabe que alguem esta acompanhando.
+    io.to(rota.ownerSocketId).emit('route_follower_joined', {
+      shareId,
+      followerDriverId: (socket.data.driverId as string) || data.driverId,
+      followerName: data.name || '',
+      timestamp: Date.now(),
+    });
+  });
+
+  socket.on('unfollow_route', (data: { shareId: string }) => {
+    const rota = sharedRoutes.get(data?.shareId || '');
+    rota?.seguidores.delete(socket.id);
+  });
+
+  /**
+   * Progresso de uma parada da rota compartilhada (chegou/entregou).
+   * O dono da rota avisa; o servidor repassa para quem acompanha e para o grupo.
+   */
+  socket.on('route_progress', async (data: {
+    shareId: string;
+    stopIndex: number;
+    status: string;
+    lat?: number;
+    lon?: number;
+    driverId?: string;
+    driverName?: string;
+  }) => {
+    const shareId = data?.shareId;
+    if (!shareId) return;
+    const rota = sharedRoutes.get(shareId);
+    const driverId = (socket.data.driverId as string) || data.driverId;
+    const payload = {
+      shareId,
+      stopIndex: Number(data.stopIndex ?? -1),
+      status: data.status || 'pendente',
+      lat: data.lat,
+      lon: data.lon,
+      driverId,
+      driverName: data.driverName || rota?.ownerName || '',
+      timestamp: Date.now(),
+    };
+    if (rota) {
+      rota.atualizadoEm = Date.now();
+      rota.seguidores.forEach((sid) => io.to(sid).emit('route_progress', payload));
+      if (rota.groupId) io.to(`group:${rota.groupId}`).emit('route_progress', payload);
+      // Guarda o estado da parada para quem abrir o grupo depois.
+      try {
+        const atual = await db.query(
+          'SELECT payload FROM group_shared_routes WHERE id = $1::uuid',
+          [shareId],
+        );
+        if (atual.rows[0]?.payload) {
+          const p = atual.rows[0].payload || {};
+          const progresso = { ...(p.progress || {}) };
+          progresso[String(payload.stopIndex)] = payload.status;
+          await db.query(
+            'UPDATE group_shared_routes SET payload = jsonb_set(payload, $2, $3::jsonb) WHERE id = $1::uuid',
+            [shareId, '{progress}', JSON.stringify(progresso)],
+          );
+        }
+      } catch {
+        console.error('Erro ao salvar o progresso da rota.');
+      }
+    } else {
+      socket.emit('route_progress', payload);
+    }
   });
 
   socket.on('share_place', (data: {

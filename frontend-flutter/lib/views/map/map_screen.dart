@@ -42,6 +42,8 @@ import 'package:gps_camioneiro_pro/providers/marker_provider.dart';
 import 'package:gps_camioneiro_pro/providers/auth_provider.dart';
 import 'package:gps_camioneiro_pro/providers/weather_provider.dart';
 import 'package:gps_camioneiro_pro/providers/peer_provider.dart';
+import 'package:gps_camioneiro_pro/providers/shared_routes_provider.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/shared_routes_panel.dart';
 import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/group_provider.dart';
@@ -297,7 +299,37 @@ class _MapScreenState extends State<MapScreen> {
 
     _socket.onReceiveSharedRoute((data) {
       if (!mounted) return;
-      _handleSharedRoute(Map<String, dynamic>.from(data));
+      final mapa = Map<String, dynamic>.from(data);
+      // Rota compartilhada: entra na lista do grupo (com as paradas).
+      context.read<SharedRoutesProvider>().adicionarDoSocket(mapa);
+      _handleSharedRoute(mapa);
+    });
+
+    // Estado completo da rota de quem eu acompanho (para desenhar no mapa).
+    _socket.onRouteSharedState((data) {
+      if (!mounted) return;
+      final mapa = Map<String, dynamic>.from(data);
+      context.read<SharedRoutesProvider>().adicionarDoSocket(mapa);
+      setState(() {});
+      _renderRotasCompartilhadas();
+    });
+
+    // Progresso ao vivo: uma parada mudou (chegou / entregou).
+    _socket.onRouteProgress((data) {
+      if (!mounted) return;
+      final mapa = Map<String, dynamic>.from(data);
+      final shareId = (mapa['shareId'] ?? '').toString();
+      final indice = (mapa['stopIndex'] as num?)?.toInt() ?? -1;
+      final status = (mapa['status'] ?? '').toString();
+      if (shareId.isEmpty || indice < 0) return;
+      context.read<SharedRoutesProvider>().registrarProgresso(shareId, indice, status);
+      setState(() {});
+      _renderRotasCompartilhadas();
+    });
+
+    _socket.onRouteFollowError((data) {
+      if (!mounted) return;
+      _showSnackBar('Não dá para acompanhar: ${data['error'] ?? 'rota indisponível'}');
     });
 
     _socket.onReceiveGroupInvite((data) {
@@ -1255,6 +1287,7 @@ class _MapScreenState extends State<MapScreen> {
     // ficam POR CIMA do caminhao e da rota (e o que o motorista precisa
     // ver na hora).
     await _aplicarCamadaDeTrafego();
+    await _renderRotasCompartilhadas();
   }
 
   Future<void> _renderHighlightedArea() async {
@@ -2163,22 +2196,16 @@ class _MapScreenState extends State<MapScreen> {
     );
     if (eventos.isEmpty) return;
 
-    final audio = context.read<AudioProvider>();
     final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
 
     for (final ev in eventos) {
       if (ev.chegou) {
+        // O som e a voz da chegada sao tocados pela rota (um lugar so, para
+        // o sino nao tocar duas vezes). Aqui fica so a vibracao.
         HapticFeedback.heavyImpact();
-        unawaited(audio.tocarChegada());
-        unawaited(VoiceService.instance.chegadaNaParada(
-          route.numeroDaParada(ev.indice),
-          total,
-          proximoNumero: route.proximoNumero,
-          proximoNome: route.proximoNome,
-          distanciaProximaKm: route.distanciaProximaParadaKm,
-        ));
       } else if (ev.saiu) {
-        unawaited(audio.tocarChegada());
+        // Som de SAÍDA (nao e o sino de chegada) e a proxima parada.
+        unawaited(context.read<SonsProvider>().tocar(SlotSom.saidaParada));
         unawaited(VoiceService.instance.proximaParada(
           numero: route.proximoNumero,
           nome: route.proximoNome,
@@ -2201,6 +2228,7 @@ class _MapScreenState extends State<MapScreen> {
     final chegada = route.consumeArrivalEvent();
     if (chegada != null) {
       HapticFeedback.heavyImpact();
+      _emitirProgressoRota(chegada, StatusParadaCompartilhada.chegou, pos);
       unawaited(_falarChegada(route, total, chegada));
     } else {
       _anunciarAproximacao(route, total);
@@ -2210,6 +2238,12 @@ class _MapScreenState extends State<MapScreen> {
       HapticFeedback.mediumImpact();
       _showSnackBar('Entrega validada: ${route.nextStopLabel}');
       _renderMarkers();
+      // O comboio que acompanha a rota ve a parada como "entregue" na hora.
+      _emitirProgressoRota(
+        route.nextStopIndex == null ? -1 : route.nextStopIndex!,
+        StatusParadaCompartilhada.entregue,
+        pos,
+      );
       // Sequencia da chegada: primeiro o SINO, depois a VOZ (com o radio
       // abaixado) dizendo a proxima parada e a distancia.
       unawaited(_tocarChegadaEVoz(route, total));
@@ -2220,11 +2254,13 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Fala a chegada na parada com os dados atualizados do momento.
+  /// Toca o **sino de chegada** e o **sino de estação** (uma vez so).
   Future<void> _falarChegada(
       RouteProvider route, int total, int indiceParada) async {
     final audio = context.read<AudioProvider>();
     await audio.tocarChegada();
     if (!mounted) return;
+    unawaited(context.read<SonsProvider>().tocar(SlotSom.sinoEstacao));
     final numero = route.numeroDaParada(indiceParada);
     await VoiceService.instance.chegadaNaParada(
       numero,
@@ -2235,10 +2271,9 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Toca o sino da parada e depois fala (com o radio abaixado).
+  /// Depois da entrega: **so a voz** anuncia a proxima parada (o sino ja
+  /// tocou na chegada - nao toca duas vezes).
   Future<void> _tocarChegadaEVoz(RouteProvider route, int total) async {
-    final audio = context.read<AudioProvider>();
-    await audio.tocarChegada();
     if (!mounted) return;
     await VoiceService.instance.chegadaNaParada(
       route.deliveredCount,
@@ -2247,6 +2282,116 @@ class _MapScreenState extends State<MapScreen> {
       proximoNome: route.proximoNome,
       distanciaProximaKm: route.distanciaProximaParadaKm,
     );
+  }
+
+  /// Id (UUID v4) de uma rota compartilhada.
+  String _novoShareId() {
+    final r = math.Random();
+    String bloco(int n) =>
+        List.generate(n, (_) => r.nextInt(16).toRadixString(16)).join();
+    return '${bloco(8)}-${bloco(4)}-4${bloco(3)}-'
+        '${'89ab'[r.nextInt(4)]}${bloco(3)}-${bloco(12)}';
+  }
+
+  /// Avisa o comboio que acompanha a rota: a parada X chegou/entregou.
+  void _emitirProgressoRota(int indice, String status, LatLng pos) {
+    if (indice < 0) return;
+    final minhas = context.read<SharedRoutesProvider>().minhasShares;
+    if (minhas.isEmpty) return;
+    for (final shareId in minhas.keys) {
+      _socket.sendRouteProgress(
+        shareId: shareId,
+        stopIndex: indice,
+        status: status,
+        lat: pos.latitude,
+        lon: pos.longitude,
+        driverId: widget.driverId,
+        driverName: widget.driverName,
+      );
+    }
+  }
+
+  /// Desenha as rotas compartilhadas que o usuario escolheu ver.
+  Future<void> _renderRotasCompartilhadas() async {
+    final c = _mapController;
+    if (c == null || !_styleLoaded || !mounted) return;
+    final provider = context.read<SharedRoutesProvider>();
+    final visiveis = provider.visiveis;
+
+    // Limpa as linhas anteriores.
+    for (final rota in provider.todas) {
+      final id = 'rota_shared_${rota.shareId}';
+      try {
+        await c.removeLayer('${id}_linha');
+        await c.removeLayer('${id}_paradas');
+      } catch (_) {}
+      try {
+        await c.removeSource(id);
+      } catch (_) {}
+    }
+
+    for (final rota in visiveis) {
+      if (rota.stops.length < 2) continue;
+      final id = 'rota_shared_${rota.shareId}';
+      final coords = rota.linha;
+      final source = {
+        'type': 'Feature',
+        'geometry': {
+          'type': 'LineString',
+          'coordinates': coords,
+        },
+        'properties': <String, dynamic>{'shareId': rota.shareId},
+      };
+      try {
+        await c.addGeoJsonSource(id, source);
+        await c.addLineLayer(
+          id,
+          '${id}_linha',
+          const ml.LineLayerProperties(
+            lineColor: '#00E676',
+            lineWidth: 4,
+            lineOpacity: 0.85,
+            lineDasharray: [2, 1.4],
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  /// Acompanha a rota de outro motorista (com as paradas ao vivo).
+  void _seguirRota(SharedRoute rota) {
+    final provider = context.read<SharedRoutesProvider>();
+    provider.marcarSeguindo(rota.shareId, true);
+    _socket.followRoute(
+      shareId: rota.shareId,
+      driverId: widget.driverId,
+      name: widget.driverName,
+    );
+    _showSnackBar('Acompanhando a rota de ${rota.ownerName}.');
+    setState(() {});
+  }
+
+  void _pararDeSeguirRota(SharedRoute rota) {
+    final provider = context.read<SharedRoutesProvider>();
+    provider.marcarSeguindo(rota.shareId, false);
+    _socket.unfollowRoute(shareId: rota.shareId);
+    setState(() {});
+  }
+
+  /// Remove a rota compartilhada do grupo (so o dono).
+  void _removerRotaCompartilhada(SharedRoute rota) {
+    final provider = context.read<SharedRoutesProvider>();
+    provider.remover(rota.shareId);
+    setState(() {});
+    _renderRotasCompartilhadas();
+    _showSnackBar('Rota removida do grupo.');
+  }
+
+  /// Centraliza o mapa na rota compartilhada.
+  void _centralizarRotaCompartilhada(SharedRoute rota) {
+    final centro = context.read<SharedRoutesProvider>().centroDaRota(rota);
+    if (centro == null) return;
+    _moverCamera(centro, zoom: 15.5);
   }
 
   void _mostrarViagemConcluida(int entregas) {
@@ -2319,15 +2464,22 @@ class _MapScreenState extends State<MapScreen> {
       textoConfirmar: 'COMPARTILHAR',
       icone: Icons.share_location,
       acao: () async {
+        // Cada rota compartilhada tem um id (UUID): e o que liga o
+        // acompanhamento (quem acompanha) com o progresso ao vivo das paradas.
+        final shareId = _novoShareId();
         _socket.shareRoute(
           fromDriverId: widget.driverId,
           fromName: widget.driverName,
           routeJson: route.exportRouteJson(),
           groupId: grupo?.id,
+          shareId: shareId,
         );
+        if (grupo?.id != null) {
+          context.read<SharedRoutesProvider>().registrarMinhaShare(shareId, grupo!.id);
+        }
         _showSnackBar(grupo != null
             ? 'Rota compartilhada so com o grupo "${grupo.name}".'
-            : 'Rota compartilhada com os caminhões da rede.');
+            : 'Rota compartilhada com os caminh�es da rede.');
       },
     );
   }
@@ -3051,6 +3203,13 @@ class _MapScreenState extends State<MapScreen> {
                 onRecalcular: _recalcularRota,
                 onLimparRota: _limparRotaDoMapa,
                 canManageRoute: !_isHelper,
+                sharedRoutesChild: SharedRoutesPanel(
+                  driverId: widget.driverId,
+                  onSeguir: _seguirRota,
+                  onPararDeSeguir: _pararDeSeguirRota,
+                  onRemover: _removerRotaCompartilhada,
+                  onCentralizar: _centralizarRotaCompartilhada,
+                ),
               ),
               );
             }),
