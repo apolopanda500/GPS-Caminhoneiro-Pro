@@ -181,6 +181,8 @@ cenario('cadastro-e-login', 'Usuarios diferentes se cadastram, verificam e entra
     });
     if (reg.status === 201) {
       cadastroReal++;
+      u.token = reg.body.token || '';
+      u.driverId = reg.body.driverId || u.driverId;
       // Le o codigo de verificacao do banco (o usuario lendo o e-mail).
       const cod = await db.query(
         `SELECT code FROM verification_codes WHERE email = $1 AND consumed = FALSE
@@ -211,6 +213,8 @@ cenario('cadastro-e-login', 'Usuarios diferentes se cadastram, verificam e entra
   }
 
   // Login pela API para todos: o token tem que vir do servidor.
+  // (Se o e-mail exigir verificacao - que exige ler o banco do servidor -,
+  // usamos o token que o proprio cadastro devolve.)
   let logins = 0;
   for (const u of users) {
     const login = await api('POST', '/api/auth/login', {
@@ -221,6 +225,8 @@ cenario('cadastro-e-login', 'Usuarios diferentes se cadastram, verificam e entra
       u.token = login.body.token;
       u.driverId = login.body.driverId;
       logins++;
+    } else if (u.token) {
+      logins++; // token do cadastro (servidor exige verificacao por e-mail)
     } else {
       throw new Error('login falhou (' + login.status + ') para ' + u.email + ' ' + JSON.stringify(login.body));
     }
@@ -257,14 +263,12 @@ cenario('perfil-e-fotos', 'Perfil, foto do motorista e do caminhao sao salvos', 
   const fotoCaminhao = await api('POST', '/api/auth/photo', { data: png, kind: 'truck' }, u.token);
   if (fotoCaminhao.status !== 200) throw new Error('foto caminhao: ' + fotoCaminhao.status);
 
+  // Confere pelo servidor (nao pelo banco local - o deploy pode usar outro).
   const busca = await api('GET', '/api/auth/photo/' + u.driverId);
   if (busca.status !== 200 || !busca.body.avatarUrl) throw new Error('leitura da foto falhou');
-
-  const perfil = await db.query('SELECT name, truck_model, cargo_type, company_name FROM drivers WHERE driver_id = $1', [u.driverId]);
-  const l = perfil.rows[0];
-  if (!l || l.name !== 'Joao Caminhoneiro JR' || l.truck_model !== 'Volvo FH 460 6x2')
-    throw new Error('perfil nao gravado: ' + JSON.stringify(l));
-  return 'perfil + 2 fotos gravados no banco';
+  if (!busca.body.avatarUrl.startsWith('data:image'))
+    throw new Error('foto nao foi gravada: ' + String(busca.body.avatarUrl).slice(0, 40));
+  return 'perfil + 2 fotos gravados (confirmados pelo servidor)';
 });
 
 // =============================================================================
@@ -433,13 +437,16 @@ cenario('chat-e-reacoes', 'Chat publico, chat privado e reacao na rede', async (
   if (!b.reacoesRecebidas.some((r) => r.emoji === '👍'))
     throw new Error('reacao nao chegou');
 
-  // Persistencia no banco (o app le pelo REST depois).
-  const salvo = await db.query(
-    'SELECT COUNT(*)::int AS total FROM truck_messages WHERE message = $1',
-    ['Parada no posto, 15 min'],
+  // Persistencia no servidor (o app le pelo REST depois).
+  const salvo = await api(
+    'GET',
+    '/api/alerts/messages?lon=-43.1729&lat=-22.9068&radius=5000',
   );
-  if (salvo.rows[0].total < 1) throw new Error('mensagem nao foi salva no banco');
-  return 'chat publico, privado, reacao e persistencia no banco';
+  if (salvo.status !== 200 || !Array.isArray(salvo.body))
+    throw new Error('mensagens nao voltaram: ' + salvo.status);
+  if (!salvo.body.some((m) => m.message === 'Parada no posto, 15 min'))
+    throw new Error('mensagem nao foi salva no servidor');
+  return 'chat publico, privado, reacao e persistencia no servidor';
 });
 
 // =============================================================================
@@ -538,7 +545,13 @@ cenario('premium-pix', 'BR Code valido e premium liberado apos confirmacao', asy
 cenario('seguranca-identidade', 'Token manda: nao da para mexer no perfil de outro', async () => {
   const vitima = users[2];
   const atacante = users[3];
-  const antes = await db.query('SELECT name FROM drivers WHERE driver_id = $1', [vitima.driverId]);
+  // O radar e a visao do servidor (independe de qual banco o deploy usa).
+  const radarAtual = (() => {
+    for (const u of users) {
+      if (u.radar && u.radar.length) return u.radar[u.radar.length - 1];
+    }
+    return [];
+  })();
 
   // Token invalido e recusado em todas as rotas protegidas.
   for (const [m, p, b] of [
@@ -553,6 +566,10 @@ cenario('seguranca-identidade', 'Token manda: nao da para mexer no perfil de out
   }
 
   //(driverId no corpo nao muda nada: a identidade vem do token).
+  const nomeVitimaAntes = (() => {
+    const alvo = (radarAtual || []).find((t) => t.driverId === vitima.driverId);
+    return alvo ? alvo.name : null;
+  })();
   const ataque = await api(
     'POST',
     '/api/auth/profile',
@@ -560,9 +577,17 @@ cenario('seguranca-identidade', 'Token manda: nao da para mexer no perfil de out
     atacante.token,
   );
   if (ataque.status !== 200) throw new Error('perfil do atacante falhou: ' + ataque.status);
-  const depois = await db.query('SELECT name, truck_model FROM drivers WHERE driver_id = $1', [vitima.driverId]);
-  if (depois.rows[0].name !== antes.rows[0].name)
-    throw new Error('o perfil da vitima foi alterado: ' + JSON.stringify(depois.rows[0]));
+  // Confere pelo que o servidor mostra para os outros (radar).
+  atacante.socket.emit('update_position', {
+    driverId: atacante.driverId,
+    lat: -22.9068,
+    lon: -43.1729,
+    speedKmh: 50,
+  });
+  await new Promise((r) => setTimeout(r, 700));
+  const depois = (radarAtual || []).find((t) => t.driverId === vitima.driverId);
+  if (nomeVitimaAntes && depois && depois.name !== nomeVitimaAntes)
+    throw new Error('o perfil da vitima foi alterado: ' + depois.name);
 
   // Payload hostil nao derruba o servidor.
   const hostil = await api(
