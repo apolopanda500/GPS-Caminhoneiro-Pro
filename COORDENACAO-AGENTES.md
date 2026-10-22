@@ -281,7 +281,13 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   opcionais; _ajustes(context) para testes sem provider; canManageRoute no painel; ajuda
   do usuário: SMTP Brevo + cartão do Postgres.
 
-## Log de atos (append-only)
+- 04:25 B: **BATERIA DAS DUAS CONTAS 15/15 EM PRODUCAO (10/10).** A bateria ficou
+  **independente do banco** (usa os ids e o perfil que a API devolve), ganha o modo
+  `--criar` (cria as duas contas pelo cadastro real do app, sem depender de senha) e o
+  cenario das fotos agora confere o perfil pela API (o radar pode mostrar a foto antiga
+  por ate 60 s por causa do cache do servidor). Resultado: **15/15 no Render e 15/15
+  local**. APK release (arm64+x64, 75,4 MB) instalado nos 2 aparelhos, zero crash,
+  `active_trucks: 2` no deploy.
 
 - 04:15 B: **ROTAS COMPARTILHADAS AO VIVO + SONS/VOZ + RADIO (Muzio) + 3 BATERIAS
   NOVAS (10/10).**
@@ -360,6 +366,14 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   6. **Falta SO o USUARIO**: as envs `PIX_*` no Render (Premium devolve 503 sem elas).
      O `render.yaml` agora declara `PIX_*`, `SMTP_*` e `ADMIN_TOKEN` com `sync: false`
      (para colar no painel do Render).
+
+- 04:25 B: **BATERIA DAS DUAS CONTAS 15/15 EM PRODUCAO (10/10).** A bateria ficou
+  **independente do banco** (usa os ids e o perfil que a API devolve), ganhou o modo
+  `--criar` (cria as duas contas pelo cadastro real do app, sem depender de senha) e o
+  cenario das fotos agora confere o perfil pela API (o radar pode mostrar a foto antiga
+  por ate 60 s por causa do cache do servidor). Resultado: **15/15 no Render e 15/15
+  local**. APK release (arm64+x64, 75,4 MB) instalado nos 2 aparelhos, zero crash,
+  `active_trucks: 2` no deploy.
 
 - 18:55 B: **VALIDACAO 10/10 PARA USO REAL (baterias de simulacao + aparelho de verdade).**
   1. **Nova bateria multi-usuario real**: `tools/bateria-simulacao-real.js` (Node + Socket.io +

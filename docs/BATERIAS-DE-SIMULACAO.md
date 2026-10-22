@@ -37,9 +37,11 @@ exercita o ciclo inteiro:
 ## 2. Bateria das DUAS contas reais (celular + PC)
 
 ```bash
-node tools/bateria-duas-contas.js --url http://127.0.0.1:3000
-node tools/bateria-duas-contas.js --url https://gps-truck-backend.onrender.com \
-  --celular drv_xxx --pc drv_yyy \
+# em qualquer deploy (cria as duas contas pela API, como o app faz)
+node tools/bateria-duas-contas.js --url https://gps-truck-backend.onrender.com --criar
+
+# com contas que ja existem (login de verdade)
+node tools/bateria-duas-contas.js --url http://127.0.0.1:3000 \
   --celular-email a@b.com --pc-email c@d.com --senha 123456
 ```
 

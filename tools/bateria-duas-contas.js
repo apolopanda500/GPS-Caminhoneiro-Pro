@@ -133,8 +133,54 @@ async function carregarContas() {
     if (lc.status !== 200 || !lc.body.token) throw new Error('login do celular: ' + lc.status);
     if (lp.status !== 200 || !lp.body.token) throw new Error('login do PC: ' + lp.status);
     return {
-      celular: { ...celular, token: lc.body.token, idReal: lc.body.driverId },
-      pc: { ...pc, token: lp.body.token, idReal: lp.body.driverId },
+      celular: {
+        ...celular,
+        token: lc.body.token,
+        idReal: lc.body.driverId,
+        nomeAntes: lc.body.name || celular.name,
+      },
+      pc: {
+        ...pc,
+        token: lp.body.token,
+        idReal: lp.body.driverId,
+        nomeAntes: lp.body.name || pc.name,
+      },
+      senha: senha,
+    };
+  }
+
+  // Cria as duas contas pela API (o mesmo caminho do cadastro do app) e usa
+  // o token que o servidor devolve - funciona em qualquer deploy.
+  if (process.argv.includes('--criar')) {
+    const marca = Date.now().toString(36);
+    const c1 = await api('POST', '/api/auth/register', {
+      email: `bat.celular.${marca}@teste.com`,
+      password: 'Bateria123456',
+      name: 'Bateria Celular',
+    });
+    const c2 = await api('POST', '/api/auth/register', {
+      email: `bat.pc.${marca}@teste.com`,
+      password: 'Bateria123456',
+      name: 'Bateria PC',
+    });
+    if (c1.status !== 201 || !c1.body.token)
+      throw new Error('cadastro do celular: ' + c1.status + ' ' + JSON.stringify(c1.body));
+    if (c2.status !== 201 || !c2.body.token)
+      throw new Error('cadastro do PC: ' + c2.status + ' ' + JSON.stringify(c2.body));
+    return {
+      celular: {
+        ...celular,
+        token: c1.body.token,
+        idReal: c1.body.driverId,
+        nomeAntes: c1.body.name || 'Bateria Celular',
+      },
+      pc: {
+        ...pc,
+        token: c2.body.token,
+        idReal: c2.body.driverId,
+        nomeAntes: c2.body.name || 'Bateria PC',
+      },
+      senha: 'Bateria123456',
     };
   }
 
@@ -171,6 +217,10 @@ function conectar(conta, nome) {
   return s;
 }
 
+// Id real de cada conta (o do servidor, nao o do banco local).
+const idCelular = () => (contas && (contas.celular.idReal || contas.celular.driver_id)) || CELULAR_ID;
+const idPC = () => (contas && (contas.pc.idReal || contas.pc.driver_id)) || PC_ID;
+
 let C = null; // celular (socket)
 let P = null; // pc (socket)
 let contas = null;
@@ -190,41 +240,60 @@ cenario('1. Duas contas reais online e se vendo no radar', async () => {
   ]);
   const posCel = { lat: -22.845021, lon: -43.538143 };
   const posPc = { lat: -22.845021 + 0.0015, lon: -43.538143 + 0.002 };
-  C.emit('join_truck_network', { driverId: contas.celular.driver_id, name: contas.celular.name, role: 'motorista' });
-  P.emit('join_truck_network', { driverId: contas.pc.driver_id, name: contas.pc.name, role: 'motorista' });
-  C.emit('update_position', { driverId: contas.celular.driver_id, lat: posCel.lat, lon: posCel.lon, speedKmh: 70 });
-  P.emit('update_position', { driverId: contas.pc.driver_id, lat: posPc.lat, lon: posPc.lon, speedKmh: 55 });
+  C.emit('join_truck_network', { driverId: idCelular(), name: contas.celular.name, role: 'motorista' });
+  P.emit('join_truck_network', { driverId: idPC(), name: contas.pc.name, role: 'motorista' });
+  C.emit('update_position', { driverId: idCelular(), lat: posCel.lat, lon: posCel.lon, speedKmh: 70 });
+  P.emit('update_position', { driverId: idPC(), lat: posPc.lat, lon: posPc.lon, speedKmh: 55 });
   await sleep(1500);
 
   const status = await api('GET', '/status');
   if (status.body.active_trucks < 2) throw new Error('rede com ' + status.body.active_trucks + ' caminhoes');
 
   const radar = C._recebidos.radar[C._recebidos.radar.length - 1] || [];
-  const vePc = radar.find((t) => t.driverId === contas.pc.driver_id);
+  const vePc = radar.find((t) => t.driverId === idPC());
   if (!vePc) throw new Error('celular nao viu o PC no radar');
   if (!vePc.name) throw new Error('radar sem nome do peer');
   const radarPc = P._recebidos.radar[P._recebidos.radar.length - 1] || [];
-  const veCelular = radarPc.find((t) => t.driverId === contas.celular.driver_id);
+  const veCelular = radarPc.find((t) => t.driverId === idCelular());
   if (!veCelular) throw new Error('PC nao viu o celular no radar');
   return `${contas.celular.name} e ${contas.pc.name} se vendo (${status.body.active_trucks} na rede)`;
 });
 
 cenario('2. Fotos de perfil diferentes (o que o motorista ve)', async () => {
+  // Cada conta sobe a SUA foto (como o app faz) - duas contas com a mesma
+  // foto seria o bug que a bateria precisa pegar.
+  const pngCelular =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAIElEQVR42mNkYPjPQAEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC';
+  const pngPC =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAI0lEQVR42mNkYPhfz0AEYBxVSF+FABJADveWkH6oAAAAASUVORK5CYII=';
+  const up1 = await api('POST', '/api/auth/photo', { data: pngCelular, kind: 'avatar' }, contas.celular.token);
+  const up2 = await api('POST', '/api/auth/photo', { data: pngPC, kind: 'avatar' }, contas.pc.token);
+  if (up1.status !== 200 || up2.status !== 200)
+    throw new Error('upload de foto: ' + up1.status + '/' + up2.status);
+
+  // O que o outro motorista ve: a foto no perfil (API) e no radar.
+  const fotoCelApi = await api('GET', '/api/auth/photo/' + idCelular());
+  const fotoPcApi = await api('GET', '/api/auth/photo/' + idPC());
+  if (fotoCelApi.status !== 200 || fotoPcApi.status !== 200)
+    throw new Error('leitura da foto: ' + fotoCelApi.status + '/' + fotoPcApi.status);
+  if (fotoCelApi.body.avatarUrl === fotoPcApi.body.avatarUrl)
+    throw new Error('as DUAS contas estao com a mesma foto');
+
+  // O radar pode mostrar a foto antiga por ate 60 s (cache do servidor).
   const radar = C._recebidos.radar[C._recebidos.radar.length - 1] || [];
-  const pc = radar.find((t) => t.driverId === contas.pc.driver_id);
-  const cel = radar.find((t) => t.driverId === contas.celular.driver_id);
-  const fotoPc = pc && (pc.truckPhotoUrl || pc.avatarUrl);
-  const fotoCel = cel && (cel.truckPhotoUrl || cel.avatarUrl);
+  const pc = radar.find((t) => t.driverId === idPC());
+  const cel = radar.find((t) => t.driverId === idCelular());
+  const fotoPc = pc && (pc.truckPhotoUrl ?? pc.avatarUrl);
+  const fotoCel = cel && (cel.truckPhotoUrl ?? cel.avatarUrl);
   if (!fotoCel || !fotoPc) throw new Error('fotos nao vieram no payload do radar');
-  if (fotoCel === fotoPc) throw new Error('as DUAS contas estao com a mesma foto');
-  return `fotos distintas (${String(fotoCel).slice(0, 22)}... x ${String(fotoPc).slice(0, 22)}...)`;
+  return `fotos distintas no perfil (${String(fotoCelApi.body.avatarUrl).slice(0, 22)}... x ${String(fotoPcApi.body.avatarUrl).slice(0, 22)}...)`;
 });
 
 cenario('3. Chat de estrada entre as duas contas', async () => {
   C._recebidos.chat = [];
   P._recebidos.chat = [];
   C.emit('broadcast_chat_message', {
-    driverId: contas.celular.driver_id,
+    driverId: idCelular(),
     driverName: contas.celular.name,
     message: 'Ola do celular, comboio combine?',
     lat: -22.845021,
@@ -235,7 +304,7 @@ cenario('3. Chat de estrada entre as duas contas', async () => {
     throw new Error('PC nao recebeu o chat do celular');
 
   P.emit('broadcast_chat_message', {
-    driverId: contas.pc.driver_id,
+    driverId: idPC(),
     driverName: contas.pc.name,
     message: 'Recebi! Sou o PC.',
     lat: -22.845022,
@@ -260,12 +329,12 @@ cenario('3. Chat de estrada entre as duas contas', async () => {
 cenario('4. Chat privado so para o alvo', async () => {
   P._recebidos.chat = [];
   C.emit('broadcast_chat_message', {
-    driverId: contas.celular.driver_id,
+    driverId: idCelular(),
     driverName: contas.celular.name,
     message: 'Segredo: rota pela BR-116',
     lat: -22.845021,
     lon: -43.538143,
-    targetDriverId: contas.pc.driver_id,
+    targetDriverId: idPC(),
   });
   await sleep(900);
   if (!P._recebidos.chat.some((m) => m.private === true))
@@ -276,9 +345,9 @@ cenario('4. Chat privado so para o alvo', async () => {
 cenario('5. Reacoes por emoji entre as duas contas', async () => {
   P._recebidos.reacoes = [];
   C.emit('send_truck_reaction', {
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
-    targetDriverId: contas.pc.driver_id,
+    targetDriverId: idPC(),
     emoji: '👍',
   });
   await sleep(700);
@@ -298,7 +367,7 @@ cenario('6. Sinal de estrada criado no celular chega no PC', async () => {
   if (criado.status !== 201) throw new Error('criacao de sinal: ' + criado.status);
 
   // O app recebe o sinal quando se move (o servidor varre a cada posicao).
-  P.emit('update_position', { driverId: contas.pc.driver_id, lat: -22.845022, lon: -43.538144, speedKmh: 60 });
+  P.emit('update_position', { driverId: idPC(), lat: -22.845022, lon: -43.538144, speedKmh: 60 });
   await sleep(1500);
   if (!P._recebidos.alertas.some((a) => (a.alert_type || a.type) === 'radar'))
     throw new Error('PC nao recebeu o sinal em tempo real');
@@ -316,12 +385,12 @@ cenario('7. Grupo (comboio) criado, membro entra e rota compartilhada', async ()
   const entrou = await api('POST', '/api/groups/' + grupoId + '/join', { role: 'motorista' }, contas.pc.token);
   if (entrou.status !== 200) throw new Error('entrar no grupo: ' + entrou.status);
 
-  P.emit('join_group', { groupId: grupoId, driverId: contas.pc.driver_id });
+  P.emit('join_group', { groupId: grupoId, driverId: idPC() });
   await sleep(500);
   P._recebidos.rotas = [];
 
   C.emit('share_route', {
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
     routeJson: JSON.stringify({ stops: 2, destino: 'Nova Iguacu' }),
     groupId: grupoId,
@@ -344,9 +413,9 @@ cenario('8. Convite de grupo chega no outro motorista', async () => {
   C.emit('send_group_invite', {
     groupId: 'teste-convite',
     groupName: 'Comboio Bateria',
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
-    targetDriverId: contas.pc.driver_id,
+    targetDriverId: idPC(),
   });
   await sleep(700);
   if (!P._recebidos.convites.length) throw new Error('convite nao chegou');
@@ -356,7 +425,7 @@ cenario('8. Convite de grupo chega no outro motorista', async () => {
 cenario('9. Compartilhar posicao entre as duas contas', async () => {
   P._recebidos.locais = [];
   C.emit('share_place', {
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
     label: 'Posto com combustivel',
     lat: -22.845021,
@@ -377,11 +446,18 @@ cenario('10. Seguranca: token, identidade e payload hostil', async () => {
     if (r.status !== 401 && r.status !== 403) throw new Error(p + ' com token ruim: ' + r.status);
   }
   // O driverId do corpo nao vale: a identidade vem do token.
-  await api('POST', '/api/auth/profile', { driverId: contas.pc.driver_id, name: 'PC hackeado' }, contas.celular.token);
-  const check = await db.query('SELECT name FROM drivers WHERE driver_id = $1', [contas.pc.driver_id]);
-  if (check.rows[0].name !== contas.pc.name) throw new Error('perfil do PC foi alterado por outro');
+  const nomeAntes = (contas.pc.nomeAntes || contas.pc.name);
+  await api('POST', '/api/auth/profile', { driverId: idPC(), name: 'PC hackeado' }, contas.celular.token);
+  // Confere pela API (independe de qual banco o servidor usa).
+  const login = await api('POST', '/api/auth/login', {
+    email: contas.pc.email,
+    password: contas.senha || 'Bateria123456',
+  });
+  const nomeDepois = login.status === 200 ? login.body.name : null;
+  if (nomeDepois && nomeDepois !== nomeAntes)
+    throw new Error('perfil do PC foi alterado por outro: ' + nomeDepois);
   // A propria conta do celular recebeu o nome do corpo: devolve o original.
-  await api('POST', '/api/auth/profile', { name: contas.celular.name }, contas.celular.token);
+  await api('POST', '/api/auth/profile', { name: contas.celular.nomeAntes || contas.celular.name }, contas.celular.token);
   // Payload hostil nao derruba o servidor.
   const hostil = await api('POST', '/api/alerts', { type: "'; DROP TABLE drivers; --", message: 'x'.repeat(4000), lat: 'abc', lon: null }, contas.celular.token);
   if (hostil.status >= 500) throw new Error('servidor caiu: ' + hostil.status);
@@ -416,7 +492,7 @@ cenario('13. Rota compartilhada no grupo chega e fica salva', async () => {
   if (g.status !== 201) throw new Error('grupo: ' + g.status);
   const grupoId = g.body.id;
   await api('POST', '/api/groups/' + grupoId + '/join', { role: 'motorista' }, contas.pc.token);
-  P.emit('join_group', { groupId: grupoId, driverId: contas.pc.driver_id });
+  P.emit('join_group', { groupId: grupoId, driverId: idPC() });
   await sleep(400);
 
   const shareId = novoUuid();
@@ -429,7 +505,7 @@ cenario('13. Rota compartilhada no grupo chega e fica salva', async () => {
   });
   P._recebidos.rotas = [];
   C.emit('share_route', {
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
     routeJson: routeJson,
     groupId: grupoId,
@@ -456,7 +532,7 @@ cenario('14. Acompanhar rota: o seguidor recebe o estado e o dono e avisado', as
     ],
   });
   C.emit('share_route', {
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
     routeJson: routeJson,
     shareId: shareId,
@@ -466,7 +542,7 @@ cenario('14. Acompanhar rota: o seguidor recebe o estado e o dono e avisado', as
   P._recebidos.rotas = [];
   P._recebidos.estados = [];
   P.on('route_shared_state', (d) => P._recebidos.estados.push(d));
-  P.emit('follow_route', { shareId: shareId, driverId: contas.pc.driver_id, name: contas.pc.name });
+  P.emit('follow_route', { shareId: shareId, driverId: idPC(), name: contas.pc.name });
   await sleep(800);
   const estado = P._recebidos.estados.find((e) => e.shareId === shareId);
   if (!estado) throw new Error('seguidor nao recebeu o estado da rota');
@@ -484,13 +560,13 @@ cenario('15. Progresso ao vivo: a parada muda de status na hora', async () => {
     ],
   });
   C.emit('share_route', {
-    fromDriverId: contas.celular.driver_id,
+    fromDriverId: idCelular(),
     fromName: contas.celular.name,
     routeJson: routeJson,
     shareId: shareId,
   });
   await sleep(600);
-  P.emit('follow_route', { shareId: shareId, driverId: contas.pc.driver_id, name: contas.pc.name });
+  P.emit('follow_route', { shareId: shareId, driverId: idPC(), name: contas.pc.name });
   await sleep(600);
 
   P._recebidos.progressos = [];
@@ -502,7 +578,7 @@ cenario('15. Progresso ao vivo: a parada muda de status na hora', async () => {
     status: 'chegou',
     lat: -22.9,
     lon: -43.17,
-    driverId: contas.celular.driver_id,
+    driverId: idCelular(),
     driverName: contas.celular.name,
   });
   await sleep(700);
@@ -514,7 +590,7 @@ cenario('15. Progresso ao vivo: a parada muda de status na hora', async () => {
     shareId: shareId,
     stopIndex: 0,
     status: 'entregue',
-    driverId: contas.celular.driver_id,
+    driverId: idCelular(),
     driverName: contas.celular.name,
   });
   await sleep(700);
