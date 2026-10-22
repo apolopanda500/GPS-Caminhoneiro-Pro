@@ -23,6 +23,7 @@ const enviados: { to: string; code: string }[] = [];
   enviados.push({ to, code });
   return true;
 };
+(mailer as any).mailerConfigured = (): boolean => true;
 
 /** Banco falso: responde conforme o SQL e guarda os INSERTs de codigos. */
 class FakeDb {
