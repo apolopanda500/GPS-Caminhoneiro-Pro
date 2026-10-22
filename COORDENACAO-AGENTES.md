@@ -742,3 +742,16 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   "satelite indisponivel" nesse caso. Radar real segue em XYZ RainViewer.
   Checks: analyze No issues, 234 testes verdes, APK debug reinstalado sem
   FATAL/ANR.
+
+- 20:46 22/10/2026 AGENTE-VALIDACAO-CI: validacao completa dos workflows do GitHub Actions adicionados
+  pelo usuario. Mantidos e corrigidos 4 (Flutter CI com flutter analyze+test em
+  frontend-flutter, Node CI com npm ci/build/test em backend-api Node 20/22, Android CI
+  com JDK 21 + flutter build apk --debug exigido pelo maplibre_gl, CodeQL so actions e
+  javascript-typescript) e deletados 12 templates inuteis (Rust, Deno, webpack, Pages,
+  npm/Gradle publish, greetings, labeler, stale, summary, manual). Dois bugs reais
+  expostos pelo CI e corrigidos: testes de auth dependiam do .env local (stub de
+  mailerConfigured = 29/29 com e sem .env) e hierarquia quebrada de 2 test() abertos
+  que cancelavam subtestes no Node 20/22. Aproveitado para corrigir features_test.dart
+  (round-trip de encoding mojibake revertido via git checkout + edits). Checks: 233
+  testes Flutter verdes, backend 29/29, 4/4 runs verdes no GitHub (Node, Flutter,
+  Android, CodeQL) no commit 796ed12.
