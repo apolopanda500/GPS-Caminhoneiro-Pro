@@ -755,3 +755,13 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   (round-trip de encoding mojibake revertido via git checkout + edits). Checks: 233
   testes Flutter verdes, backend 29/29, 4/4 runs verdes no GitHub (Node, Flutter,
   Android, CodeQL) no commit 796ed12.
+
+- 21:02 22/10/2026 AGENTE-VALIDACAO-CI: novas baterias de simulacao real contra producao (Render) com
+  o celular R9XY1016R6V conectado e app em primeiro plano. Bateria simulacao-real: 9/10
+  (nota 9.0) - unica falha premium-pix 403 (ADMIN_TOKEN do Render ainda diferente do
+  local; usuario precisa setar no dashboard). Bateria duas-contas: 14/15 (nota 9.3)
+  em 2 rodadas estaveis - unica falha cenario 12 (exige 2o aparelho/emulador bloqueado).
+  Cenario 7 era flakoso na janela fixa de 900 ms; trocado por polling de ate 3 s
+  (tools/bateria-duas-contas.js). Uma rodada intermediaria caiu para 8/15 por restart
+  transitorio do Render (todos os cenarios de socket juntos; REST ok) e voltou a 14/15
+  na rodada seguinte.

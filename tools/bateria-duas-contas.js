@@ -395,7 +395,7 @@ cenario('7. Grupo (comboio) criado, membro entra e rota compartilhada', async ()
     routeJson: JSON.stringify({ stops: 2, destino: 'Nova Iguacu' }),
     groupId: grupoId,
   });
-  await sleep(900);
+  for (let i = 0; i < 30 && !P._recebidos.rotas.length; i++) await sleep(100);
   if (!P._recebidos.rotas.length) throw new Error('rota do grupo nao chegou no membro');
 
   const rotas = await api('GET', '/api/groups/' + grupoId + '/routes', null, contas.pc.token);
