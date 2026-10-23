@@ -526,16 +526,21 @@ cenario('premium-pix', 'BR Code valido e premium liberado apos confirmacao', asy
 
   const adminToken = ENV.ADMIN_TOKEN;
   if (!adminToken) return 'BR Code gerado e validado (sem ADMIN_TOKEN para confirmar)';
-  const conf = await api('POST', '/api/payment/confirm', { driverId: u.driverId, paymentId: pix.body.paymentId }, null);
   const resp = await fetch(BASE + '/api/payment/confirm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
     body: JSON.stringify({ driverId: u.driverId, paymentId: pix.body.paymentId }),
   });
   if (!resp.ok) throw new Error('confirmacao do premium: ' + resp.status);
-  const premium = await db.query('SELECT is_premium FROM drivers WHERE driver_id = $1', [u.driverId]);
-  if (!premium.rows[0] || premium.rows[0].is_premium !== true)
-    throw new Error('premium nao ativado no banco');
+  const bk = await fetch(BASE + '/api/admin/backup', {
+    headers: { 'x-admin-token': adminToken },
+  });
+  if (!bk.ok) throw new Error('backup admin: ' + bk.status);
+  const dump = await bk.json();
+  const drivers = (dump.tabelas && dump.tabelas.drivers) || [];
+  const linha = drivers.find((d) => d.driver_id === u.driverId);
+  if (!linha || linha.is_premium !== true)
+    throw new Error('premium nao ativado no servidor');
   return 'BR Code + CRC16 + premium ativado';
 });
 

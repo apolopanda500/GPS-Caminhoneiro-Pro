@@ -765,3 +765,13 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   (tools/bateria-duas-contas.js). Uma rodada intermediaria caiu para 8/15 por restart
   transitorio do Render (todos os cenarios de socket juntos; REST ok) e voltou a 14/15
   na rodada seguinte.
+
+- 21:32 22/10/2026 AGENTE-VALIDACAO-CI: correcao do PIX validada apos o ajuste do usuario no Render
+  (403 sumiu). Descoberto que o Render grava no Postgres proprio (0 drivers simulacao no
+  Supabase); cenario premium-pix agora confere o flag pelo servidor via GET
+  /api/admin/backup com x-admin-token (funciona em qualquer deploy). Bateria
+  simulacao-real fechou **10/10 nota 10.0** em producao; bateria duas contas **14/15
+  (9.3)** reconfirmada (unica falha = cenario 12, exige emulador). Criado
+  docs/PROXIMA-SESSAO-REBOOT.md com estado atual e passo a passo completo pos-reboot
+  (WHPX -> emulador -> 2a conta -> meta 15/15), comandos, push com header Basic e
+  pendencias conhecidas. Proximo passo unico: usuario reinicia o PC.
