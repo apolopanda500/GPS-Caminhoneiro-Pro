@@ -10,6 +10,7 @@
 | Verificação | Resultado | Observação |
 |---|---|---|
 | Bateria simulação real (10 cenários) contra produção | **10/10 — nota 10.0** | consolidado em 23/10 |
+| Bateria ciclo de dias reais (10 cenários, frota de 5) | **10/10 — nota 10.0** | nova (23/10 ~17:45), ver seção 3.5 |
 | Bateria duas contas (15 cenários) contra produção | **15/15 — nota 10.0** | consolidado em 23/10: celular + emulador com app aberto |
 | Emulador AVD `teste_apk` | **funcionando — RESOLVIDO** | ver seção 2 (bug WHPX do Windows 11 25H2) |
 | `flutter analyze` | No issues found | |
@@ -86,11 +87,13 @@ Na primeira abertura: conceder permissões de localização/notificação no di�
 cd C:\Users\Micro\gps-camioneiro-pro-completo
 node tools\bateria-simulacao-real.js --url https://gps-truck-backend.onrender.com      # 10/10
 node tools\bateria-duas-contas.js  --url https://gps-truck-backend.onrender.com --criar # 15/15
+node tools\bateria-ciclo-dias.js   --url https://gps-truck-backend.onrender.com        # 10/10 (ciclo de dias reais)
 ```
 
 Resultado de 23/10/2026: **10/10 e 15/15 — ambos nota 10.0.** O cenário 12 só
 passa com os dois aparelhos (app aberto, um em cada device — o script confere
-via `adb`; emulador conta como aparelho).
+via `adb`; emulador conta como aparelho). Resultado de 23/10/2026 (17:45): **bateria
+ciclo de dias reais (ver seção 3.5) 10/10 nota 10.0** (dois runs estáveis).
 
 ### 3.4 Se algo falhar
 
@@ -101,6 +104,24 @@ via `adb`; emulador conta como aparelho).
 | Cenário 12 diz "app nao esta rodando no PC" | Abrir o app no emulador manualmente antes de rodar a bateria |
 | Render dormiu (primeira chamada lenta) | Bater `https://gps-truck-backend.onrender.com/health` uma vez (404 é normal — só acorda o serviço) |
 | Push de git travar | Usar o método do header Basic (ver seção 5) |
+
+### 3.5 Bateria ciclo de dias reais (nova, 23/10/2026) — 10/10 nota 10.0
+
+`node tools\bateria-ciclo-dias.js --url https://gps-truck-backend.onrender.com`
+Cria uma frota de 5 contas REAIS (cadastro via API) com sockets e simula 3 dias:
+
+1. frota de 5 no radar (5 caminhões se vendo); 2. troca real de foto de perfil
+(A→B, confirmada via REST) + foto do caminhão; 3. rota compartilhada EDITADA
+ao vivo (mesma shareId, 2→4 paradas, v1 e v2 no seguidor); 4. ciclo de entregas
+chegou/entregue dia a dia com progresso ao vivo; 5. sinal de estrada chega
+(socket + REST) e sai (clear_alert) — resgate por `driver_id` próprio (o scan
+do radar pode trazer sinais antigos de outros motoristas no mesmo ponto);
+6. chat multi-dias + histórico REST; 7. ligação de rádio (call + sinal + vibração);
+8. comboio multi-dias (convite, membros recebem rota, ajudante bloqueado);
+9. tempo real Open-Meteo + radar RainViewer (tile `/256/{z}/{x}/{y}/{cor}/{smooth}_{sphere}.png`);
+10. fechamento: 180 requisições sem 5xx, status online, banco connected.
+Lições: esperar por polling (`esperar()`) em vez de sleep fixo — Render flakua;
+o 3º membro do grupo precisa emitir `join_group` para receber `group_route`.
 
 ---
 

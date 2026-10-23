@@ -29,6 +29,17 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **BATERIA CICLO DE DIAS REAIS (17:45, 23/10)** — novo script `tools/bateria-ciclo-dias.js`
+  (10 cenários: frota de 5 contas reais, troca de foto, rota editada ao vivo, ciclo de
+  entregas chegou/entregue por dia, sinal chega e sai, chat multi-dias com histórico,
+  ligação de rádio, comboio multi-dias + bloqueio de ajudante, nuvens/tempo real,
+  fechamento de carga) rodou **10/10 nota 10.0 em PRODUÇÃO ( dois runs seguidos estáveis,
+  0 5xx, status online banco connected)**. Correções no próprio script durante o ajuste:
+  id do sinal vem pelo socket (`road_validation_alerts`, resgate por `driver_id` próprio),
+  polling em vez de sleep fixo (flaky de rede no Render), 3º membro do grupo precisa
+  entrar na room (`join_group`) e tile do RainViewer usa `/256/{z}/{x}/{y}/{cor}/{smooth}_{sphere}.png`.
+  Nenhum bug de produto achado: backend comportou-se como esperado em todos os cenários.
+
 - **DEPLOY + SEGURANÇA (20:40, 22/10)** — **pushes no origin/main**: `3b7a51a`
   (validação completa + SDK consertado) e `70963f5` (audit fix). Push só funcionou com
   `http.extraHeader=Authorization: Basic <user:token>` — o helper `manager` (GCM) travava
