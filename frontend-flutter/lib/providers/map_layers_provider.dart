@@ -202,7 +202,14 @@ class MapLayersProvider extends ChangeNotifier {
       if (temGrade) await _atualizarGradesAtivas();
       await aplicar(_controller);
     });
-    await _atualizarFrames();
+    final precisaFrames = _radar || _nuvens;
+    if (precisaFrames) {
+      await _atualizarFrames();
+    } else {
+      _frames = const [];
+      _frameRadar = null;
+      _frameInfrarrojo = null;
+    }
     await aplicar(controller);
   }
 
@@ -267,15 +274,32 @@ class MapLayersProvider extends ChangeNotifier {
   void definirPosicao(LatLng pos) {
     _posicaoAtual = pos;
     final centro = _centroDaGrade;
-    if (centro == null || _atualizandoGrade) return;
-    final temGrade = _precipitacao ||
-        _vento ||
-        _temperatura ||
-        _nuvensPrevistas ||
-        (_nuvens && _frameInfrarrojo == null);
-    if (!temGrade) return;
+    if (_atualizandoGrade) return;
+    final camadasGrade = [
+      if (_precipitacao) 'precipitacao',
+      if (_vento) 'vento',
+      if (_temperatura) 'temperatura',
+      if (_nuvensPrevistas || (_nuvens && _frameInfrarrojo == null)) 'nuvens',
+    ];
+    if (camadasGrade.isEmpty) return;
+    final faltando = camadasGrade
+        .any((camada) => (_grades[camada] ?? const []).isEmpty);
+    if (faltando) {
+      _atualizandoGrade = true;
+      unawaited(() async {
+        try {
+          await _atualizarGradesAtivas();
+          await aplicar(_controller);
+        } finally {
+          _atualizandoGrade = false;
+        }
+      }());
+      return;
+    }
+    final centroAntigo = centro;
+    if (centroAntigo == null) return;
     const dist = Distance();
-    final km = dist.as(LengthUnit.Kilometer, centro, pos);
+    final km = dist.as(LengthUnit.Kilometer, centroAntigo, pos);
     if (km < 15) return;
     _atualizandoGrade = true;
     unawaited(() async {

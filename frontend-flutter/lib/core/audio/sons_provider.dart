@@ -55,6 +55,8 @@ class SonsProvider extends ChangeNotifier {
 
   final Map<SlotSom, SomPersonalizado> _sons = {};
   final AudioPlayer _player = AudioPlayer();
+  final Map<SlotSom, DateTime> _ultimosToques = {};
+  final Map<SlotSom, Future<bool>> _toquesEmCurso = {};
 
   Map<SlotSom, SomPersonalizado> get sons => Map.unmodifiable(_sons);
 
@@ -145,9 +147,34 @@ class SonsProvider extends ChangeNotifier {
   }
 
   /// Toca o som do slot. Retorna false se nao houver som ou der erro.
+  ///
+  /// Toques repetidos no mesmo slot em menos de 400ms sao ignorados e o
+  /// proprio slot nunca se sobrepoe: o toque novo espera o anterior, e
+  /// slots diferentes continuam independentes.
   Future<bool> tocar(SlotSom slot) async {
     final alvo = _sons[slot];
     if (alvo == null) return false;
+    final agora = DateTime.now();
+    final ultimo = _ultimosToques[slot];
+    if (ultimo != null &&
+        agora.difference(ultimo) < const Duration(milliseconds: 400)) {
+      return true;
+    }
+    _ultimosToques[slot] = agora;
+    final emCurso = _toquesEmCurso[slot];
+    if (emCurso != null) {
+      await emCurso.catchError((_) => false);
+    }
+    final toque = _executarTocar(alvo);
+    _toquesEmCurso[slot] = toque;
+    final ok = await toque;
+    if (identical(_toquesEmCurso[slot], toque)) {
+      _toquesEmCurso.remove(slot);
+    }
+    return ok;
+  }
+
+  Future<bool> _executarTocar(SomPersonalizado alvo) async {
     try {
       await _player.stop();
       await _player.setFilePath(alvo.caminho);

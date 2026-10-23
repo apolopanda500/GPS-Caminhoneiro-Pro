@@ -158,9 +158,16 @@ class _FloatingPanelState extends State<FloatingPanel> {
   /// Sem limite artificial: o painel pode ficar do tamanho que o motorista
   /// quiser (ate o tamanho da tela).
   double get _larguraMin => 40;
-  double get _larguraMax => 4000;
   double get _alturaMin => 40;
-  double get _alturaMax => 4000;
+  double get _larguraMax {
+    final mq = MediaQuery.of(context).size;
+    return (mq.width - 12).clamp(60.0, 4000.0);
+  }
+
+  double get _alturaMax {
+    final mq = MediaQuery.of(context).size;
+    return (mq.height - 24).clamp(60.0, 4000.0);
+  }
 
   /// Redimensiona o painel arrastando uma das alcas dos cantos.
   ///
@@ -192,6 +199,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
 
       _largura = largura.clamp(_larguraMin, _larguraMax);
       _altura = altura.clamp(_alturaMin, _alturaMax);
+      _manterNaTela();
     });
   }
 
@@ -294,6 +302,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
                   _altura = ((_altura ?? widget.height) * 1.25)
                       .clamp(_alturaMin, _alturaMax);
                 });
+                _manterNaTela();
                 _salvar();
               },
             ),
@@ -308,6 +317,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
                   _altura = ((_altura ?? widget.height) * 0.8)
                       .clamp(_alturaMin, _alturaMax);
                 });
+                _manterNaTela();
                 _salvar();
               },
             ),
@@ -360,6 +370,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
                   _altura = ((_altura ?? widget.height) * 1.25)
                       .clamp(_alturaMin, _alturaMax);
                 });
+                _manterNaTela();
                 _salvar();
               },
             ),
@@ -374,6 +385,7 @@ class _FloatingPanelState extends State<FloatingPanel> {
                   _altura = ((_altura ?? widget.height) * 0.8)
                       .clamp(_alturaMin, _alturaMax);
                 });
+                _manterNaTela();
                 _salvar();
               },
             ),

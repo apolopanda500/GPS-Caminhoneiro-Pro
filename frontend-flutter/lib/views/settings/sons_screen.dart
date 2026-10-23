@@ -112,14 +112,6 @@ class _SonsScreenState extends State<SonsScreen> {
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    await context.read<AudioProvider>().tocarChegada();
-                    HapticFeedback.mediumImpact();
-                  },
-                  icon: const Icon(Icons.notifications_active, size: 16),
-                  label: const Text('SINo DE CHEGADA'),
-                ),
-                OutlinedButton.icon(
                   onPressed: () {
                     AlertNotifier.triggerRadarWarning();
                     HapticFeedback.mediumImpact();
@@ -216,11 +208,8 @@ class _SonsScreenState extends State<SonsScreen> {
                   context,
                   icone: Icons.notifications,
                   rotulo: 'OUVIR O SINO DE CHEGADA',
-                  onTap: () async {
-                    final audio = context.read<AudioProvider>();
-                    final sons = context.read<SonsProvider>();
-                    await audio.tocarChegada();
-                    await sons.tocar(SlotSom.sinoEstacao);
+                  onTap: () {
+                    return context.read<AudioProvider>().tocarChegada();
                   },
                 ),
                 _botaoTeste(

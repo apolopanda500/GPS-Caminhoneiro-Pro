@@ -90,6 +90,7 @@ class _MapScreenState extends State<MapScreen> {
   String? _styleJsonStreetsLight;
   bool _styleLoaded = false;
   Set<String> _hiddenIdsSnapshot = {};
+  final Set<String> _sinaisOcultosSessao = {};
   bool _alertProviderHooked = false;
   final Set<String> _imagesAdded = {};
 
@@ -1054,6 +1055,7 @@ class _MapScreenState extends State<MapScreen> {
     // marcadores: assim a chuva aparece por cima do caminhao, que e o que
     // o motorista precisa ver.
     await _aplicarCamadaDeTrafego();
+    await _aplicarCamadasDeClima();
     final target = _currentPosition;
     if (target != null && _seguirVeiculo) {
       _aplicarCameraNoVeiculo(target, instant: true);
@@ -1071,6 +1073,17 @@ class _MapScreenState extends State<MapScreen> {
       await CamadaTrafego.instancia.remover(c);
     }
     _trafegoAplicado = ligado;
+  }
+
+  /// Liga (ou re-aplica, apos trocar o estilo) as camadas de clima
+  /// (nuvens, vento, relevo, radar) com o controller atual do mapa.
+  Future<void> _aplicarCamadasDeClima() async {
+    final c = _mapController;
+    if (c == null || !_styleLoaded) return;
+    if (!mounted) return;
+    try {
+      await context.read<MapLayersProvider>().ligar(c);
+    } catch (_) {}
   }
 
   /// Se o estilo vetorial (CDN) demorar ou falhar, cai no raster local
@@ -1321,7 +1334,7 @@ class _MapScreenState extends State<MapScreen> {
 
     await _addImageOnce('icon_alert', await MapIcons.alert());
     final alertasSnapshot = List<AlertModel>.from(_activeAlerts);
-    final hiddenIds = _hiddenIdsSnapshot;
+    final hiddenIds = <String>{..._hiddenIdsSnapshot, ..._sinaisOcultosSessao};
     final sinalSelecionado = _sinalSelecionadoId;
     for (final a
         in alertasSnapshot.where((a) => a.latitude != 0 && a.longitude != 0)) {
@@ -2837,12 +2850,24 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _limparMapaCompleto() {
+    // Os sinais que estao na tela ficam ocultos ate o fim da sessao: sem
+    // isso a varredura de proximidade (socket) os recoloca na hora e o
+    // usuario acha que o botao nao fez nada.
+    for (final a in _activeAlerts) {
+      _sinaisOcultosSessao.add(a.id);
+    }
+    final daProvider = context.read<AlertProvider>().alerts;
+    for (final a in daProvider) {
+      _sinaisOcultosSessao.add(a.id);
+    }
+    _sinalSelecionadoId = null;
     context.read<MarkerProvider>().clear();
     context.read<AlertProvider>().clearAlerts();
     context.read<RouteProvider>().clear();
     setState(() => _activeAlerts.clear());
     _renderMarkers();
-    _showSnackBar('Mapa limpo: sinais, alertas e rota removidos.');
+    _showSnackBar(
+        'Mapa limpo: sinais, alertas e rota removidos (ficam ocultos nesta viagem).');
   }
 
   void _onTripSample(LatLng pos, double speedKmh) {
@@ -2901,6 +2926,7 @@ class _MapScreenState extends State<MapScreen> {
   void _limparMapaAoFinalizar() {
     final route = context.read<RouteProvider>();
     route.clear();
+    _sinaisOcultosSessao.clear();
     setState(() {
       _routePanelClosed = true;
       _sinalSelecionadoId = null;
@@ -3052,7 +3078,8 @@ class _MapScreenState extends State<MapScreen> {
         _activeAlerts
           ..clear()
           ..addAll(rows
-              .map((e) => AlertModel.fromJson(Map<String, dynamic>.from(e))));
+              .map((e) => AlertModel.fromJson(Map<String, dynamic>.from(e)))
+              .where((a) => !_sinaisOcultosSessao.contains(a.id)));
       });
       _renderMarkers();
     } catch (_) {}
@@ -3066,6 +3093,7 @@ class _MapScreenState extends State<MapScreen> {
     var adicionou = false;
     for (final a in novos) {
       if (a.id.isEmpty || existentes.contains(a.id)) continue;
+      if (_sinaisOcultosSessao.contains(a.id)) continue;
       _activeAlerts.add(a);
       existentes.add(a.id);
       adicionou = true;
@@ -3551,7 +3579,7 @@ class _MapScreenState extends State<MapScreen> {
     final ligado = context.watch<SettingsProvider>().trackingEnabled;
     final cor = ligado ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
     return Tooltip(
-      message: ligado ? 'Parar GPS e encerrar viagem' : 'Ligar o GPS',
+      message: ligado ? 'Encerrar viagem, limpar rotas e reiniciar GPS' : 'Ligar o GPS',
       child: Material(
         color: cor,
         shape: const CircleBorder(),
@@ -3586,37 +3614,34 @@ class _MapScreenState extends State<MapScreen> {
     _showSnackBar('GPS ligado. Boa viagem!');
   }
 
-  /// Para tudo: GPS, expediente e servico em primeiro plano.
+  /// Para tudo e reinicia pronto para a proxima rota: salva a viagem
+  /// percorrida, limpa a rota/sinais do mapa e volta o GPS ligado de novo,
+  /// ja cafacado para o proximo trajeto (nao precisa religar na mao).
   Future<void> _pararGpsEEncerrarViagem() async {
     final resposta = await confirmarAcao(
       context,
-      titulo: 'Parar o GPS?',
-      mensagem: 'A viagem atual sera salva e o rastreamento sera desligado. '
-          'Voce liga de novo quando quiser continuar.',
-      textoConfirmar: 'PARAR TUDO',
+      titulo: 'Encerrar viagem?',
+      mensagem: 'A viagem atual sera salva, as rotas e sinais serao limpos e '
+          'o GPS reinicia automaticamente para a proxima viagem.',
+      textoConfirmar: 'ENCERRAR E REINICIAR',
       destrutivo: true,
       icone: Icons.stop_rounded,
     );
     if (resposta != Confirmacao.confirmado) return;
     if (!mounted) return;
 
-    // 1) Salva a viagem percorrida (se houver trecho).
+    // 1) Salva a viagem percorrida (se houver trecho) e limpa o mapa (rota,
+    //    paradas e sinais ocultos desta viagem).
     await _finalizarViagem(notify: false);
-
-    // 2) Cancela o fluxo de posicao (para o GPS de verdade).
-    _positionSubscription?.cancel();
-    _positionSubscription = null;
-
-    // 3) Encerra o expediente (fica salvo no app) e desliga o servico.
     if (!mounted) return;
-    try {
-      await context.read<SettingsProvider>().endDay();
-    } catch (_) {}
-    await ServicoRastreio.instancia.parar();
+    _limparMapaAoFinalizar();
 
+    // 2) Reinicia o rastreio automaticamente para a proxima viagem: novo
+    //    expediente, servico em primeiro plano e fluxo de posicao ativo.
     if (!mounted) return;
-    setState(() => _currentPosition = null);
-    _showSnackBar('GPS parado. Viagem encerrada.');
+    await _ligarGps();
+    if (!mounted) return;
+    _showSnackBar('Viagem encerrada e mapa limpo. GPS pronto para a proxima rota.');
   }
 
   /// Puxador de arraste dos paineis (arrasta e mostra o nome do painel).
