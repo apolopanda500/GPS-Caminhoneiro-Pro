@@ -775,3 +775,15 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   docs/PROXIMA-SESSAO-REBOOT.md com estado atual e passo a passo completo pos-reboot
   (WHPX -> emulador -> 2a conta -> meta 15/15), comandos, push com header Basic e
   pendencias conhecidas. Proximo passo unico: usuario reinicia o PC.
+
+- 17:15 23/10/2026 AGENTE-VALIDACAO-CI: meta fechada contra producao. Emulador resolvido: o Windows
+  11 25H2 (build 26200) congela o boot WHPX do emulador 37.2.12 do SDK Manager (bug de SMP boot do
+  WHPX; cf. QEMU #3178) - qemu-system-x86_64 fica com CPU ~0% e adb nunca aparece, com 1 ou 2 vCPU.
+  Instalado permanentemente o emulador 37.3.5 (canal dev, build 16632760) em Sdk\emulator (o
+  37.2.12 ficou em Sdk\emulator-3712.bak). AVD teste_apk otimizado e leve: 720x1600 @320dpi,
+  RAM 2 GB, heap 192M, 1 vCPU, camera/audioperifericos/frame desligados, particao de dados 3 GB
+  (backup config.ini.bak); boot medido 47,8 s. APK debug instalado no emulador e app aberto nos
+  dois aparelhos (R9XY1016R6V + emulator-5554). Baterias contra producao (Render):
+  bateria-duas-contas **15/15 nota 10.0** (cenario 12 finalmente fecha com celular + emulador) e
+  bateria-simulacao-real **10/10 nota 10.0**. docs/PROXIMA-SESSAO-REBOOT.md reescrito com o novo
+  estado (meta fechada) e o passo a passo correto do emulador.

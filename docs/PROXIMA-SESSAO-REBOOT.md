@@ -1,72 +1,62 @@
-# Próxima sessão — pendência única: reiniciar o PC (emulador)
+# Próxima sessão — META FECHADA (15/15 e 10/10 nota 10.0 contra produção)
 
-> Documento de passo a passo para retomar o projeto **depois do reboot**.
+> Documento de passo a passo para retomar o projeto.
 > Quem continuar (humano ou agente) deve seguir este arquivo do início ao fim.
 
 ---
 
-## 1. Estado atual do projeto (22/10/2026, ~00:30)
+## 1. Estado atual do projeto (23/10/2026, ~17:10)
 
 | Verificação | Resultado | Observação |
 |---|---|---|
-| Bateria simulação real (10 cenários) contra produção | **10/10 — nota 10.0** | PIX fechou: ADMIN_TOKEN setado no Render + bateria confere via `/api/admin/backup` |
-| Bateria duas contas (15 cenários) contra produção | **14/15 — nota 9.3** | Só falha o cenário 12 (precisa de 2 aparelhos = emulador) |
+| Bateria simulação real (10 cenários) contra produção | **10/10 — nota 10.0** | consolidado em 23/10 |
+| Bateria duas contas (15 cenários) contra produção | **15/15 — nota 10.0** | consolidado em 23/10: celular + emulador com app aberto |
+| Emulador AVD `teste_apk` | **funcionando — RESOLVIDO** | ver seção 2 (bug WHPX do Windows 11 25H2) |
 | `flutter analyze` | No issues found | |
 | `flutter test` | 233/233 verdes | |
 | Backend `npm test` | 29/29 (com e sem `.env`) | |
 | CI no GitHub (Flutter, Node, Android, CodeQL) | **4/4 verdes** | workflows curados: 12 templates inúteis removidos, 4 corrigidos |
 | Celular `R9XY1016R6V` | conectado, app instalado e validado | |
-| Emulador AVD `teste_apk` | **bloqueado — único pendente** | WHPX habilitado, aguarda reboot |
 
-**Único passo que falta: reiniciar o computador.** Depois disso, tudo abaixo fecha o **15/15**.
-
----
-
-## 2. Por que o reboot
-
-- O emulador Android x86_64 exige aceleração de hardware (WHPX).
-- A feature `HypervisorPlatform` foi habilitada via PowerShell elevado
-  (retornou `RestartNeeded = True`), mas o Windows **não foi reiniciado** desde então.
-- O WSL2 (Ubuntu-24.04) é compatível com WHPX — o reboot **não quebra** nada.
-- Erro atual sem reboot: `x86_64 emulation currently requires hardware acceleration!`
-  (por causa do hipervisor do WSL2 ativo).
+**Nada pendente para fechar 15/15 + 10/10. Está tudo verde.**
 
 ---
 
-## 3. Depois do reboot — passo a passo
+## 2. Emulador no Windows 11 25H2 — como subir (RESOLVIDO)
 
-### 3.1 Confirmar que o WHPX está ativo
+Resumo do problema e da solução definitiva:
+
+- O Windows 11 25H2 (build 26200) travava o boot do emulador com WHPX:
+  "Windows Hypervisor Platform accelerator is operational" e o processo
+  `qemu-system-x86_64` ficava congelado (CPU ~0%) sem nunca abrir a porta adb
+  (bug de SMP boot do WHPX, cf. QEMU issue #3178, reproduzido com 1 ou 2 vCPU).
+- A versão instalada pelo SDK Manager (37.2.12) NÃO functiona neste build.
+- A versão **37.3.5** (canal dev, build 16632760) **funciona** e foi instalada
+  permanentemente em `C:\Users\Micro\AppData\Local\Android\Sdk\emulator`
+  (a antiga 37.2.12 ficou de backup em `Sdk\emulator-3712.bak`).
+
+### Subir o emulador (configuração LEVE já gravada no AVD `teste_apk`)
+
+O `config.ini` do AVD foi otimizado para este PC fraco/tight (backup do
+original em `config.ini.bak`): tela 720x1600 @320dpi, RAM 2 GB, heap 192 MB,
+1 vCPU, câmera/áudio/frame desligados, partição de dados 3 GB.
 
 ```powershell
-Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform | Select-Object State
+$ne = "C:\Users\Micro\AppData\Local\Android\Sdk\emulator"
+Start-Process -FilePath "$ne\emulator.exe" -ArgumentList '-avd','teste_apk','-no-snapshot','-no-audio','-no-boot-anim'
 ```
 
-Esperado: `State : Enabled`.
-Se `Disabled`:
+- Boot medido: ~48 s. Confirmar com
+  `& "C:\Program Files\platform-tools\adb.exe" devices` → `emulator-5554 device`
+  **e** `R9XY1016R6V device` (celular via USB).
+- Instalar APK debug (inclui x64): `adb install -r <apk>`; senão rebuildar com
+  `flutter build apk --debug --dart-define-from-file=keys.json`.
 
-```powershell
-Start-Process powershell -Verb RunAs -ArgumentList '-Command', 'Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -All -NoRestart'
-```
+---
 
-(e reiniciar de novo).
+## 3. Ciclo completo de teste (referência — já executado com sucesso em 23/10)
 
-### 3.2 Subir o emulador
-
-```powershell
-$env:ANDROID_SDK_ROOT = "C:\Users\Micro\AppData\Local\Android\Sdk"
-Start-Process -FilePath "$env:ANDROID_SDK_ROOT\emulator\emulator.exe" `
-  -ArgumentList '-avd', 'teste_apk', '-gpu', 'swiftshader_indirect'
-```
-
-- AVD: `teste_apk` (android-34, x86_64) em `C:\Users\Micro\.android\avd\teste_apk.avd`.
-- Imagem do sistema já está completa em
-  `%LOCALAPPDATA%\Android\Sdk\system-images\android-34\google_apis\x86_64`
-  (inclui `kernel-ranchu`). **NÃO reinstalar** via sdkmanager (estoura o disco; zip de
-  1491MB teve que ser baixado na mão).
-- Confirmar: `& "C:\Program Files\platform-tools\adb.exe" devices` → deve listar
-  `emulator-5554 device` **e** `R9XY1016R6V device` (celular via USB).
-
-### 3.3 Instalar/abrir o app no emulador
+### 3.1 Instalar/abrir o app no emulador
 
 APKs de backup (não precisa rebuildar):
 
@@ -82,7 +72,7 @@ APKs de backup (não precisa rebuildar):
 
 Na primeira abertura: conceder permissões de localização/notificação no diálogo.
 
-### 3.4 Logar a 2ª conta no emulador
+### 3.2 Logar a 2ª conta no emulador
 
 - No emulador: entrar com a conta `DEV_PC` usada pela bateria
   (`DEV_PC=emulator-5554` está no topo de `tools/bateria-duas-contas.js`;
@@ -90,21 +80,23 @@ Na primeira abertura: conceder permissões de localização/notificação no di�
   use a conta que a bateria criar, ou cadastre uma nova no app).
 - Celular: manter o app aberto (conta `DEV_CELULAR=R9XY1016R6V`).
 
-### 3.5 Rodar a bateria final
+### 3.3 Rodar as baterias (contra produção)
 
 ```powershell
 cd C:\Users\Micro\gps-camioneiro-pro-completo
-node tools\bateria-duas-contas.js --url https://gps-truck-backend.onrender.com --criar
+node tools\bateria-simulacao-real.js --url https://gps-truck-backend.onrender.com      # 10/10
+node tools\bateria-duas-contas.js  --url https://gps-truck-backend.onrender.com --criar # 15/15
 ```
 
-Meta: **15/15 — nota 10.0**. O cenário 12 só passa com os dois aparelhos
-(app aberto, um em cada device — o script confere via `adb`).
+Resultado de 23/10/2026: **10/10 e 15/15 — ambos nota 10.0.** O cenário 12 só
+passa com os dois aparelhos (app aberto, um em cada device — o script confere
+via `adb`; emulador conta como aparelho).
 
-### 3.6 Se algo falhar
+### 3.4 Se algo falhar
 
 | Problema | Ação |
 |---|---|
-| Emulador pede accel de novo | Conferir `Get-WindowsOptionalFeature ... HypervisorPlatform` (tem que estar Enabled **após** o reboot) |
+| qemu congela sem adb (CPU ~0%) | Volta da bug do WHPX: usar o emulador 37.3.5 instalado em `Sdk\emulator` (37.2.12 não funciona no Windows 11 25H2) |
 | `adb devices` só mostra o celular | Fechar e reabrir o emulador; checar porta `5554` |
 | Cenário 12 diz "app nao esta rodando no PC" | Abrir o app no emulador manualmente antes de rodar a bateria |
 | Render dormiu (primeira chamada lenta) | Bater `https://gps-truck-backend.onrender.com/health` uma vez (404 é normal — só acorda o serviço) |
@@ -126,7 +118,7 @@ cd backend-api; npm test                              # 29/29
 # Baterias (produção)
 cd C:\Users\Micro\gps-camioneiro-pro-completo
 node tools\bateria-simulacao-real.js --url https://gps-truck-backend.onrender.com      # 10/10
-node tools\bateria-duas-contas.js  --url https://gps-truck-backend.onrender.com --criar # 14/15 → 15/15 pós-reboot
+node tools\bateria-duas-contas.js  --url https://gps-truck-backend.onrender.com --criar # 15/15 (23/10 fecho 10.0)
 
 # adb
 & "C:\Program Files\platform-tools\adb.exe" devices
@@ -149,7 +141,7 @@ git -c "http.extraHeader=Authorization: Basic $basic" -c credential.helper= push
 
 ---
 
-## 6. Pendências conhecidas (opcionais, depois do 15/15)
+## 6. Pendências conhecidas (opcionais — meta já fechada em 23/10)
 
 1. **Bancos divergentes**: o Render grava no Postgres próprio (expira 18/11/2026);
    o local usa Supabase (pooler em `backend-api/.env` → `DATABASE_URL`).
