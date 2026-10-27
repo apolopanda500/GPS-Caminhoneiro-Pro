@@ -8,6 +8,7 @@
 // ============================================================
 const path = require('path');
 const fs = require('fs');
+const zlib = require('zlib');
 const { execFile } = require('child_process');
 
 const RAIZ = path.join(__dirname, '..');
@@ -34,6 +35,146 @@ function adb(args) {
   return new Promise((resolve) => {
     execFile(ADB, args, { timeout: 30000 }, (erro, stdout) => resolve(erro ? '' : String(stdout).trim()));
   });
+}
+
+function adbRaw(args) {
+  return new Promise((resolve) => {
+    execFile(ADB, args, { timeout: 60000, encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 },
+      (erro, stdout) => resolve(erro ? null : stdout));
+  });
+}
+
+function lerPng(buffer) {
+  let p = 8;
+  let w = 0, h = 0, cor = 0;
+  const partes = [];
+  while (p < buffer.length - 8) {
+    const len = buffer.readUInt32BE(p);
+    const tipo = buffer.toString('latin1', p + 4, p + 8);
+    const dado = buffer.slice(p + 8, p + 8 + len);
+    if (tipo === 'IHDR') { w = dado.readUInt32BE(0); h = dado.readUInt32BE(4); cor = dado[9]; }
+    if (tipo === 'IDAT') partes.push(dado);
+    if (tipo === 'IEND') break;
+    p += 12 + len;
+  }
+  const bruto = zlib.inflateSync(Buffer.concat(partes));
+  const bpp = cor === 6 ? 4 : 3;
+  const stride = w * bpp;
+  const saida = Buffer.alloc(h * stride);
+  let pos = 0;
+  for (let y = 0; y < h; y++) {
+    const filtro = bruto[pos];
+    const linha = pos + 1;
+    pos += 1 + stride;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? saida[y * stride + i - bpp] : 0;
+      const b = y > 0 ? saida[(y - 1) * stride + i] : 0;
+      const c = y > 0 && i >= bpp ? saida[(y - 1) * stride + i - bpp] : 0;
+      let v = bruto[linha + i];
+      if (filtro === 1) v += a;
+      else if (filtro === 2) v += b;
+      else if (filtro === 3) v += (a + b) >> 1;
+      else if (filtro === 4) {
+        const pp = a + b - c;
+        const pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c);
+        v += pa <= pb && pa <= pc ? a : (pb <= pc ? b : c);
+      }
+      saida[y * stride + i] = v & 255;
+    }
+  }
+  return { w, h, bpp, px: saida };
+}
+
+async function permitidoLocalizacao(aparelho) {
+  const s = await adb(['-s', aparelho, 'shell', 'dumpsys', 'package', PACOTE]);
+  return /ACCESS_FINE_LOCATION: granted=true/.test(s);
+}
+
+async function textosTela(aparelho) {
+  await adb(['-s', aparelho, 'shell', 'uiautomator', 'dump', '/sdcard/ui.xml']);
+  const xml = await adb(['-s', aparelho, 'shell', 'cat', '/sdcard/ui.xml']);
+  const textos = [];
+  for (const no of String(xml).split('<node ').slice(1)) {
+    const t = (no.match(/text="([^"]*)"/) || [])[1] || '';
+    if (t) textos.push(t);
+  }
+  return textos.join(' | ');
+}
+
+async function pedindoGps(aparelho) {
+  const s = await adb(['-s', aparelho, 'shell', 'dumpsys', 'location']);
+  return /gps provider[^\r\n]*gpscamioneiro|ProviderRequest\[[^\r\n]*gpscamioneiro|gps request from com\.gpscamioneiro/i.test(s);
+}
+
+async function rolarParaBaixo(aparelho) {
+  await adb(['-s', aparelho, 'shell', 'input', 'swipe', '540', '1800', '540', '700', '300']);
+  await sleep(1500);
+}
+
+async function tapPorTexto(aparelho, regex) {
+  await adb(['-s', aparelho, 'shell', 'uiautomator', 'dump', '/sdcard/ui.xml']);
+  const xml = await adb(['-s', aparelho, 'shell', 'cat', '/sdcard/ui.xml']);
+  for (const no of String(xml).split('<node ').slice(1)) {
+    const txt = (no.match(/text="([^"]*)"/) || [])[1] || '';
+    const bnd = (no.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/) || []);
+    if (!bnd.length || !regex.test(txt)) continue;
+    const x = Math.round((+bnd[1] + +bnd[3]) / 2);
+    const y = Math.round((+bnd[2] + +bnd[4]) / 2);
+    await adb(['-s', aparelho, 'shell', 'input', 'tap', String(x), String(y)]);
+    return true;
+  }
+  return false;
+}
+
+async function tapBotaoVermelho(aparelho, faixaIni, faixaFim) {
+  const png = await adbRaw(['-s', aparelho, 'exec-out', 'screencap', '-p']);
+  const debug = !!process.env.DEBUG_TAP;
+  const falha = (motivo) => {
+    if (debug) {
+      const dir = path.join(process.env.TEMP || '.', 'opencode');
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        if (png) fs.writeFileSync(path.join(dir, 'falha-tap-' + aparelho.replace(/\W/g, '') + '.png'), png);
+        console.log('        [debug-tap] ' + aparelho + ': ' + motivo);
+      } catch {}
+    }
+    return false;
+  };
+  if (!png || png.length < 1000) return falha('png vazio ' + (png ? png.length : 'null'));
+  let img;
+  try { img = lerPng(png); } catch (e) { return falha('png ilegivel: ' + e.message); }
+  const y0 = Math.floor(img.h * (faixaIni === undefined ? 0.5 : faixaIni));
+  const y1 = Math.floor(img.h * (faixaFim === undefined ? 0.8 : faixaFim));
+  const cols = new Int32Array(img.w);
+  let total = 0;
+  const ys = [];
+  for (let y = y0; y < y1; y++) {
+    let naLinha = 0;
+    for (let x = 0; x < img.w; x++) {
+      const i = (y * img.w + x) * img.bpp;
+      const r = img.px[i], g = img.px[i + 1], b = img.px[i + 2];
+      if (r < 95 || g > 115 || b > 115 || r - g < 50 || r - b < 50) continue;
+      cols[x]++; total++; naLinha++;
+    }
+    if (naLinha > 15) ys.push(y);
+  }
+  if (total < 80 || ys.length < 5) return falha('poucos vermelhos: total=' + total + ' linhas=' + ys.length);
+  const grupos = [];
+  let atual = null;
+  for (let x = 0; x < img.w; x++) {
+    if (cols[x] > 0) {
+      if (atual && x - atual.fim <= 40) { atual.fim = x; atual.n += cols[x]; }
+      else { if (atual) grupos.push(atual); atual = { ini: x, fim: x, n: cols[x] }; }
+    }
+  }
+  if (atual) grupos.push(atual);
+  const validos = grupos.filter((g) => g.fim - g.ini >= 70 && g.n >= 60);
+  if (!validos.length) return falha('sem grupo de botao: ' + JSON.stringify(grupos.map((g) => [g.ini, g.fim, g.n])));
+  const alvo = validos.reduce((a, b) => (b.ini > a.ini ? b : a));
+  const x = Math.round((alvo.ini + alvo.fim) / 2);
+  const y = ys[Math.floor(ys.length / 2)];
+  await adb(['-s', aparelho, 'shell', 'input', 'tap', String(x), String(y)]);
+  return true;
 }
 
 function lerEnvBackend() {
@@ -127,6 +268,7 @@ const cenarios = [];
 function cenario(nome, descricao, fn) {
   cenarios.push({ nome, descricao, fn });
 }
+const SO_CENARIO = arg('cenario', '');
 
 const users = [];
 let u1, u2, u3;
@@ -153,6 +295,74 @@ cenario('app-aberto-nos-aparelhos', 'App rodando no celular e no emulador (adb p
   for (const ap of [CELULAR, EMULADOR]) {
     const pid = await adb(['-s', ap, 'shell', 'pidof', PACOTE]);
     if (!pid) throw new Error('app nao rodando em ' + ap);
+  }
+});
+
+cenario('permissoes-do-usuario', 'Usuario toca PERMITIR no app e no Android (instalacao limpa)', async () => {
+  for (const aparelho of [CELULAR, EMULADOR]) {
+    let ok = false;
+    for (let tentativa = 0; tentativa < 8 && !ok; tentativa++) {
+      if (await permitidoLocalizacao(aparelho)) { ok = true; break; }
+      if (await tapPorTexto(aparelho, /^(Got it|OK|Entendi)$/)) {
+        console.log(`        ${aparelho}: dispensou overlay do sistema`);
+        await sleep(900); continue;
+      }
+      if (await tapPorTexto(aparelho, /While using the app|Durante o uso do app/i)) {
+        console.log(`        ${aparelho}: tocou "enquanto o app estiver em uso"`);
+        await sleep(1200); continue;
+      }
+      if (await tapPorTexto(aparelho, /^(Permitir|Allow)$/)) {
+        console.log(`        ${aparelho}: tocou Permitir no Android`);
+        await sleep(1200); continue;
+      }
+      const tocou = await tapBotaoVermelho(aparelho);
+      console.log(`        ${aparelho}: toque no botao do dialogo do app=${tocou}`);
+      await sleep(tocou ? 2000 : 1200);
+    }
+    if (!ok) throw new Error('localizacao negada em ' + aparelho);
+    console.log(`        ${aparelho}: localizacao concedida`);
+  }
+});
+
+cenario('app-entra-no-mapa', 'Primeira execucao guiada: dialogos, onboarding e mapa pedindo GPS', async () => {
+  for (const aparelho of [CELULAR, EMULADOR]) {
+    await adb(['-s', aparelho, 'shell', 'am', 'start', '-n', PACOTE + '/.MainActivity']);
+    await sleep(4000);
+    let feito = await pedindoGps(aparelho);
+    for (let passo = 0; passo < 16 && !feito; passo++) {
+      const tela = await textosTela(aparelho);
+      if (/Location permission|Location access|Allow all the time|Use precise location|App info|Permitir que este app acesse/i.test(tela)) {
+        if (await tapPorTexto(aparelho, /^Allow all the time$|^Permitir o tempo todo$/)) {
+          console.log(`        ${aparelho}: concedeu localizacao em segundo plano`);
+          await sleep(2500);
+        }
+        await adb(['-s', aparelho, 'shell', 'input', 'keyevent', 'KEYCODE_BACK']);
+        console.log(`        ${aparelho}: voltou das configuracoes do Android`);
+      } else if (await tapPorTexto(aparelho, /^Allow all$|^While using the app$|^Durante o uso do app$|^Allow$|^Permitir$/)) {
+        console.log(`        ${aparelho}: tocou permitir no Android`);
+      } else {
+        let tocou = false;
+        if (/Motorista|Ajudante|Dimensoes|Carga perigosa/i.test(tela)) {
+          await rolarParaBaixo(aparelho);
+          tocou = await tapBotaoVermelho(aparelho, 0.82, 0.99);
+        } else {
+          tocou = await tapBotaoVermelho(aparelho, 0.45, 0.82);
+          if (!tocou) { await rolarParaBaixo(aparelho); tocou = await tapBotaoVermelho(aparelho, 0.82, 0.99); }
+        }
+        console.log(`        ${aparelho}: avancou tela (toque=${tocou})`);
+      }
+      await sleep(2500);
+      feito = await pedindoGps(aparelho);
+    }
+    if (!feito) throw new Error('app nao chegou ao mapa com GPS em ' + aparelho);
+    for (let volta = 0; volta < 4; volta++) {
+      const top = await adb(['-s', aparelho, 'shell', 'dumpsys', 'activity', 'activities']);
+      const m = top.match(/topResumedActivity=ActivityRecord\{\S+ u\d+ (\S+)/);
+      if (m && m[1].startsWith(PACOTE)) break;
+      await adb(['-s', aparelho, 'shell', 'input', 'keyevent', 'KEYCODE_BACK']);
+      await sleep(2000);
+    }
+    console.log(`        ${aparelho}: no mapa, rastreio de GPS ativo`);
   }
 });
 
@@ -330,14 +540,20 @@ cenario('seguranca-e-carga', 'Token recusado, hostil nao derruba, 300 req sem 5x
   if (fim.body.database !== 'connected') throw new Error('banco desconectou no fim');
 });
 
-(async () => {
+if (require.main === module) {
+  (async () => {
   console.log('='.repeat(50));
   console.log('BATERIA APP USO REAL - GPS Caminhoneiro Pro');
   console.log('Alvo: ' + BASE + ' | aparelhos: ' + CELULAR + ' + ' + EMULADOR);
   console.log('='.repeat(50));
   let passados = 0;
   const falhas = [];
-  for (const c of cenarios) {
+  const roteiro = SO_CENARIO ? cenarios.filter((c) => c.nome === SO_CENARIO) : cenarios;
+  if (SO_CENARIO && !roteiro.length) {
+    console.log('cenario nao existe: ' + SO_CENARIO);
+    process.exit(1);
+  }
+  for (const c of roteiro) {
     try {
       await c.fn();
       passados++;
@@ -348,8 +564,11 @@ cenario('seguranca-e-carga', 'Token recusado, hostil nao derruba, 300 req sem 5x
     }
   }
   console.log('='.repeat(50));
-  console.log(`RESULTADO: ${passados}/${cenarios.length} cenarios | nota ${((passados / cenarios.length) * 10).toFixed(1)}/10`);
+  console.log(`RESULTADO: ${passados}/${roteiro.length} cenarios | nota ${((passados / roteiro.length) * 10).toFixed(1)}/10`);
   for (const f of falhas) console.log('  FALHA ' + f.nome + ' - ' + f.motivo);
   await db.end().catch(() => {});
   process.exit(0);
-})();
+  })();
+}
+
+module.exports = { adb, adbRaw, lerPng, tapPorTexto, tapBotaoVermelho, permitidoLocalizacao, textosTela, pedindoGps, rolarParaBaixo, sleep };

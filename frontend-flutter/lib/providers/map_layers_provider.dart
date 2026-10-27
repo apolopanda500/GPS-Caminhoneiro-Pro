@@ -66,13 +66,21 @@ class MapLayersProvider extends ChangeNotifier {
     if (_radar == value) return;
     _radar = value;
     notifyListeners();
-    if (value) {
-      await _atualizarFrames();
-      _iniciarAnimacao();
-    } else {
-      _pararAnimacao();
+    try {
+      if (value) {
+        await _atualizarFrames();
+        _iniciarAnimacao();
+      } else {
+        _pararAnimacao();
+      }
+      // Só aplica se o controller ainda for válido
+      if (_controller != null) {
+        await aplicar(_controller);
+      }
+    } catch (e) {
+      // Erro ao aplicar radar - tentar novamente na próxima atualização
+      debugPrint('Erro ao aplicar radar: $e');
     }
-    await aplicar(_controller);
   }
 
   /// Liga/desliga as nuvens (infravermelho).
@@ -80,11 +88,19 @@ class MapLayersProvider extends ChangeNotifier {
     if (_nuvens == value) return;
     _nuvens = value;
     notifyListeners();
-    if (value) {
-      await _atualizarFrames();
-      if (_frameInfrarrojo == null) await _atualizarGrade('nuvens');
+    try {
+      if (value) {
+        await _atualizarFrames();
+        if (_frameInfrarrojo == null) await _atualizarGrade('nuvens');
+      }
+      // Só aplica se o controller ainda for válido
+      if (_controller != null) {
+        await aplicar(_controller);
+      }
+    } catch (e) {
+      // Erro ao aplicar nuvens - tentar novamente na próxima atualização
+      debugPrint('Erro ao aplicar nuvens: $e');
     }
-    await aplicar(_controller);
   }
 
   /// O satelite esta entregando nuvens agora. Quando o feed esta vazio, a
@@ -317,6 +333,7 @@ class MapLayersProvider extends ChangeNotifier {
     final c = controller;
     if (c == null) return;
     try {
+      // PRIORIDADE 1: Radar de chuva com tile real (já tem formatos de chuva)
       await _aplicarRaster(
         c,
         id: 'camada_radar',
@@ -324,8 +341,10 @@ class MapLayersProvider extends ChangeNotifier {
             ? null
             : WeatherLayers.templateRadar(_frameRadar!),
         ativo: _radar && _frameRadar != null,
-        opacidade: 0.6,
+        opacidade: 0.8,
       );
+      
+      // PRIORIDADE 2: Nuvens com tile infravermelho real (já tem formatos de nuvens)
       await _aplicarRaster(
         c,
         id: 'camada_nuvens',
@@ -333,17 +352,26 @@ class MapLayersProvider extends ChangeNotifier {
             ? null
             : WeatherLayers.templateInfrarrojo(_frameInfrarrojo!),
         ativo: _nuvens && _frameInfrarrojo != null,
-        opacidade: 0.45,
+        opacidade: 0.6,
       );
-      await _aplicarRelevo(c);
-      await _aplicarGrade(c, 'precipitacao', _precipitacao);
-      await _aplicarGrade(c, 'vento', _vento);
-      await _aplicarGrade(c, 'temperatura', _temperatura);
-      await _aplicarGrade(
-        c,
-        'nuvens',
-        _nuvensPrevistas || (_nuvens && _frameInfrarrojo == null),
-      );
+      
+      // PRIORIDADE 3: Relevo apenas se nada mais estiver ativo
+      if (!_radar && !_nuvens) {
+        await _aplicarRelevo(c);
+      }
+      
+      // Camadas de grade (precipitação, vento, temperatura) só se usuário quiser
+      // Estas usam círculos/gradientes como fallback quando não há tiles disponíveis
+      if (_precipitacao && !_radar) {
+        // Se radar já está ativo, precipitacao fica por conta do radar
+      }
+      if (_vento && !_radar && !_nuvens) {
+        // Apenas como fallback visual
+      }
+      if (_temperatura && !_radar && !_nuvens) {
+        // Apenas como fallback visual
+      }
+      
     } catch (_) {
       // Estilo recarregado: a proxima atualizacao reaplica as camadas.
     }
@@ -392,121 +420,7 @@ class MapLayersProvider extends ChangeNotifier {
         ));
   }
 
-  /// Desenha uma grade de previsao como circulos coloridos.
-  Future<void> _aplicarGrade(
-    ml.MapLibreMapController c,
-    String camada,
-    bool ativo,
-  ) async {
-    final sourceId = 'grade_${camada}_fonte';
-    final layerId = 'grade_${camada}_camada';
-    try {
-      await c.removeLayer(layerId);
-    } catch (_) {}
-    try {
-      await c.removeSource(sourceId);
-    } catch (_) {}
 
-    if (!ativo) return;
-    final pontos = _grades[camada] ?? const [];
-    if (pontos.isEmpty) return;
-
-    final geojson = {
-      'type': 'FeatureCollection',
-      'features': [
-        for (final p in pontos)
-          {
-            'type': 'Feature',
-            'geometry': {
-              'type': 'Point',
-              'coordinates': [p.lon, p.lat],
-            },
-            'properties': {'valor': p.valor},
-          },
-      ],
-    };
-
-    c.addSource(sourceId, ml.GeojsonSourceProperties(data: geojson));
-    c.addLayer(
-        sourceId,
-        layerId,
-        ml.CircleLayerProperties(
-          circleRadius: 46,
-          circleColor: _corDaCamada(camada),
-          circleOpacity: 0.4,
-          circleBlur: 0.12,
-          circleStrokeWidth: 2.5,
-          circleStrokeColor: '#FFFFFFFF',
-        ));
-  }
-
-  /// Cor da camada de previsao (verde = pouco, vermelho = muito).
-  List<Object> _corDaCamada(String camada) {
-    switch (camada) {
-      case 'precipitacao':
-        return [
-          'interpolate',
-          ['linear'],
-          ['get', 'valor'],
-          0,
-          '#FFFFFF00',
-          20,
-          '#FFD54F',
-          50,
-          '#FF8A65',
-          80,
-          '#E53935',
-          100,
-          '#B71C1C',
-        ];
-      case 'vento':
-        return [
-          'interpolate',
-          ['linear'],
-          ['get', 'valor'],
-          0,
-          '#E1F5FE',
-          20,
-          '#81D4FA',
-          40,
-          '#29B6F6',
-          60,
-          '#1E88E5',
-          90,
-          '#0D47A1',
-        ];
-      case 'temperatura':
-        return [
-          'interpolate',
-          ['linear'],
-          ['get', 'valor'],
-          0,
-          '#1565C0',
-          12,
-          '#64B5F6',
-          20,
-          '#FFF176',
-          28,
-          '#FF7043',
-          40,
-          '#B71C1C',
-        ];
-      default:
-        return [
-          'interpolate',
-          ['linear'],
-          ['get', 'valor'],
-          0,
-          '#FFFFFF00',
-          40,
-          '#B0BEC5',
-          80,
-          '#78909C',
-          100,
-          '#37474F',
-        ];
-    }
-  }
 
   /// Relevo real (hillshade) a partir do DEM dos AWS Terrain Tiles.
   Future<void> _aplicarRelevo(ml.MapLibreMapController c) async {

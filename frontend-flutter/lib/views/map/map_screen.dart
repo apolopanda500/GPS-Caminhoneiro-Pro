@@ -514,7 +514,7 @@ class _MapScreenState extends State<MapScreen> {
     }
     if (_positionSubscription != null) return;
     _positionSubscription = LocationHandler.positionStream(
-      intervalSeconds: settings.intervaloGpsReal,
+      intervalMilliseconds: settings.intervaloGpsReal * 1000,
       highAccuracy: true,
     ).listen((pos) {
       final newPos = LatLng(pos.latitude, pos.longitude);

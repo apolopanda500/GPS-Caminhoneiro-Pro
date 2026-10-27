@@ -140,17 +140,17 @@ class WeatherLayers {
     int horas = 1,
   }) async {
     try {
-      // Grade 4x4 ao redor do caminhao. Todos os pontos vao em UMA chamada
-      // (o Open-Meteo aceita varias coordenadas): o dado real chega rapido e
-      // sem estourar a cota da API.
-      const passos = 4;
-      const passoGraus = 0.22;
+      // Grade 5x5 ao redor do caminhao, com passo de ~9 km (~0.08 grau):
+      // o centro da grade e EXATAMENTE o caminhao (i=2 => 0 grau), entao
+      // os circulos ficam visiveis no zoom de estrada do app.
+      const passos = 5;
+      const passoGraus = 0.08;
       final lats = <double>[];
       final lons = <double>[];
       for (var i = 0; i < passos; i++) {
         for (var j = 0; j < passos; j++) {
-          lats.add(lat + (i - passos / 2) * passoGraus);
-          lons.add(lon + (j - passos / 2) * passoGraus);
+          lats.add(lat + (i - (passos - 1) / 2) * passoGraus);
+          lons.add(lon + (j - (passos - 1) / 2) * passoGraus);
         }
       }
 

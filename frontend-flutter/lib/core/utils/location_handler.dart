@@ -40,7 +40,7 @@ class LocationHandler {
   }
 
   static Stream<Position> positionStream({
-    int intervalSeconds = 2,
+    int intervalMilliseconds = 100,
     bool highAccuracy = true,
   }) {
     return Geolocator.getPositionStream(
@@ -48,8 +48,8 @@ class LocationHandler {
         accuracy: highAccuracy
             ? LocationAccuracy.bestForNavigation
             : LocationAccuracy.high,
-        distanceFilter: 0,
-        intervalDuration: Duration(seconds: intervalSeconds),
+        distanceFilter: 5,
+        intervalDuration: Duration(milliseconds: intervalMilliseconds),
         forceLocationManager: false,
       ),
     );

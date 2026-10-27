@@ -81,12 +81,12 @@ class WeatherProvider extends ChangeNotifier {
     if (code == null) return '☁️';
     if (code == 0) return '☀️';
     if (code <= 3) return '⛅';
-    if (code <= 48) return '🌫️';
+    if (code <= 47) return '🌫️';
     if (code <= 57) return '🌦️';
     if (code <= 67) return '🌧️';
     if (code <= 77) return '🌨️';
-    if (code <= 82) return '🌧️';
-    if (code <= 86) return '🌨️';
+    if (code <= 81) return '🌧️';
+    if (code <= 86) return '🌧️';
     if (code <= 99) return '⛈️';
     return '☁️';
   }

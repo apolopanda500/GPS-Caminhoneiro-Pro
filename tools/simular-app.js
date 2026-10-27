@@ -75,7 +75,7 @@ async function simularAparelho(aparelho, ciclo) {
 
   const log = await adb(['-s', aparelho, 'logcat', '-d',
     `${PACOTE}:E`, '*:F'], 60000);
-  fs.writeFileSync(logFile, log.saida || log);
+  fs.writeFileSync(logFile, log.saida || '');
   const erros = (log.saida || '').split('\n').filter((linha) =>
     /FATAL EXCEPTION|ANR in com\.gpscamioneiro|Process com\.gpscamioneiro.*(died|crashed)/i.test(linha));
 
