@@ -29,6 +29,20 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **BATERIA APP USO REAL 10/10x2 + SUITE VERDE (03:05, 27/10)** — novo
+  `tools/bateria-app-uso-real.js` (10 cenários contra produção: status/banco, cadastro+login
+  com polling do código no Supabase, app aberto via adb no celular R9XY1016R6V e emulador
+  `teste_leve`, GPS real (geo fix + histórico do provedor pelo pacote), perfil/foto
+  avatar+caminhão, sockets V2X, rota de caminhão TRAFFIC_AWARE, chat privado via
+  `broadcast_chat_message` com `targetDriverId` (evento de chegada
+  `receive_chat_message`; receptor precisa emitir `register_driver`), clima Open-Meteo +
+  RainViewer, hostilidade+carga 300 req) rodou **10/10 nota 10.0 em 2 runs seguidos**.
+  Ajuste no test: apagado `test/bateria_vida_completa_test.dart` (usava APIs inexistentes)
+  e consertado import de `minimal_test.dart` → **flutter analyze "No issues found!"**,
+  **flutter test 234/234**. Comitados: tools/bateria-app-uso-real.js, tools/simular-app.js
+  (simulador de ciclos nos 2 aparelhos), tools/loop-ate-10.ps1 (loop até 10/10),
+  tools/verificar-backend.js, test/minimal_test.dart.
+
 - **BANCO UNIFICADO NO SUPABASE (01:5x UTC, 26→27/10)** — banco do Render expirava 18/11;
   usuário configurou no painel Render `DATABASE_URL` = pooler Supabase
   (idêntica ao local, validada). Pendência real descoberta: o `render.yaml` do repo
