@@ -29,6 +29,18 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
 
 ## Estado compartilhado (só o último resultado, com timestamp)
 
+- **BANCO UNIFICADO NO SUPABASE (01:5x UTC, 26→27/10)** — banco do Render expirava 18/11;
+  usuário configurou no painel Render `DATABASE_URL` = pooler Supabase
+  (idêntica ao local, validada). Pendência real descoberta: o `render.yaml` do repo
+  sobrescrevia `DATABASE_URL` com `fromDatabase: gps-truck-postgis` (blueprint) — corrigido
+  para `sync: false` (valor do painel passa a valer) neste commit. Baterias 10/10 nota 10.0
+  correram 2x contra produção, mas cadastros novos confirmavam gravar NO BANCO ANTIGO
+  (conferido por SQL no Supabase); após push deste fix + redeploy, revalidar bateria e
+  conferir drivers novos > 26/10. Mesma sessão: chave Google Routes nova no projeto certo
+  (`gps-caminhoneiro-pro`), restrição Android release+debug, Routes API ativada e billing OK —
+  teste SP→RJ 446 km TRAFFIC_AWARE passou; `frontend-flutter/keys.json` atualizado com a
+  `GOOGLE_ROUTES_KEY` nova. Brevo no Render: cadastro com e-mail real OK (bateria confirmou).
+
 - **BATERIA CICLO DE DIAS REAIS (17:45, 23/10)** — novo script `tools/bateria-ciclo-dias.js`
   (10 cenários: frota de 5 contas reais, troca de foto, rota editada ao vivo, ciclo de
   entregas chegou/entregue por dia, sinal chega e sai, chat multi-dias com histórico,
