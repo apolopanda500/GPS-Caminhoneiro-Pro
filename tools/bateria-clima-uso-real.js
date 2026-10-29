@@ -19,7 +19,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function adb(args, opts = {}) {
   const argv = args[0] === 'devices' ? args : ['-s'].concat(args);
   return new Promise((resolve) => {
-    execFile(ADB, argv, { timeout: 45000, ...opts },
+    execFile(ADB, argv, { timeout: 45000, maxBuffer: 64 * 1024 * 1024, ...opts },
       (e, o, er) => resolve({ ok: !e, saida: o, erro: String(er || e || '') }));
   });
 }
@@ -121,15 +121,32 @@ async function tocarTexto(s, texto, tentativas = 3) {
   }
   return null;
 }
+async function tamanhoTela(s) {
+  const out = await adb([s, 'shell', 'wm', 'size']);
+  const m = /(\d+)x(\d+)/.exec(out.saida || '');
+  return m ? { w: +m[1], h: +m[2] } : { w: 1080, h: 2400 };
+}
+async function tocarPonto(s, fx, fy) {
+  const t = await tamanhoTela(s);
+  await adb([s, 'shell', 'input', 'tap', String(Math.round(t.w * fx)), String(Math.round(t.h * fy))]);
+}
+const Y_CAMADA = {
+  'Radar de chuva': 0.383,
+  'Precipitação': 0.450,
+  'Vento': 0.517,
+  'Temperatura': 0.584,
+  'Nuvens': 0.652,
+};
 async function screenshot(s, nome) {
   let cap = await adb([s, 'exec-out', 'screencap', '-p'], { timeout: 60000, encoding: 'buffer' });
   let buf = Buffer.from(cap.saida || '');
-  if (buf.length < 20000) {
+  const completo = (b) => b.length > 20000 && b.includes(Buffer.from('IEND', 'latin1'));
+  if (!completo(buf)) {
     await adb([s, 'shell', 'screencap', '-p', '/sdcard/scr_tmp.png']);
-    const pull = await adb([s, 'pull', '/sdcard/scr_tmp.png', path.join(OUT, 'tmp_' + (APELIDOS[s] || s) + '.png')], { timeout: 60000 });
+    await adb([s, 'pull', '/sdcard/scr_tmp.png', path.join(OUT, 'tmp_' + (APELIDOS[s] || s) + '.png')], { timeout: 60000 });
     try { buf = fs.readFileSync(path.join(OUT, 'tmp_' + (APELIDOS[s] || s) + '.png')); } catch { buf = Buffer.alloc(0); }
   }
-  if (buf.length > 20000) return buf;
+  if (completo(buf)) return buf;
   return null;
 }
 const OUT = 'C:\\Users\\Micro\\AppData\\Local\\Temp\\opencode\\clima-uso-real';
@@ -210,20 +227,26 @@ async function parteHttp(res) {
 
   // Overpass: limites de velocidade reais perto (base do alerta de radar)
   const q = `[out:json][timeout:15];way(around:2000,-22.9068,-43.1729)["maxspeed"];out tags 3;`;
-  const ov = await get('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q));
-  try {
-    const oj = JSON.parse(ov.buf.toString('utf8'));
-    const tags = (oj.elements || []).map((e) => e.tags || {}).filter((t) => t.maxspeed);
-    res.radaresOverpass = tags.length >= 1;
-    res.exemploMaxspeed = tags[0]?.maxspeed;
-  } catch { res.radaresOverpass = false; }
+  res.radaresOverpass = false;
+  for (let tentativa = 1; tentativa <= 3 && !res.radaresOverpass; tentativa++) {
+    const ov = await get('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q));
+    res.overpassStatus = ov.status;
+    try {
+      const oj = JSON.parse(ov.buf.toString('utf8'));
+      const tags = (oj.elements || []).map((e) => e.tags || {}).filter((t) => t.maxspeed);
+      res.radaresOverpass = tags.length >= 1;
+      res.exemploMaxspeed = tags[0]?.maxspeed;
+    } catch {
+      if (tentativa < 3) await sleep(3000);
+    }
+  }
 }
 
 // -------- parte dos aparelhods --------
 async function parteAparelho(ap, res) {
   const s = ap;
   await adb([s, 'shell', 'am', 'start', '-n', ACT]);
-  await sleep(10);
+  await sleep(8000);
   const placa = await screenshot(s, 'base');
   if (!placa) throw new Error('screencap falhou');
   fs.writeFileSync(path.join(OUT, `${APELIDOS[s]}_base.png`), placa);
@@ -231,16 +254,32 @@ async function parteAparelho(ap, res) {
   const xml = await dumpXml(s);
   const	txtTextos = (xml.match(/text="[^"]{2,60}"/g) || []).slice(0, 40).join(' ');
   res.textosTela = txtTextos;
+  res.modo = /text="[^"]{2,}/.test(xml) ? 'texto' : 'coordenadas';
 
   // abre o painel "Mapa e graficos"
-  const abriu = await tocarTexto(s, 'Mapa e graficos');
+  let abriu;
+  if (res.modo === 'coordenadas') {
+    await tocarPonto(s, 0.278, 0.165);
+    await sleep(2500);
+    const painel = await screenshot(s, 'painel');
+    if (painel) fs.writeFileSync(path.join(OUT, `${APELIDOS[s]}_painel.png`), painel);
+    abriu = painel ? diferenca(placa, painel, 110).px > 50 : false;
+  } else {
+    abriu = await tocarTexto(s, 'Mapa e graficos');
+  }
   if (!abriu) { res.falha = 'botao Mapa e graficos nao encontrado (app nao logado?)'; return; }
   await sleep(1500);
 
   const camadas = ['Radar de chuva', 'Precipitação', 'Vento', 'Temperatura', 'Nuvens'];
   const prints = {};
   for (const nome of camadas) {
-    const n = await tocarTexto(s, nome);
+    let n;
+    if (res.modo === 'coordenadas') {
+      await tocarPonto(s, 0.76, Y_CAMADA[nome]);
+      n = true;
+    } else {
+      n = await tocarTexto(s, nome);
+    }
     if (!n) { res['botao_' + nome] = false; continue; }
     await sleep(2500);
     const p = await screenshot(s, nome);
@@ -297,14 +336,14 @@ async function parteAparelho(ap, res) {
   console.log(`tiles radar reais: ${http.radarTiles ? 'OK' : 'FALHA'} | frames divergem (nuvens passando: sim) ${http.framesDivergem ? 'OK' : 'FALHA'}`);
   console.log(`ir tile: ${http.irTile === null ? 'fornecedor sem frame agora (app cai p/ previsto)' : (http.irTile ? 'OK' : 'FALHA')}`);
   console.log(`grade 16+ ${http.grade16 ? 'ok,' : 'falha'} vento variando: ${http.ventoVariando ? 'OK' : 'FALHA'} | prob. precipitação 0-100: ${http.precipProbOk ? 'OK' : 'FALHA'} | temp variando: ${http.tempVariando ? 'OK' : 'FALHA'} | nuvens previstas 0-100: ${http.nuvensPrevistasOk ? 'OK' : 'FALHA'}`);
-  console.log(`radares/maxspeed via Overpass: ${http.radaresOverpass ? 'OK (' + http.exemploMaxspeed + ')' : 'FALHA'}`);
+  console.log(`radares/maxspeed via Overpass: ${http.radaresOverpass ? 'OK (' + http.exemploMaxspeed + ')' : 'FALHA'}${http.overpassStatus ? ' [http ' + http.overpassStatus + ']' : ''}`);
   console.log('======== APARELHOS (toques reais nos botões) ========');
   for (const [ap, r] of Object.entries(aparelhos)) {
     const nome = APELIDOS[ap] || ap;
-    if (r.falha || r.erro) { console.log(`${nome}: PROBLEMA ${r.falha || r.erro}`); console.log('  textos da tela: ' + (r.textosTela || 'sem dump')); continue; }
+    if (r.falha || r.erro) { console.log(`${nome}: PROBLEMA ${r.falha || r.erro} | modo ${r.modo || '?'}`); console.log('  textos da tela: ' + (r.textosTela || 'sem dump')); continue; }
     const botoes = ['Radar de chuva', 'Precipitação', 'Vento', 'Temperatura', 'Nuvens']
       .map((t) => `${t}=${r['botao_' + t] ? 'tocou' : 'não achou'}`).join(' | ');
-    console.log(`${nome}: ${botoes}`);
+    console.log(`${nome} (${r.modo || '?'}): ${botoes}`);
     console.log(`  radar subtitulo: ${r.radarSubtitulo || '(não leu)'} | mapa mudou vs base: ${r.mapaDiferencaPx} px em ${0 + 1000} amostras`);
     console.log(`  radar vs nuvens diferentes: ${r.camadasEntreSiDif ?? '?'} px`);
   }
