@@ -18,6 +18,12 @@
 11. **Emulador AVD `teste_apk`** — configurar para testes automatizados locais.
 
 ## Já feito / validado
+- Corrigido o crash `Null duration passed into animateCamera` (MapLibre 13.5.0):
+  câmera instantânea agora usa `moveCamera` (sessão 28/10/2026).
+- Radar/nuvens do RainViewer limitados ao zoom 7, eliminando os tiles
+  "Zoom Level Not Supported" (sessão 28/10/2026).
+- Bateria de uso real com `--sem-emulador` e cenário de GPS real do Android:
+  12/12 (nota 10.0) em duas rodadas; simulação real 10/10 (sessão 28/10/2026).
 - Build APK debug instalado e app rodando no celular R9XY1016R6V.
 - `flutter analyze` → "No issues found!".
 - Bateria app uso real 10/10 (2x) contra produção.

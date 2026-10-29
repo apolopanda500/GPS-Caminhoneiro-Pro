@@ -103,3 +103,14 @@ visao do motorista; precisao de 10-20 m.
 camera segue o rumo real em 3 modos (2D, 3D navegacao e cabine 3D com tilt 60); o
 seguimento nao e mais desligado por movimento programatico; transito entra abaixo dos
 rotulos e mostra so lentidao; GPS em `bestForNavigation` sem filtro de distancia.
+
+---
+
+### Rodada 9 - noite de 28/10/2026
+
+Registro completo em [SESSAO-2026-10-28.md](SESSAO-2026-10-28.md): dois bugs reais
+corrigidos no celular (crash do animateCamera no MapLibre e tiles do RainViewer
+acima do zoom 7), bateria de uso real adaptada com --sem-emulador e GPS real
+do Android comprovado. Resultados: bateria 12/12 nota 10.0 em duas rodadas,
+simulacao real 10/10, flutter analyze limpo, 235 testes Flutter, 29 testes do
+backend.

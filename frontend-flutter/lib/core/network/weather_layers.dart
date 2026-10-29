@@ -40,6 +40,8 @@ class WeatherLayers {
       'https://api.rainviewer.com/public/weather-maps.json';
   static const String _openMeteo = 'https://api.open-meteo.com/v1/forecast';
 
+  static const int maxZoomTiles = 7;
+
   /// Timeline completa do radar: 2 horas de passado + nowcast (previsao).
   static Future<List<FrameRadar>> framesRadar() async {
     try {

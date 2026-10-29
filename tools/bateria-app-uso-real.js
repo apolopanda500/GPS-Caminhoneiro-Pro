@@ -26,6 +26,8 @@ function arg(nome, padrao) {
 const BASE = arg('url', 'https://gps-truck-backend.onrender.com');
 const CELULAR = arg('celular', 'R9XY1016R6V');
 const EMULADOR = arg('emulador', 'emulator-5554');
+const SO_CELULAR = process.argv.includes('--sem-emulador') || arg('aparelho', '') === 'celular';
+const APARELHOS = SO_CELULAR ? [CELULAR] : [CELULAR, EMULADOR];
 const PACOTE = 'com.gpscamioneiro.gps_camioneiro_pro';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -288,18 +290,18 @@ cenario('cadastro-e-login', 'Contas reais com e-mail verificado (producao)', asy
   if (linhas.rows[0].total !== users.length) throw new Error('faltou driver no banco');
 });
 
-cenario('app-aberto-nos-aparelhos', 'App rodando no celular e no emulador (adb pidof)', async () => {
+cenario('app-aberto-nos-aparelhos', 'App rodando no aparelho real (adb pidof)', async () => {
   const saida = await adb(['devices']);
   if (!saida.includes(CELULAR)) throw new Error('celular ' + CELULAR + ' ausente: ' + saida);
-  if (!saida.includes(EMULADOR)) throw new Error('emulador ' + EMULADOR + ' ausente');
-  for (const ap of [CELULAR, EMULADOR]) {
+  if (!SO_CELULAR && !saida.includes(EMULADOR)) throw new Error('emulador ' + EMULADOR + ' ausente');
+  for (const ap of APARELHOS) {
     const pid = await adb(['-s', ap, 'shell', 'pidof', PACOTE]);
     if (!pid) throw new Error('app nao rodando em ' + ap);
   }
 });
 
-cenario('permissoes-do-usuario', 'Usuario toca PERMITIR no app e no Android (instalacao limpa)', async () => {
-  for (const aparelho of [CELULAR, EMULADOR]) {
+cenario('permissoes-do-usuario', 'Localizacao concedida ao app no Android', async () => {
+  for (const aparelho of APARELHOS) {
     let ok = false;
     for (let tentativa = 0; tentativa < 8 && !ok; tentativa++) {
       if (await permitidoLocalizacao(aparelho)) { ok = true; break; }
@@ -324,8 +326,8 @@ cenario('permissoes-do-usuario', 'Usuario toca PERMITIR no app e no Android (ins
   }
 });
 
-cenario('app-entra-no-mapa', 'Primeira execucao guiada: dialogos, onboarding e mapa pedindo GPS', async () => {
-  for (const aparelho of [CELULAR, EMULADOR]) {
+cenario('app-entra-no-mapa', 'App chega ao mapa com o GPS ativo', async () => {
+  for (const aparelho of APARELHOS) {
     await adb(['-s', aparelho, 'shell', 'am', 'start', '-n', PACOTE + '/.MainActivity']);
     await sleep(4000);
     let feito = await pedindoGps(aparelho);
@@ -366,7 +368,25 @@ cenario('app-entra-no-mapa', 'Primeira execucao guiada: dialogos, onboarding e m
   }
 });
 
-cenario('gps-do-sistema-move', 'GPS do emulador muda para Niteroi e o sistema reflete', async () => {
+cenario('gps-do-sistema-move', 'GPS do sistema entrega posicao real ao app', async () => {
+  if (SO_CELULAR) {
+    const prova = await esperar(async () => {
+      const s = await adb(['-s', CELULAR, 'shell', 'dumpsys', 'location']);
+      const pedido = /HIGH_ACCURACY[^\r\n]*com\.gpscamioneiro\.gps_camioneiro_pro/.test(s) ||
+        /com\.gpscamioneiro\.gps_camioneiro_pro[\s\S]{0,200}HIGH_ACCURACY/.test(s);
+      const gps = s.match(/last location=Location\[gps (-?\d+\.\d+),(-?\d+\.\d+)/);
+      const fundido = s.match(/last location=Location\[fused (-?\d+\.\d+),(-?\d+\.\d+)/);
+      const alvo = gps || fundido;
+      if (!pedido || !alvo) return null;
+      const lat = parseFloat(alvo[1]);
+      const lon = parseFloat(alvo[2]);
+      if (!(lat > -90 && lat < 90 && lon > -180 && lon < 180)) return null;
+      return { lat, lon, fonte: gps ? 'gps' : 'fused' };
+    }, 60000, 3000);
+    if (!prova) throw new Error('app nao pediu GPS de alta precisao ao sistema ou sem fix real');
+    console.log(`        celular: fix ${prova.fonte} ${prova.lat},${prova.lon}`);
+    return;
+  }
   await adb(['-s', EMULADOR, 'emu', 'geo', 'fix', '-43.538143', '-22.845021']);
   await sleep(2500);
   await adb(['-s', EMULADOR, 'emu', 'geo', 'fix', '-43.114000', '-22.905500']);
@@ -544,7 +564,7 @@ if (require.main === module) {
   (async () => {
   console.log('='.repeat(50));
   console.log('BATERIA APP USO REAL - GPS Caminhoneiro Pro');
-  console.log('Alvo: ' + BASE + ' | aparelhos: ' + CELULAR + ' + ' + EMULADOR);
+  console.log('Alvo: ' + BASE + ' | aparelhos: ' + APARELHOS.join(' + '));
   console.log('='.repeat(50));
   let passados = 0;
   const falhas = [];

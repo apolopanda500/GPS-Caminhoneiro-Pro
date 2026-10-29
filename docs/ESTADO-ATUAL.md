@@ -1,12 +1,13 @@
-# 📊 Estado Atual do Projeto (26/10/2026)
+# 📊 Estado Atual do Projeto (29/10/2026)
 
 ## Métricas de Validação
 
 | Verificação | Resultado | Observação |
 |-------------|-----------|------------|
-| `flutter analyze` | Sem issues | Quando rodado com sucesso |
-| `flutter test` | Todos verdes | 233+ testes (versão anterior) |
+| `flutter analyze` | Sem issues | 28/10/2026 |
+| `flutter test` | 235/235 verdes | 28/10/2026 |
 | Backend `npm test` | 29/29 verdes | Com e sem `.env` |
+| Bateria app uso real (12 cenários) | 12/12 — nota 10.0 (2x) | Só celular real, com GPS do sistema |
 | Bateria simulação real (10 cenários) | 10/10 — nota 10.0 | Contra produção |
 | Bateria ciclo de dias reais (10 cenários) | 10/10 — nota 10.0 | Frota de 5 contas |
 | Bateria duas contas (15 cenários) | 15/15 — nota 10.0 | Celular + emulador |

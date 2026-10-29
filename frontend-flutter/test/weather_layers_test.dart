@@ -17,5 +17,9 @@ void main() {
       expect(url, isNot(contains('/0/0/0/')));
       expect(url, endsWith('/0/0_0.png'));
     });
+
+    test('respeita o zoom maximo entregue pelo RainViewer', () {
+      expect(WeatherLayers.maxZoomTiles, 7);
+    });
   });
 }

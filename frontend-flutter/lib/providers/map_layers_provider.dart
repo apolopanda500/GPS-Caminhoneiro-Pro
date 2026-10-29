@@ -383,6 +383,7 @@ class MapLayersProvider extends ChangeNotifier {
     required String? url,
     required bool ativo,
     required double opacidade,
+    int maxzoom = WeatherLayers.maxZoomTiles,
   }) async {
     final sourceId = '${id}_fonte';
     final layerId = '${id}_camada';
@@ -410,7 +411,7 @@ class MapLayersProvider extends ChangeNotifier {
           tiles: [url],
           tileSize: 256,
           minzoom: 0,
-          maxzoom: 12,
+          maxzoom: maxzoom.toDouble(),
         ));
     c.addLayer(
         sourceId,
@@ -458,7 +459,7 @@ class MapLayersProvider extends ChangeNotifier {
         sourceId,
         layerId,
         const ml.HillshadeLayerProperties(
-          hillshadeExaggeration: 0.4,
+          hillshadeExaggeration: 0.5,
           hillshadeShadowColor: '#1A1A1A',
         ));
   }

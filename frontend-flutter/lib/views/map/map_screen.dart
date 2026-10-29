@@ -875,19 +875,22 @@ class _MapScreenState extends State<MapScreen> {
     final c = _mapController;
     if (c == null || !_styleLoaded) return;
     _ultimaCameraProgramatica = DateTime.now();
-    c.animateCamera(
-      ml.CameraUpdate.newCameraPosition(
-        ml.CameraPosition(
-          target: ml.LatLng(target.latitude, target.longitude),
-          zoom: zoom,
-          bearing: bearing,
-          tilt: tilt,
-        ),
+    final update = ml.CameraUpdate.newCameraPosition(
+      ml.CameraPosition(
+        target: ml.LatLng(target.latitude, target.longitude),
+        zoom: zoom,
+        bearing: bearing,
+        tilt: tilt,
       ),
-      duration: instant
-          ? const Duration(milliseconds: 0)
-          : const Duration(milliseconds: 450),
     );
+    if (instant) {
+      c.moveCamera(update).catchError((_) => false);
+      return;
+    }
+    c.animateCamera(
+      update,
+      duration: const Duration(milliseconds: 450),
+    ).catchError((_) => false);
   }
 
   /// Posiciona a camera conforme o modo escolhido, usando o rumo real do

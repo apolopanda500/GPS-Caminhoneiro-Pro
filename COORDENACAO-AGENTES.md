@@ -824,3 +824,20 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   bateria-duas-contas **15/15 nota 10.0** (cenario 12 finalmente fecha com celular + emulador) e
   bateria-simulacao-real **10/10 nota 10.0**. docs/PROXIMA-SESSAO-REBOOT.md reescrito com o novo
   estado (meta fechada) e o passo a passo correto do emulador.
+
+- 02:05 29/10/2026 AGENTE-NOITE: sessao de uso real com o celular R9XY1016R6V (SM-A057M,
+  Android 15). Dois bugs reais reproduzidos no aparelho e corrigidos:
+  (1) PlatformException "Null duration passed into animateCamera" no MapLibre 13.5.0 - a
+  camera instantanea usava animateCamera com duration 0; agora usa moveCamera quando
+  instant=true e trata erros com catchError nos dois caminhos
+  (frontend-flutter/lib/views/map/map_screen.dart). (2) tiles do RainViewer acima do zoom 7
+  devolvem "Zoom Level Not Supported" e cobriam o mapa; o raster agora respeita
+  WeatherLayers.maxZoomTiles = 7 (weather_layers.dart, map_layers_provider.dart) com teste
+  novo em test/weather_layers_test.dart. Validado no celular: startup sem E flutter, radar
+  animando 13 frames sem o tile de erro, troca Satelite/Ruas/3D funcionando (settings.layer
+  gravado), radio ExoPlayer, clima, busca, rede e configuracoes sem excecoes.
+  Bateria tools/bateria-app-uso-real.js adaptada com --sem-emulador (usa so o celular real) e
+  cenario gps-do-sistema-move reescrito para provar o fix GPS real do Android
+  (HIGH_ACCURACY + last location=Location[gps ...]). Resultado: 12/12 nota 10.0 em duas
+  rodadas (01:45 e 01:49), backend npm test 29/29, flutter analyze "No issues found!",
+  flutter test 235/235, backend build EXIT=0 e /status online/database connected.
