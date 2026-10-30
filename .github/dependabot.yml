@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/backend-api"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "pub"
+    directory: "/frontend-flutter"
+    schedule:
+      interval: "weekly"
