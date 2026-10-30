@@ -99,6 +99,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Widget _buildAvatarImage(String url) {
+    if (url.startsWith('data:')) {
+      try {
+        final base64Part = url.split(',').last;
+        final bytes = base64Decode(base64Part);
+        return Image.memory(bytes, width: 92, height: 92, fit: BoxFit.cover);
+      } catch (_) {
+        return Text(_icon, style: const TextStyle(fontSize: 46));
+      }
+    }
+    return Image.network(
+      url,
+      width: 92,
+      height: 92,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) =>
+          Text(_icon, style: const TextStyle(fontSize: 46)),
+    );
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -208,14 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: ClipOval(
                     child: (driver?.avatarUrl ?? '').isNotEmpty
-                        ? Image.network(
-                            driver!.avatarUrl!,
-                            width: 92,
-                            height: 92,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Text(_icon,
-                                style: const TextStyle(fontSize: 46)),
-                          )
+                        ? _buildAvatarImage(driver!.avatarUrl!) //
                         : Text(_icon, style: const TextStyle(fontSize: 46)),
                   ),
                 ),

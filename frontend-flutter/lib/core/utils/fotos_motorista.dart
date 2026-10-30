@@ -48,6 +48,7 @@ class FotosMotorista {
     final p = provider(url);
     if (p == null) return fallback;
     return Image(
+      key: ValueKey(url),
       image: p,
       fit: fit,
       gaplessPlayback: true,
