@@ -64,7 +64,7 @@ class AudioProvider extends ChangeNotifier {
 
   Future<void> carregarPreferencias() async {
     final prefs = await SharedPreferences.getInstance();
-    musicaLigada = prefs.getBool('audio_musica') ?? true;
+    musicaLigada = prefs.getBool('audio_musica') ?? false;
     estacaoLigada = prefs.getBool('audio_estacao') ?? true;
     await carregarFavoritosERecentes();
     if (musicaLigada) await tocarMusica();
@@ -85,15 +85,7 @@ class AudioProvider extends ChangeNotifier {
 
   Future<void> tocarMusica() async {
     try {
-      try {
-        await _player.setAsset('assets/audio/musica_custom.mp3');
-      } catch (_) {
-        try {
-          await _player.setAsset('assets/audio/tema_loop.wav');
-        } catch (_) {
-          return;
-        }
-      }
+      await _player.setAsset('assets/audio/gta_sa_andre.mpeg');
       await _player.setVolume(0.55);
       await _player.setLoopMode(LoopMode.one);
       await _player.play();
@@ -121,21 +113,12 @@ class AudioProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Callback que toca o som personalizado de entrada, quando houver.
-  /// Retorna true se tocou (evitando o sino padrao).
-  /// Definido em `main.dart` para amarrar os dois providers.
-  Future<bool> Function()? tocadorEntrada;
-
-  /// Som de chegada (sino de estacao) na parada.
+  /// Som de chegada: sino unico do app (embutido no APK).
+  ///
   /// Se o radio estiver tocando, abaixa o volume (duck), toca o sino
   /// e devolve o volume do radio em seguida.
   Future<void> tocarChegada() async {
     if (!estacaoLigada) return;
-    final personalizado = tocadorEntrada;
-    if (personalizado != null) {
-      final tocou = await personalizado();
-      if (tocou) return;
-    }
     final salvarVolume = _radio.volume;
     final radioAtivo = radioTocando;
     try {
@@ -143,11 +126,7 @@ class AudioProvider extends ChangeNotifier {
     } catch (_) {}
     final p = AudioPlayer();
     try {
-      try {
-        await p.setAsset('assets/audio/estacao_custom.wav');
-      } catch (_) {
-        await p.setAsset('assets/audio/estacao.wav');
-      }
+      await p.setAsset('assets/audio/estacao.wav');
       await p.setVolume(0.9);
       await p.play();
       await p.playerStateStream
