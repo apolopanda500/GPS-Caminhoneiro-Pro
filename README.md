@@ -81,17 +81,6 @@ gps-camioneiro-pro-completo/
 └── README.md
 ```
 
-## Tecnologias utilizadas
-
-| Camada | Tecnologia | Para que serve |
-|--------|-----------|----------------|
-| Banco | PostgreSQL + PostGIS | Consultas espaciais de radares, pontes, alertas e chat por proximidade |
-| Back-end | Node.js + TypeScript + Socket.io | WebSockets em tempo real: rede V2X, posições de caminhões, chat, emojis |
-| Front-end | Flutter (Dart) | App nativo Android com renderização por GPU (60 FPS) |
-| Mapas | MapLibre GL + OpenStreetMap / Esri | Mapa nativo 3D (rotação/inclinação), ruas e satélite, sem chave de API |
-| Cache local | SQLite | Funcionamento em zonas sem sinal celular |
-| Ícones | flutter_launcher_icons | Geração do ícone do app para Android |
-
 ## Funcionalidades principais
 
 - ✅ Mapa nativo dentro do app (não abre aba de navegador)
@@ -114,61 +103,5 @@ gps-camioneiro-pro-completo/
 - ✅ Tema escuro otimizado para direção noturna
 - ✅ Preparado para modo offline via cache local SQLite
 - ✅ Assinatura Premium (PIX) com endpoint dedicado no backend
-
-## Testes e build
-
-```bash
-cd frontend-flutter
-flutter analyze          # deve terminar com "No issues found!"
-flutter test             # 79 testes (models, providers, widgets)
-flutter build apk --debug
-flutter build apk --release --target-platform android-arm64
-```
-
-Instalar no dispositivo/emulador conectado:
-
-```bash
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
-```
-
-## Como rodar o back-end (Render + Supabase)
-
-1. Crie um banco gratuito no [Supabase](https://supabase.com) com extensão PostGIS.
-2. Execute o script `database/setup_postgis.sql` no editor SQL do Supabase.
-3. Copie `.env.example` para `.env` na pasta `backend-api` e preencha a `DATABASE_URL`.
-4. Instale dependências e inicie:
-   ```bash
-   cd backend-api
-   npm install
-   npm run build
-   npm start        # ou: npm run dev
-   ```
-5. Hospede gratuitamente no [Render](https://render.com) conectando o repositório Git.
-
-## Como rodar o app Flutter (Android)
-
-1. Instale o [Flutter SDK](https://docs.flutter.dev/get-started/install).
-2. Na pasta `frontend-flutter`, gere a estrutura nativa Android (uma vez):
-   ```bash
-   flutter create . --platforms=android --org com.gpscamioneiro --project-name gps_camioneiro_pro
-   ```
-   > O script `build-flutter.ps1` faz isso automaticamente preservando o `AndroidManifest.xml`.
-3. Instale dependências e rode:
-   ```bash
-   flutter pub get
-   flutter run
-   ```
-4. No `lib/core/constants/app_constants.dart`, substitua `baseUrl` e `socketUrl` pela URL do seu back-end na Render.
-5. Adicione os ícones PNG na pasta `frontend-flutter/assets/icons/`.
-
-## Próximos passos sugeridos
-
-1. Configurar o ambiente Flutter no seu computador.
-2. Criar a conta gratuita na Render e subir o `backend-api`.
-3. Criar o banco PostGIS no Supabase e rodar o `setup_postgis.sql`.
-4. Ajustar `baseUrl`/`socketUrl` em `app_constants.dart` com a URL da Render.
-5. Testar o app no celular Android com o mapa renderizado nativamente.
-
----
 
 Desenvolvido com foco em performance para celulares Android e atualização verdadeira em tempo real entre caminhoneiros.
