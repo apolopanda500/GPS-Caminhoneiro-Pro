@@ -403,26 +403,9 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     final d = _driver;
     if (d == null) return false;
-    _driver = DriverModel(
-      driverId: d.driverId,
-      email: d.email,
-      name: d.name,
-      isPremium: d.isPremium,
-      truckHeight: d.truckHeight,
-      truckWeight: d.truckWeight,
-      axleCount: d.axleCount,
-      hazmat: d.hazmat,
-      avatarUrl: kind == 'truck' ? d.avatarUrl : dataUrl,
-      truckPhotoUrl: kind == 'truck' ? dataUrl : d.truckPhotoUrl,
-      truckModel: d.truckModel,
-      cargoType: d.cargoType,
-      truckIcon: d.truckIcon,
-      role: d.role,
-      helpType: d.helpType,
-      companyName: d.companyName,
-      companyLat: d.companyLat,
-      companyLon: d.companyLon,
-    );
+    _driver = kind == 'truck'
+        ? d.copyWith(truckPhotoUrl: dataUrl)
+        : d.copyWith(avatarUrl: dataUrl);
     await _persist();
     notifyListeners();
     if (!AppConstants.serverConfigured) return true;
@@ -449,25 +432,10 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     final d = _driver;
     if (d == null) return false;
-    _driver = DriverModel(
-      driverId: d.driverId,
-      email: d.email,
-      name: d.name,
-      isPremium: d.isPremium,
-      truckHeight: d.truckHeight,
-      truckWeight: d.truckWeight,
-      axleCount: d.axleCount,
-      hazmat: d.hazmat,
-      avatarUrl: d.avatarUrl,
-      truckPhotoUrl: d.truckPhotoUrl,
-      truckModel: d.truckModel,
-      cargoType: d.cargoType,
+    _driver = d.copyWith(
       truckIcon: truckIcon ?? d.truckIcon,
       role: role,
       helpType: helpType ?? d.helpType,
-      companyName: d.companyName,
-      companyLat: d.companyLat,
-      companyLon: d.companyLon,
     );
     await _persist();
     notifyListeners();
@@ -485,22 +453,10 @@ class AuthProvider extends ChangeNotifier {
     final d = _driver;
     if (d == null) return false;
     if (!AppConstants.serverConfigured) {
-      _driver = DriverModel(
-        driverId: d.driverId,
-        email: d.email,
+      _driver = d.copyWith(
         name: name ?? d.name,
-        isPremium: d.isPremium,
-        truckHeight: d.truckHeight,
-        truckWeight: d.truckWeight,
-        axleCount: d.axleCount,
-        hazmat: d.hazmat,
-        avatarUrl: d.avatarUrl,
-        truckPhotoUrl: d.truckPhotoUrl,
         truckModel: truckModel ?? d.truckModel,
         cargoType: cargoType ?? d.cargoType,
-        truckIcon: d.truckIcon,
-        role: d.role,
-        helpType: d.helpType,
         companyName: companyName ?? d.companyName,
         companyLat: companyLat ?? d.companyLat,
         companyLon: companyLon ?? d.companyLon,
@@ -509,6 +465,16 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     }
+    _driver = d.copyWith(
+      name: name ?? d.name,
+      truckModel: truckModel ?? d.truckModel,
+      cargoType: cargoType ?? d.cargoType,
+      companyName: companyName ?? d.companyName,
+      companyLat: companyLat ?? d.companyLat,
+      companyLon: companyLon ?? d.companyLon,
+    );
+    await _persist();
+    notifyListeners();
     try {
       final resp = await http
           .post(
@@ -524,30 +490,7 @@ class AuthProvider extends ChangeNotifier {
             }),
           )
           .timeout(const Duration(seconds: 8));
-      if (resp.statusCode != 200) return false;
-      _driver = DriverModel(
-        driverId: d.driverId,
-        email: d.email,
-        name: name ?? d.name,
-        isPremium: d.isPremium,
-        truckHeight: d.truckHeight,
-        truckWeight: d.truckWeight,
-        axleCount: d.axleCount,
-        hazmat: d.hazmat,
-        avatarUrl: d.avatarUrl,
-        truckPhotoUrl: d.truckPhotoUrl,
-        truckModel: truckModel ?? d.truckModel,
-        cargoType: cargoType ?? d.cargoType,
-        truckIcon: d.truckIcon,
-        role: d.role,
-        helpType: d.helpType,
-        companyName: companyName ?? d.companyName,
-        companyLat: companyLat ?? d.companyLat,
-        companyLon: companyLon ?? d.companyLon,
-      );
-      await _persist();
-      notifyListeners();
-      return true;
+      return resp.statusCode == 200;
     } catch (_) {
       return false;
     }

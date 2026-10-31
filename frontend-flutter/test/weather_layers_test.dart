@@ -21,5 +21,15 @@ void main() {
     test('respeita o zoom maximo entregue pelo RainViewer', () {
       expect(WeatherLayers.maxZoomTiles, 7);
     });
+
+    test('classifica ceu limpo, nublado, chuva e tempestade', () {
+      expect(WeatherLayers.tipoNuvem(5, 0, 0), 'limpo');
+      expect(WeatherLayers.tipoNuvem(45, 0, 2), 'parcial');
+      expect(WeatherLayers.tipoNuvem(80, 0, 3), 'nublado');
+      expect(WeatherLayers.tipoNuvem(95, 0, 3), 'encoberto');
+      expect(WeatherLayers.tipoNuvem(90, 0, 63), 'chuva');
+      expect(WeatherLayers.tipoNuvem(100, 5, 95), 'tempestade');
+      expect(WeatherLayers.tipoNuvem(100, 1, 73), 'neve');
+    });
   });
 }

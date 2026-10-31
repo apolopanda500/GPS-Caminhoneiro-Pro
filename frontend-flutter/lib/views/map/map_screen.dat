@@ -1,0 +1,8 @@
+void _aplicarPerfilDeGraficos(RenderQuality quality) {
+    final camadas = context.read<MapLayersProvider>();
+    if (quality == RenderQuality.ultra) {
+      if (!camadas.radar) camadas.setRadar(true);
+      if (!camadas.nuvens) camadas.setNuvens(true);
+    }
+    if (mounted) setState () {};
+  }

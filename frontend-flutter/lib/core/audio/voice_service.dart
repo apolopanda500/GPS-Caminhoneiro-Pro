@@ -39,9 +39,6 @@ class VoiceService {
   /// Perfil de fala (Padrão, Waze, Uber, 99).
   PerfilVoz perfil = PerfilVoz.padrao;
 
-  /// Quando ligado, o app toca **apenas os sinos** (sem falar as ruas).
-  bool somenteSino = false;
-
   /// Voz escolhida (nome) e tom da fala.
   String? vozEscolhida;
   double velocidade = 0.48;
@@ -59,7 +56,6 @@ class VoiceService {
         ? ModoFalaParada.nomeCliente
         : ModoFalaParada.numero;
     perfil = PerfilVoz.porChave(prefs.getString('audio_vozPerfil') ?? 'padrao');
-    somenteSino = prefs.getBool('audio_vozSomenteSino') ?? false;
     vozEscolhida = prefs.getString('audio_vozNome');
     velocidade = prefs.getDouble('audio_vozVelocidade') ?? 0.48;
     tom = prefs.getDouble('audio_vozTom') ?? 1.0;
@@ -78,13 +74,6 @@ class VoiceService {
     perfil = novo;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('audio_vozPerfil', novo.name);
-  }
-
-  /// Só o sino (sem falar as ruas).
-  Future<void> definirSomenteSino(bool v) async {
-    somenteSino = v;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('audio_vozSomenteSino', v);
   }
 
   /// Troca a voz do aparelho.
@@ -163,7 +152,6 @@ class VoiceService {
 
   Future<void> falar(String texto) async {
     if (!ligada) return;
-    if (somenteSino) return; // so o sino: sem falar as ruas
     await _garantir();
     if (!_iniciado) return;
     try {
@@ -190,7 +178,6 @@ class VoiceService {
         perfil: perfil,
         numero: numero,
         nome: nome,
-        distanciaKm: distanciaKm,
         porNome: modoFalaParada == ModoFalaParada.nomeCliente,
       ),
     );
@@ -242,7 +229,6 @@ class VoiceService {
         total: total,
         proximoNumero: proximoNumero,
         nome: proximoNome,
-        distanciaProximaKm: distanciaProximaKm,
         porNome: modoFalaParada == ModoFalaParada.nomeCliente,
       ),
     );

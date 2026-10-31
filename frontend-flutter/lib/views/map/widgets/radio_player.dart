@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
@@ -64,7 +64,7 @@ class RadioPlayer extends StatelessWidget {
                   ),
                   Expanded(
                     child: Text(
-                      'TOCADOR DO RÁDIO',
+                      'TOCADOR DO RÃDIO',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.75),
@@ -169,7 +169,7 @@ class RadioPlayer extends StatelessWidget {
                       color: kEmergencyRed,
                     ),
                     child: Icon(
-                      audio.radioAtivo ? Icons.pause : Icons.play_arrow,
+                      audio.radioPausado ? Icons.play_arrow : Icons.pause,
                       size: 40,
                       color: Colors.white,
                     ),
@@ -177,7 +177,7 @@ class RadioPlayer extends StatelessWidget {
                 ),
                 const SizedBox(width: 18),
                 IconButton(
-                  tooltip: 'Próxima',
+                  tooltip: 'PrÃ³xima',
                   iconSize: 34,
                   color: Colors.white70,
                   onPressed: () =>
@@ -203,6 +203,27 @@ class RadioPlayer extends StatelessWidget {
                     ),
                   ),
                   const Icon(Icons.volume_up, color: Colors.white54, size: 18),
+                  IconButton(
+                    tooltip: audio.mudo ? 'Tirar do mudo' : 'Mudo',
+                    onPressed: () =>
+                        context.read<AudioProvider>().alternarMudo(),
+                    icon: Icon(
+                      audio.mudo ? Icons.volume_off : Icons.volume_mute,
+                      color: audio.mudo ? kEmergencyRed : Colors.white54,
+                      size: 20,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Dormir com o radio',
+                    onPressed: () => _dormir(context, audio),
+                    icon: Icon(
+                      Icons.bedtime_outlined,
+                      color: audio.dormirAte != null
+                          ? kEmergencyRed
+                          : Colors.white54,
+                      size: 20,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -239,7 +260,7 @@ class RadioPlayer extends StatelessWidget {
                       ),
                     ),
                     subtitle: Text(
-                      (e.tags == '' ? 'Rádio da estrada' : e.tags),
+                      (e.tags == '' ? 'RÃ¡dio da estrada' : e.tags),
                       style:
                           const TextStyle(color: Colors.white38, fontSize: 11),
                     ),
@@ -274,5 +295,49 @@ class RadioPlayer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _dormir(BuildContext ctx, AudioProvider audio) async {
+    final minutos = await showModalBottomSheet<int>(
+      context: ctx,
+      backgroundColor: sheetBackground(ctx),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('Dormir com o radio ligado',
+                  style: TextStyle(color: Colors.white)),
+            ),
+            for (final opcao in const [15, 30, 60, 90])
+              ListTile(
+                leading: const Icon(Icons.bedtime_outlined,
+                    color: Colors.white70),
+                title: Text('$opcao minutos',
+                    style: const TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(sheetContext, opcao),
+              ),
+            ListTile(
+              leading:
+                  const Icon(Icons.timer_off_outlined, color: Colors.white70),
+              title: const Text('Desligar o timer',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(sheetContext, 0),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (minutos == null) return;
+    if (!ctx.mounted) return;
+    ctx.read<AudioProvider>().programarDormir(minutos);
+    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      content: Text(minutos == 0
+          ? 'Timer do radio desligado.'
+          : 'O radio vai parar em $minutos minutos.'),
+    ));
   }
 }

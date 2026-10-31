@@ -3,22 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
-import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
-import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
+import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 
-/// Tela **Sons e voz**: tudo que o app fala ou toca em um lugar so.
+/// Tela **Sons e voz**.
 ///
-/// - Liga/desliga os sons do app
-/// - Voz das paradas: escolhe se a voz fala o **numero** da parada ou o
-///   **nome do cliente**
-/// - Voz do aparelho: pode trocar a voz, a velocidade e o tom
-/// - Radio da estrada
-/// - Sons personalizados (importados do celular) por momento
-/// - Alarme de radar, vibracao e notificacoes
+/// O app usa somente sons embutidos: um sino na chegada da parada e a voz
+/// falando o numero da parada ou o nome do cliente. Nao existe importacao de
+/// sons e nenhum nome de rua e falado.
 class SonsScreen extends StatefulWidget {
   const SonsScreen({super.key});
 
@@ -75,7 +70,7 @@ class _SonsScreenState extends State<SonsScreen> {
           SwitchListTile(
             secondary: Icon(Icons.volume_up, color: ink.withValues(alpha: 0.7)),
             title: Text('Sons do app', style: TextStyle(color: ink)),
-            subtitle: Text('Desliga todos os avisos sonoros',
+            subtitle: Text('Desliga o sino e os avisos sonoros',
                 style: TextStyle(color: muted, fontSize: 12)),
             value: settings.soundEnabled,
             onChanged: settings.setSoundEnabled,
@@ -103,8 +98,6 @@ class _SonsScreenState extends State<SonsScreen> {
             activeThumbColor: kEmergencyRed,
             activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
           ),
-          // Testes: o motorista confere o som e a vibracao sem sair da
-          // estrada.
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: Wrap(
@@ -117,15 +110,12 @@ class _SonsScreenState extends State<SonsScreen> {
                     HapticFeedback.mediumImpact();
                   },
                   icon: const Icon(Icons.warning, size: 16),
-                  label: const Text('ALARME DE RADAR'),
+                  label: const Text('TESTAR RADAR'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () {
-                    HapticFeedback.heavyImpact();
-                    HapticFeedback.vibrate();
-                  },
+                  onPressed: () => HapticFeedback.vibrate(),
                   icon: const Icon(Icons.vibration, size: 16),
-                  label: const Text('VIBRACAO'),
+                  label: const Text('VIBRAR'),
                 ),
               ],
             ),
@@ -141,94 +131,38 @@ class _SonsScreenState extends State<SonsScreen> {
             activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
           ),
           const Divider(height: 28),
-          _titulo(context, 'VOZ DAS PARADAS'),
-          SwitchListTile(
-            secondary: Icon(Icons.notifications_active,
-                color: ink.withValues(alpha: 0.7)),
-            title: Text('Só o sino (sem falar as ruas)',
-                style: TextStyle(color: ink)),
-            subtitle: Text(
-              'Toca apenas o sino de chegada e de estação. A voz fica muda.',
+          _titulo(context, 'SINO E VOZ DAS PARADAS'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              'Na chegada da proxima parada toca um sino e a voz fala o '
+              'numero da parada ou o nome do cliente. Nenhum nome de rua e '
+              'falado.',
               style: TextStyle(color: muted, fontSize: 12),
             ),
-            value: voz.somenteSino,
-            onChanged: (v) async {
-              await voz.definirSomenteSino(v);
-              setState(() {});
-            },
-            activeThumbColor: kEmergencyRed,
-            activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Text(
-              'Como a voz fala (perfil)',
-              style: TextStyle(color: ink, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final p in PerfilVoz.values)
-                  ChoiceChip(
-                    label: Text(p.rotulo),
-                    selected: voz.perfil == p,
-                    onSelected: (_) async {
-                      await voz.definirPerfil(p);
-                      setState(() {});
-                    },
-                    selectedColor: kEmergencyRed.withValues(alpha: 0.35),
-                    labelStyle: TextStyle(
-                      color: ink,
-                      fontSize: 12,
-                      fontWeight:
-                          voz.perfil == p ? FontWeight.bold : FontWeight.normal,
-                    ),
+                _botaoTeste(
+                  context,
+                  icone: Icons.notifications_active,
+                  rotulo: 'OUVIR O SINO',
+                  onTap: () => context.read<AudioProvider>().tocarChegada(),
+                ),
+                _botaoTeste(
+                  context,
+                  icone: Icons.record_voice_over,
+                  rotulo: 'TESTAR A VOZ',
+                  onTap: () => voz.chegadaNaParada(
+                    2,
+                    5,
+                    proximoNumero: 3,
+                    proximoNome: 'Cliente 3',
                   ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-            child: Text(
-              voz.perfil.descricao,
-              style: TextStyle(color: muted, fontSize: 12),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _botaoTeste(
-                  context,
-                  icone: Icons.notifications,
-                  rotulo: 'OUVIR O SINO DE CHEGADA',
-                  onTap: () {
-                    return context.read<AudioProvider>().tocarChegada();
-                  },
-                ),
-                _botaoTeste(
-                  context,
-                  icone: Icons.train,
-                  rotulo: 'OUVIR O SINO DE ESTAÇÃO',
-                  onTap: () {
-                    final sons = context.read<SonsProvider>();
-                    return sons.tocar(SlotSom.sinoEstacao);
-                  },
-                ),
-                _botaoTeste(
-                  context,
-                  icone: Icons.exit_to_app,
-                  rotulo: 'OUVIR O SOM DE SAÍDA',
-                  onTap: () {
-                    final sons = context.read<SonsProvider>();
-                    return sons.tocar(SlotSom.saidaParada);
-                  },
                 ),
               ],
             ),
@@ -238,7 +172,7 @@ class _SonsScreenState extends State<SonsScreen> {
                 color: ink.withValues(alpha: 0.7)),
             title: Text('Voz das paradas', style: TextStyle(color: ink)),
             subtitle: Text(
-              'Fala a chegada em cada cliente e a próxima parada',
+              'Fala a chegada em cada cliente e a proxima parada',
               style: TextStyle(color: muted, fontSize: 12),
             ),
             value: voz.ligada,
@@ -250,9 +184,9 @@ class _SonsScreenState extends State<SonsScreen> {
             activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text(
-              'Como a voz anuncia as paradas',
+              'O que a voz fala',
               style: TextStyle(color: ink, fontWeight: FontWeight.bold),
             ),
           ),
@@ -283,8 +217,48 @@ class _SonsScreenState extends State<SonsScreen> {
               },
             ),
           ),
-          const SizedBox(height: 14),
-          _titulo(context, 'VOZ DO APPARELHO'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: Text(
+              'Estilo da fala',
+              style: TextStyle(color: ink, fontWeight: FontWeight.bold),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final p in PerfilVoz.values)
+                  ChoiceChip(
+                    label: Text(p.rotulo),
+                    selected: voz.perfil == p,
+                    onSelected: (_) async {
+                      await voz.definirPerfil(p);
+                      setState(() {});
+                    },
+                    selectedColor: kEmergencyRed.withValues(alpha: 0.35),
+                    labelStyle: TextStyle(
+                      color: ink,
+                      fontSize: 12,
+                      fontWeight: voz.perfil == p
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+            child: Text(
+              voz.perfil.descricao,
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ),
+          const Divider(height: 28),
+          _titulo(context, 'VOZ DO APARELHO'),
           ListTile(
             leading: Icon(Icons.record_voice_over,
                 color: ink.withValues(alpha: 0.7)),
@@ -313,16 +287,6 @@ class _SonsScreenState extends State<SonsScreen> {
             2.0,
             (v) => voz.definirVozAjustes(tom: v),
             (v) => v.toStringAsFixed(1),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: OutlinedButton.icon(
-              onPressed: () => voz.falar(
-                'Chegou na parada numero dois de cinco. Proxima parada, numero tres, a duzentos metros.',
-              ),
-              icon: const Icon(Icons.play_arrow, size: 18),
-              label: const Text('TESTAR A VOZ'),
-            ),
           ),
           const Divider(height: 28),
           _titulo(context, 'RÁDIO DA ESTRADA'),
@@ -357,22 +321,11 @@ class _SonsScreenState extends State<SonsScreen> {
               }
             }),
           ),
-          const Divider(height: 28),
-          _titulo(context, 'SONS PERSONALIZADOS'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              'Importe um som do celular e escolha quando ele toca.',
-              style: TextStyle(color: muted, fontSize: 12),
-            ),
-          ),
-          for (final slot in SlotSom.values) _SlotSomTile(slot: slot),
         ],
       ),
     );
   }
 
-  /// Botao de teste de som (ouvir o sino, o som de saida, etc).
   Widget _botaoTeste(
     BuildContext context, {
     required IconData icone,
@@ -514,73 +467,5 @@ class _SonsScreenState extends State<SonsScreen> {
         ),
       ),
     );
-  }
-}
-
-/// Item de um som personalizado (importado do celular).
-class _SlotSomTile extends StatelessWidget {
-  final SlotSom slot;
-
-  const _SlotSomTile({required this.slot});
-
-  @override
-  Widget build(BuildContext context) {
-    final sons = context.watch<SonsProvider>();
-    final tema = Theme.of(context);
-    final ink = tema.colorScheme.onSurface;
-    final muted = ink.withValues(alpha: 0.6);
-    final atual = sons.som(slot);
-
-    return ListTile(
-      leading: Icon(
-        atual != null ? Icons.library_music : Icons.music_off_outlined,
-        color: atual != null ? kEmergencyRed : muted,
-      ),
-      title: Text(slot.titulo, style: TextStyle(color: ink)),
-      subtitle: Text(
-        atual != null ? '${atual.nome} • ${slot.descricao}' : slot.descricao,
-        style: TextStyle(color: muted, fontSize: 12),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (atual != null)
-            IconButton(
-              tooltip: 'Ouvir',
-              onPressed: () => sons.tocar(slot),
-              icon: const Icon(Icons.play_arrow, color: kEmergencyRed),
-            ),
-          IconButton(
-            tooltip: atual != null ? 'Trocar som' : 'Importar som',
-            onPressed: () => _importar(context),
-            icon: Icon(
-              atual != null ? Icons.swap_horiz : Icons.add,
-              color: muted,
-            ),
-          ),
-          if (atual != null)
-            IconButton(
-              tooltip: 'Remover',
-              onPressed: () => sons.remover(slot),
-              icon: Icon(Icons.delete_outline, color: muted),
-            ),
-        ],
-      ),
-      onTap: atual != null ? () => sons.tocar(slot) : () => _importar(context),
-    );
-  }
-
-  Future<void> _importar(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final sons = context.read<SonsProvider>();
-    final ok = await sons.importar(slot);
-    if (ok) {
-      await sons.tocar(slot);
-      messenger.showSnackBar(
-        SnackBar(content: Text('Som de ${slot.titulo} importado.')),
-      );
-    }
   }
 }

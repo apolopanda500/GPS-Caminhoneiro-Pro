@@ -273,17 +273,22 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
     VoidCallback? onPressed, {
     bool ativo = true,
   }) {
-    return IconButton(
-      tooltip: dica,
-      iconSize: 16,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-      onPressed: ativo ? onPressed : null,
-      icon: Icon(
-        icone,
-        color: ativo
-            ? overlayTextMuted(context)
-            : overlayTextMuted(context).withValues(alpha: 0.3),
+    return Tooltip(
+      message: dica,
+      child: InkResponse(
+        onTap: ativo ? onPressed : null,
+        radius: 16,
+        child: SizedBox(
+          width: 26,
+          height: 26,
+          child: Icon(
+            icone,
+            size: 16,
+            color: ativo
+                ? overlayTextMuted(context)
+                : overlayTextMuted(context).withValues(alpha: 0.3),
+          ),
+        ),
       ),
     );
   }
@@ -299,12 +304,16 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
         children: [
           Icon(Icons.schedule, size: 12, color: overlayAccent(context)),
           const SizedBox(width: 4),
-          Text(
-            'Chegada $hora (${rota.etaText})',
-            style: TextStyle(
-              color: overlayAccent(context),
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+          Flexible(
+            child: Text(
+              'Chegada $hora (${rota.etaText})',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: overlayAccent(context),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -610,30 +619,42 @@ class _RouteTablePanelState extends State<RouteTablePanel> {
             icon: Icon(Icons.delete_sweep, color: overlayTextMuted(context)),
           ),
           if (!widget.canManageRoute)
-            Text(
-              'Apenas o motorista pode iniciar a rota.',
-              style: TextStyle(
-                color: overlayTextMuted(context),
-                fontSize: 11,
+            Flexible(
+              child: Text(
+                'Apenas o motorista pode iniciar a rota.',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: overlayTextMuted(context),
+                  fontSize: 11,
+                ),
               ),
             )
           else if (!provider.started)
-            ElevatedButton(
-              onPressed: widget.onStart,
-              style: ElevatedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                minimumSize: const Size(0, 32),
+            Flexible(
+              child: ElevatedButton(
+                onPressed: widget.onStart,
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: const Size(0, 32),
+                ),
+                child:
+                    const Text('INICIAR ROTA', style: TextStyle(fontSize: 11)),
               ),
-              child: const Text('INICIAR ROTA', style: TextStyle(fontSize: 11)),
             )
           else
-            TextButton.icon(
-              onPressed: widget.onConfirmNext,
-              icon: const Icon(Icons.check_circle_outline,
-                  size: 16, color: Colors.greenAccent),
-              label: const Text('Confirmar',
-                  style: TextStyle(color: Colors.greenAccent, fontSize: 11)),
+            Flexible(
+              child: TextButton.icon(
+                onPressed: widget.onConfirmNext,
+                icon: const Icon(Icons.check_circle_outline,
+                    size: 16, color: Colors.greenAccent),
+                label: const Text('Confirmar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(color: Colors.greenAccent, fontSize: 11)),
+              ),
             ),
         ],
       ),

@@ -8,26 +8,28 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Audios do app', () {
-    test('musica de entrada, sino da parada e tema existem', () {
-      final entrada = File('assets/audio/musica_custom.mp3');
+    test('tema de entrada original e sino existem (so sons embutidos)', () {
+      final entrada = File('assets/audio/tema_entrada.wav');
       final sino = File('assets/audio/estacao.wav');
-      final tema = File('assets/audio/tema_loop.wav');
 
       expect(entrada.existsSync(), isTrue,
-          reason: 'musica de entrada (assets/audio/musica_custom.mp3)');
+          reason: 'tema de entrada (assets/audio/tema_entrada.wav)');
       expect(sino.existsSync(), isTrue,
           reason: 'sino da estacao (assets/audio/estacao.wav)');
-      expect(tema.existsSync(), isTrue,
-          reason: 'tema em loop (assets/audio/tema_loop.wav)');
 
       expect(entrada.lengthSync(), greaterThan(100000));
       expect(sino.lengthSync(), greaterThan(1000));
     });
 
-    test('a musica de entrada e um MP3 valido (ID3)', () {
-      final bytes = File('assets/audio/musica_custom.mp3').readAsBytesSync();
-      final cabecalho = String.fromCharCodes(bytes.take(3));
-      expect(cabecalho, 'ID3', reason: 'o arquivo deve ser um MP3 com tag ID3');
+    test('nao existe som importado do celular no APK', () {
+      expect(File('assets/audio/musica_custom.mp3').existsSync(), isFalse);
+      expect(File('assets/audio/tema_loop.wav').existsSync(), isFalse);
+    });
+
+    test('o tema de entrada e um WAV valido', () {
+      final bytes = File('assets/audio/tema_entrada.wav').readAsBytesSync();
+      expect(String.fromCharCodes(bytes.take(4)), 'RIFF');
+      expect(String.fromCharCodes(bytes.skip(8).take(4)), 'WAVE');
     });
 
     test('o provider de audio tem o sino e a musica de entrada', () {

@@ -14,19 +14,25 @@ class FotosMotorista {
   static bool _vazia(String url) =>
       url.isEmpty || url.startsWith('https://placehold.co');
 
+  /// Cache dos bytes ja decodificados (foto grande nao pode ser decodificada
+  /// a cada frame: era isso que fazia a foto piscar).
+  static final Map<String, Uint8List?> _cache = {};
+
   /// Bytes da foto (data URL decodificado ou http baixado).
   static Uint8List? bytes(String url) {
     if (_vazia(url)) return null;
-    if (url.startsWith('data:')) {
-      final partes = url.split(',');
-      if (partes.length < 2) return null;
-      try {
-        return base64Decode(partes[1]);
-      } catch (_) {
-        return null;
-      }
+    if (!url.startsWith('data:')) return null;
+    if (_cache.containsKey(url)) return _cache[url];
+    final partes = url.split(',');
+    if (partes.length < 2) return null;
+    try {
+      final dados = base64Decode(partes[1]);
+      if (_cache.length > 8) _cache.remove(_cache.keys.first);
+      _cache[url] = dados;
+      return dados;
+    } catch (_) {
+      return null;
     }
-    return null;
   }
 
   /// Imagem paraavatar/badges: data URL vira MemoryImage, http vira NetworkImage.

@@ -6,7 +6,7 @@ import 'package:gps_camioneiro_pro/providers/group_provider.dart';
 /// Planilha de grupos (comboios): meus grupos, criar, entrar/sair, membros
 /// e o modo estrito (ver só os caminhões dos meus grupos).
 /// Todas as cores derivam do tema para acompanhar a cor escolhida.
-class GroupsSheet extends StatelessWidget {
+class GroupsSheet extends StatefulWidget {
   final String driverId;
   final Map<String, String> authHeaders;
 
@@ -36,6 +36,14 @@ class GroupsSheet extends StatelessWidget {
   }
 
   @override
+  State<GroupsSheet> createState() => _GroupsSheetState();
+}
+
+class _GroupsSheetState extends State<GroupsSheet> {
+  bool _selecionando = false;
+  final Set<String> _selecionados = {};
+
+  @override
   Widget build(BuildContext context) {
     final grupos = context.watch<GroupProvider>();
     final tema = Theme.of(context);
@@ -49,7 +57,21 @@ class GroupsSheet extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Text('Grupos de caminhoneiros', style: tema.textTheme.titleMedium),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Grupos de caminhoneiros', style: tema.textTheme.titleMedium),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selecionando = !_selecionando;
+                      if (!_selecionando) _selecionados.clear();
+                    });
+                  },
+                  child: Text(_selecionando ? 'Cancelar' : 'Selecionar'),
+                ),
+              ],
+            ),
             const SizedBox(height: 4),
             SwitchListTile(
               value: grupos.estrito,
@@ -66,6 +88,25 @@ class GroupsSheet extends StatelessWidget {
                 child: Text(grupos.error!,
                     style:
                         TextStyle(color: tema.colorScheme.error, fontSize: 13)),
+              ),
+            if (_selecionando && _selecionados.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final gp = context.read<GroupProvider>();
+                    for (final id in _selecionados.toList()) {
+                      await gp.leave(
+                          groupId: id,
+                          driverId: widget.driverId,
+                          auth: widget.authHeaders);
+                    }
+                    _selecionados.clear();
+                    setState(() => _selecionando = false);
+                  },
+                  icon: const Icon(Icons.delete, size: 18),
+                  label: Text('Excluir selecionados (${_selecionados.length})'),
+                ),
               ),
             Expanded(
               child: grupos.loading
@@ -85,6 +126,20 @@ class GroupsSheet extends StatelessWidget {
                             margin: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
                             child: ExpansionTile(
+                              leading: _selecionando
+                                  ? Checkbox(
+                                      value: _selecionados.contains(g.id),
+                                      onChanged: (v) {
+                                        setState(() {
+                                          if (v == true) {
+                                            _selecionados.add(g.id);
+                                          } else {
+                                            _selecionados.remove(g.id);
+                                          }
+                                        });
+                                      },
+                                    )
+                                  : null,
                               title: Text(g.name),
                               subtitle: Text(
                                 g.isOwner
@@ -96,7 +151,7 @@ class GroupsSheet extends StatelessWidget {
                               ),
                               children: [
                                 FutureBuilderWrapper(
-                                    groupId: g.id, auth: authHeaders),
+                                    groupId: g.id, auth: widget.authHeaders),
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14),
@@ -109,7 +164,7 @@ class GroupsSheet extends StatelessWidget {
                                                 context.read<GroupProvider>();
                                             await gp.loadMembers(
                                                 groupId: g.id,
-                                                auth: authHeaders);
+                                                auth: widget.authHeaders);
                                             if (context.mounted) {
                                               Navigator.pop(context);
                                               _abrirChat(context, g,
@@ -164,8 +219,8 @@ class GroupsSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(14),
               child: _CriarGrupo(
-                driverId: driverId,
-                auth: authHeaders,
+                driverId: widget.driverId,
+                auth: widget.authHeaders,
               ),
             ),
           ],
@@ -177,12 +232,12 @@ class GroupsSheet extends StatelessWidget {
 
   void _sair(BuildContext context, String groupId) async {
     final gp = context.read<GroupProvider>();
-    await gp.leave(groupId: groupId, driverId: driverId, auth: authHeaders);
+    await gp.leave(groupId: groupId, driverId: widget.driverId, auth: widget.authHeaders);
   }
 
   void _entrar(BuildContext context, String groupId) {
     final gp = context.read<GroupProvider>();
-    gp.join(groupId: groupId, driverId: driverId, auth: authHeaders);
+    gp.join(groupId: groupId, driverId: widget.driverId, auth: widget.authHeaders);
   }
 
   void _abrirChat(

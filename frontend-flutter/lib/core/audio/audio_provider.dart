@@ -28,14 +28,34 @@ class AudioProvider extends ChangeNotifier {
   List<String> _tags = [];
   List<EstacaoRadio> _favoritos = [];
   List<EstacaoRadio> _recentes = [];
+  List<EstacaoRadio> _minhas = [];
+  bool _mudo = false;
+  bool _pausado = false;
+  double _volumeAntesDoMudo = 1.0;
+  Timer? _timerDormir;
+  DateTime? _dormirAte;
+  StreamSubscription<PlayerException>? _erroRadioSub;
   OrdenacaoRadio _ordenacao = OrdenacaoRadio.popular;
   FiltroRadio _filtro = FiltroRadio.todas;
   String _tagSelecionada = '';
 
-  List<EstacaoRadio> get estacoes => List.unmodifiable(_estacoes);
+  List<EstacaoRadio> get estacoes {
+    final vistos = <String>{};
+    final lista = <EstacaoRadio>[];
+    for (final e in [..._minhas, ..._estacoes]) {
+      if (vistos.add(e.nome)) lista.add(e);
+    }
+    return List.unmodifiable(lista);
+  }
   List<String> get tags => List.unmodifiable(_tags);
   List<EstacaoRadio> get favoritos => List.unmodifiable(_favoritos);
   List<EstacaoRadio> get recentes => List.unmodifiable(_recentes);
+
+  /// Estacoes salvas pelo proprio motorista (adicionar/editar/excluir).
+  List<EstacaoRadio> get minhasEstacoes => List.unmodifiable(_minhas);
+  bool get mudo => _mudo;
+  bool get radioPausado => _pausado;
+  DateTime? get dormirAte => _dormirAte;
   bool get carregandoEstacoes => _carregando;
   String get erroRadio => _erro;
   double get volume => _volume;
@@ -47,7 +67,7 @@ class AudioProvider extends ChangeNotifier {
   /// Estacao atualmente em reproducao (objeto completo), se houver.
   EstacaoRadio? get estacaoAtual {
     if (!radioTocando) return null;
-    for (final e in [..._recentes, ..._favoritos, ..._estacoes]) {
+    for (final e in [..._recentes, ..._favoritos, ..._minhas, ..._estacoes]) {
       if (e.nome == radioEstacao) return e;
     }
     return null;
@@ -60,6 +80,7 @@ class AudioProvider extends ChangeNotifier {
   Future<void> carregarFavoritosERecentes() async {
     await _carregarFavoritos();
     await _carregarRecentes();
+    await _carregarMinhas();
   }
 
   Future<void> carregarPreferencias() async {
@@ -229,31 +250,132 @@ class AudioProvider extends ChangeNotifier {
 
   /// Toca a estacao informada, salvando-a na lista de recentes.
   Future<bool> tocarEstacao(EstacaoRadio e) async {
-    try {
-      await _player.stop();
-      await _radio.setUrl(e.url);
-      await _radio.setVolume(_volume);
-      await _radio.play();
+    final tocada = await _tocarComTentativas(e);
+    if (tocada) {
       radioTocando = true;
+      _pausado = false;
       radioEstacao = e.nome;
+      _erro = '';
       await _registrarRecente(e);
       unawaited(_servico.reportarClique(e));
       notifyListeners();
       return true;
-    } catch (_) {
-      radioTocando = false;
-      radioEstacao = '';
-      _erro = 'Nao foi possivel tocar esta estacao.';
+    }
+    radioTocando = false;
+    radioEstacao = '';
+    _erro = 'Nao foi possivel tocar "${e.nome}". '
+        'Tente outra estacao ou verifique a conexao.';
+    notifyListeners();
+    return false;
+  }
+
+  /// Tenta abrir o stream duas vezes (muitas radios falham no primeiro
+  /// acesso e funcionam no segundo, por causa do redirecionamento do CDN).
+  Future<bool> _tocarComTentativas(EstacaoRadio e) async {
+    for (var tentativa = 0; tentativa < 2; tentativa++) {
+      try {
+        await _player.stop();
+        await _radio.stop();
+        await _radio.setUrl(e.url);
+        await _radio.setVolume(_mudo ? 0 : _volume);
+        await _radio.play();
+        final estado =
+            await _radio.playerStateStream.first.timeout(const Duration(
+          seconds: 6,
+        ), onTimeout: () => _radio.playerState);
+        if (estado.processingState != ProcessingState.idle ||
+            tentativa == 1) {
+          return true;
+        }
+      } catch (_) {
+        // tenta de novo
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+    }
+    return false;
+  }
+
+  /// Liga/desliga o mudo sem perder o volume escolhido.
+  Future<void> alternarMudo() async {
+    _mudo = !_mudo;
+    if (_mudo) {
+      _volumeAntesDoMudo = _volume;
+      try {
+        await _radio.setVolume(0);
+      } catch (_) {}
+    } else {
+      _volume = _volumeAntesDoMudo <= 0 ? 1.0 : _volumeAntesDoMudo;
+      try {
+        await _radio.setVolume(_volume);
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  /// Programa o radio para parar depois de [minutos] (0 cancela).
+  void programarDormir(int minutos) {
+    _timerDormir?.cancel();
+    if (minutos <= 0) {
+      _dormirAte = null;
       notifyListeners();
+      return;
+    }
+    _dormirAte = DateTime.now().add(Duration(minutes: minutos));
+    _timerDormir = Timer(Duration(minutes: minutos), () {
+      _dormirAte = null;
+      unawaited(pararRadio());
+    });
+    notifyListeners();
+  }
+
+  /// Salva uma estacao digitada pelo motorista (nome + URL do stream).
+  Future<bool> adicionarEstacao({
+    required String nome,
+    required String url,
+  }) async {
+    final n = nome.trim();
+    final u = url.trim();
+    if (n.isEmpty || !(u.startsWith('http://') || u.startsWith('https://'))) {
       return false;
     }
+    if (_minhas.any((e) => e.url == u)) return false;
+    _minhas.insert(0, EstacaoRadio(nome: n, url: u, uuid: 'meu_${_minhas.length}'));
+    await _salvarMinhas();
+    notifyListeners();
+    return true;
+  }
+
+  /// Edita nome/URL de uma estacao salva.
+  Future<bool> editarEstacao(
+    EstacaoRadio antiga, {
+    required String nome,
+    required String url,
+  }) async {
+    final indice = _minhas.indexWhere((e) => e.url == antiga.url);
+    if (indice < 0) return false;
+    final n = nome.trim();
+    final u = url.trim();
+    if (n.isEmpty || !(u.startsWith('http://') || u.startsWith('https://'))) {
+      return false;
+    }
+    _minhas[indice] = EstacaoRadio(nome: n, url: u, uuid: _minhas[indice].uuid);
+    await _salvarMinhas();
+    notifyListeners();
+    return true;
+  }
+
+  /// Remove uma estacao salva pelo motorista.
+  Future<void> removerEstacao(EstacaoRadio e) async {
+    _minhas.removeWhere((m) => m.url == e.url);
+    await _salvarMinhas();
+    notifyListeners();
   }
 
   /// Lista de rejeicao (favoritos + recentes + estacoes) do tocador.
   List<EstacaoRadio> get filaDoTocador {
     final lista = <EstacaoRadio>[];
     final vistos = <String>{};
-    for (final e in [..._recentes, ..._favoritos, ..._estacoes]) {
+    for (final e in [..._recentes, ..._favoritos, ..._minhas, ..._estacoes]) {
       if (vistos.add(e.nome)) lista.add(e);
     }
     return lista;
@@ -283,10 +405,10 @@ class AudioProvider extends ChangeNotifier {
     try {
       if (_radio.playing) {
         await _radio.pause();
-        radioTocando = false;
+        _pausado = true;
       } else {
         await _radio.play();
-        radioTocando = true;
+        _pausado = false;
       }
       notifyListeners();
     } catch (_) {}
@@ -332,6 +454,22 @@ class AudioProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _carregarMinhas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bruto = prefs.getString('radio.minhas');
+      if (bruto == null || bruto.isEmpty) return;
+      _minhas = _decodificar(bruto);
+    } catch (_) {}
+  }
+
+  Future<void> _salvarMinhas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('radio.minhas', _codificar(_minhas));
+    } catch (_) {}
+  }
+
   String _codificar(List<EstacaoRadio> lista) => lista
       .map((e) => '${e.chave}\u001f${e.nome}\u001f${e.url}')
       .join('\u001e');
@@ -364,18 +502,20 @@ class AudioProvider extends ChangeNotifier {
   }
 
   /// Volume do radio (0 a 1).
-  Future<void> setVolume(double value) async {
-    _volume = value.clamp(0.0, 1.0);
-    try {
-      await _radio.setVolume(_volume);
-    } catch (_) {}
-    notifyListeners();
-  }
+    Future<void> setVolume(double value) async {
+      _volume = value.clamp(0.0, 1.0);
+      if (_mudo && _volume > 0) _mudo = false;
+      try {
+        await _radio.setVolume(_mudo ? 0 : _volume);
+      } catch (_) {}
+      notifyListeners();
+    }
 
   Future<void> pararRadio() async {
     await _radio.stop();
     await _radio.setVolume(_volume);
     radioTocando = false;
+    _pausado = false;
     radioEstacao = '';
     if (musicaLigada) await tocarMusica();
     notifyListeners();
@@ -391,6 +531,8 @@ class AudioProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _timerDormir?.cancel();
+    _erroRadioSub?.cancel();
     _player.dispose();
     _radio.dispose();
     _servico.dispose();

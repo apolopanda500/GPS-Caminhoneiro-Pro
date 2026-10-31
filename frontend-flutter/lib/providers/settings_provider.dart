@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:gps_camioneiro_pro/core/utils/overlay_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,6 +36,11 @@ class SettingsProvider extends ChangeNotifier {
   static const _kBuildings3d = 'settings.buildings3d';
   static const _kLastMapUpdate = 'settings.lastMapUpdate';
   static const _kRenderQuality = 'settings.renderQuality';
+  /// Qualidade escolhida pelo usuario (salva). Quando o modo economia esta
+  /// desligado, e essa qualidade que vale. Quando ligado, forcamos economy.
+  static const _kSavedRenderQuality = 'settings.savedRenderQuality';
+  /// FPS alvo do usuario salvo para restaurar ao sair do modo economia.
+  static const _kSavedRenderQualityFps = 'settings.savedRenderQualityFps';
   static const _kTracking = 'settings.trackingEnabled';
   static const _kDayStartedAt = 'settings.dayStartedAt';
   static const _kOverlayOpacity = 'settings.overlayOpacity';
@@ -44,6 +50,8 @@ class SettingsProvider extends ChangeNotifier {
   static const _kPerfilPronto = 'settings.perfilPronto';
   static const _kCorRota = 'settings.corRota';
   static const _kCameraMode = 'settings.cameraMode';
+  static const _kAutoPerfil = 'settings.autoPerfil';
+  static const _kRealismo = 'settings.realismo';
 
   /// O mapa de ruas é recarregado a cada 12 h ou na virada do dia.
   static const Duration mapUpdateInterval = Duration(hours: 12);
@@ -64,7 +72,13 @@ class SettingsProvider extends ChangeNotifier {
   bool _soundEnabled = true;
   bool _buildings3d = true;
   DateTime? _lastMapUpdate;
-  RenderQuality _renderQuality = RenderQuality.balanced;
+  RenderQuality _renderQuality = RenderQuality.ultra;
+  /// Qualidade grafica escolhida pelo usuario (persistida). So e usada quando
+  /// o modo economia esta DESLIGADO. Quando ligado, forcamos RenderQuality.economy.
+  RenderQuality _savedRenderQuality = RenderQuality.ultra;
+  /// FPS alvo do usuario antes de entrar em economia. Usado para restaurar ao
+  /// desligar o modo economia de bateria.
+  int _savedTargetFps = 60;
   bool _trackingEnabled = true;
   DateTime? _dayStartedAt;
   double _overlayOpacity = 0.92;
@@ -74,10 +88,17 @@ class SettingsProvider extends ChangeNotifier {
   bool _perfilPronto = false;
   String _corRota = '#1D4ED8';
   CameraMode _cameraMode = CameraMode.norte;
+  bool _autoPerfil = true;
+  bool _realismo = false;
+  String _aparelhoResumo = '';
+  RenderQuality _detectadaQualidade = RenderQuality.balanced;
+  int _detectadoFps = 60;
   bool _loaded = false;
 
   bool get modoLeitura => _modoLeitura;
-  int get targetFps => _targetFps;
+  /// FPS efetivo: quando o modo economia esta LIGADO limitamos a 30 (durabilidade
+  /// para longa estrada); quando DESLIGADO usamos o valor alvo do usuario (ate 144).
+  int get targetFps => _batterySaver ? 30 : _targetFps;
   MapLayerMode get layer => _layer;
   int get gpsIntervalSeconds => _gpsIntervalSeconds;
   bool get highAccuracy => _highAccuracy;
@@ -102,11 +123,25 @@ class SettingsProvider extends ChangeNotifier {
   bool get vibration => _vibration;
   bool get pushNotifications => _pushNotifications;
   bool get nightMode => _nightMode;
+  /// Modo realista: escurece o mapa conforme a posicao real do sol e a luz
+  /// da lua, sem trocar o estilo do mapa.
+  bool get realismo => _realismo;
   bool get soundEnabled => _soundEnabled;
   bool get buildings3d => _buildings3d;
   bool get isLoaded => _loaded;
   DateTime? get lastMapUpdate => _lastMapUpdate;
-  RenderQuality get renderQuality => _renderQuality;
+  /// Qualidade grafica efetiva. Quando o modo economia esta LIGADO, forcamos
+  /// RenderQuality.economy (menos FPS, sem predios 3D, sem camadas pesadas).
+  /// Quando DESLIGADO, usamos a qualidade escolhida pelo usuario (_renderQuality).
+  RenderQuality get renderQuality =>
+      _batterySaver ? RenderQuality.economy : _renderQuality;
+
+  /// Qualidade que o usuario escolheu (ignora o modo economia).
+  RenderQuality get savedRenderQuality => _renderQuality;
+
+  /// FPS alvo do usuario antes de entrar em economia (ignora o modo economia).
+  int get savedTargetFps => _savedTargetFps;
+
   bool get trackingEnabled => _trackingEnabled;
   DateTime? get dayStartedAt => _dayStartedAt;
 
@@ -135,6 +170,53 @@ class SettingsProvider extends ChangeNotifier {
   /// Camera de acompanhamento escolhida no mapa.
   CameraMode get cameraMode => _cameraMode;
 
+  /// Quando ligado, o app usa automaticamente o maximo que o aparelho
+  /// aguenta (FPS da tela e qualidade grafica). Ao mexer no FPS ou na
+  /// qualidade manualmente, isso desliga.
+  bool get autoPerfil => _autoPerfil;
+
+  /// Resumo do aparelho detectado (mostrado nas configuracoes).
+  String get aparelhoResumo => _aparelhoResumo;
+
+  Future<void> setAutoPerfil(bool value) async {
+    _autoPerfil = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kAutoPerfil, value);
+  }
+
+  /// Aplica o perfil real do aparelho (RAM, nucleos, Hz). So vale quando o
+  /// modo economia esta desligado e o usuario nao fixou uma escolha manual.
+  Future<void> aplicarPerfilDoAparelho({
+    required int ramMb,
+    required int nucleos,
+    required double refreshHz,
+    required bool lowRam,
+    required String resumo,
+    required RenderQuality qualidadeSugerida,
+    required int fpsMaximo,
+  }) async {
+    _aparelhoResumo = resumo;
+    _detectadaQualidade = qualidadeSugerida;
+    _detectadoFps = supportedFps.contains(fpsMaximo) ? fpsMaximo : 60;
+    if (_autoPerfil && !_batterySaver) {
+      _renderQuality = qualidadeSugerida;
+      _savedRenderQuality = qualidadeSugerida;
+      _targetFps = supportedFps.contains(fpsMaximo) ? fpsMaximo : 60;
+      _savedTargetFps = _targetFps;
+      _buildings3d = qualidadeSugerida != RenderQuality.economy;
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (_autoPerfil && !_batterySaver) {
+      await prefs.setInt(_kRenderQuality, _renderQuality.index);
+      await prefs.setInt(_kSavedRenderQuality, _savedRenderQuality.index);
+      await prefs.setInt(_kTargetFps, _targetFps);
+      await prefs.setInt(_kSavedRenderQualityFps, _savedTargetFps);
+      await prefs.setBool(_kBuildings3d, _buildings3d);
+    }
+  }
+
   String get dayStartedLabel {
     final start = _dayStartedAt;
     if (!_trackingEnabled || start == null) return 'Expediente encerrado';
@@ -143,22 +225,36 @@ class SettingsProvider extends ChangeNotifier {
     return 'Em expediente desde $h:$m';
   }
 
-  int get qualityTargetFps => switch (_renderQuality) {
-        RenderQuality.economy => 30,
-        RenderQuality.balanced => 60,
-        RenderQuality.ultra => 120,
-      };
+  /// FPS alvo efetivo do mapa: 30 no modo economia, o FPS escolhido
+  /// (60/120) com o modo normal ligado.
+  int get qualityTargetFps => _batterySaver ? 30 : _targetFps;
 
-  bool get qualityBuildings3d => _renderQuality != RenderQuality.economy;
+  /// Predios 3D: o usuario escolhe; no modo economia ficam desligados.
+  bool get qualityBuildings3d => !_batterySaver && _buildings3d;
 
   Future<void> setRenderQuality(RenderQuality value) async {
-    _renderQuality = value;
-    _targetFps = qualityTargetFps;
-    _buildings3d = qualityBuildings3d;
+    // Quando o modo economia esta ligado, forcamos economy independente do valor.
+    // Quando desligado, respeitamos a escolha do usuario.
+    _autoPerfil = false;
+    _renderQuality = _batterySaver ? RenderQuality.economy : value;
+    _savedRenderQuality = value;
+    final targetFpsForQuality = switch (value) {
+      RenderQuality.economy => 30,
+      RenderQuality.balanced => 60,
+      RenderQuality.ultra => 120,
+    };
+    if (!_batterySaver) {
+      _targetFps = targetFpsForQuality;
+    }
+    _savedTargetFps = targetFpsForQuality;
+    _buildings3d = !_batterySaver && value != RenderQuality.economy;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kRenderQuality, value.index);
+    await prefs.setBool(_kAutoPerfil, false);
+    await prefs.setInt(_kRenderQuality, _renderQuality.index);
+    await prefs.setInt(_kSavedRenderQuality, _savedRenderQuality.index);
     await prefs.setInt(_kTargetFps, _targetFps);
+    await prefs.setInt(_kSavedRenderQualityFps, _savedTargetFps);
     await prefs.setBool(_kBuildings3d, _buildings3d);
   }
 
@@ -225,28 +321,43 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _modoLeitura = prefs.getBool(_kModoLeitura) ?? false;
     _targetFps = prefs.getInt(_kTargetFps) ?? 60;
+    _savedTargetFps = prefs.getInt(_kSavedRenderQualityFps) ?? _targetFps;
     _layer = MapLayerMode.values[prefs.getInt(_kLayer) ?? 0];
     _gpsIntervalSeconds = prefs.getInt(_kGpsInterval) ?? 1;
     _highAccuracy = prefs.getBool(_kHighAccuracy) ?? true;
     _backgroundLocation = prefs.getBool(_kBackgroundLocation) ?? true;
     _batterySaver = prefs.getBool(_kBatterySaver) ?? false;
+    _autoPerfil = prefs.getBool(_kAutoPerfil) ?? true;
     _showTrucks = prefs.getBool(_kShowTrucks) ?? true;
     _trafficLayer = prefs.getBool(_kTrafficLayer) ?? true;
     _radarSound = prefs.getBool(_kRadarSound) ?? true;
     _vibration = prefs.getBool(_kVibration) ?? true;
     _pushNotifications = prefs.getBool(_kPushNotifications) ?? true;
     _nightMode = prefs.getBool(_kNightMode) ?? true;
+    _realismo = prefs.getBool(_kRealismo) ?? false;
     _soundEnabled = prefs.getBool(_kSoundEnabled) ?? true;
     _buildings3d = prefs.getBool(_kBuildings3d) ?? true;
     final lastUpdate = prefs.getInt(_kLastMapUpdate);
     _lastMapUpdate = lastUpdate == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(lastUpdate);
-    final quality = prefs.getInt(_kRenderQuality);
-    if (quality != null &&
-        quality >= 0 &&
-        quality < RenderQuality.values.length) {
-      _renderQuality = RenderQuality.values[quality];
+    // Restaura a qualidade escolhida pelo usuario (nao forca mais ultra).
+    final savedQuality = prefs.getInt(_kSavedRenderQuality);
+    if (savedQuality != null &&
+        savedQuality >= 0 &&
+        savedQuality < RenderQuality.values.length) {
+      _renderQuality = RenderQuality.values[savedQuality];
+      _savedRenderQuality = _renderQuality;
+    }
+    // Se o modo economia estiver ligado, forçamos overrides de durabilidade.
+    if (_batterySaver) {
+      _renderQuality = RenderQuality.economy;
+      _targetFps = 30;
+      _buildings3d = false;
+    } else {
+      _targetFps = prefs.getInt(_kTargetFps) ?? 60;
+      if (!supportedFps.contains(_targetFps)) _targetFps = 60;
+      _buildings3d = _renderQuality != RenderQuality.economy;
     }
     _trackingEnabled = prefs.getBool(_kTracking) ?? true;
     _overlayOpacity =
@@ -286,10 +397,19 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setTargetFps(int value) async {
     if (!supportedFps.contains(value)) return;
-    _targetFps = value;
+    _autoPerfil = false;
+    if (_batterySaver) {
+      // Em economia, so anotamos a escolha para restaurar ao sair.
+      _savedTargetFps = value;
+    } else {
+      _targetFps = value;
+      _savedTargetFps = value;
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kTargetFps, value);
+    await prefs.setBool(_kAutoPerfil, false);
+    await prefs.setInt(_kTargetFps, _batterySaver ? 30 : value);
+    await prefs.setInt(_kSavedRenderQualityFps, _savedTargetFps);
   }
 
   Future<void> setLayer(MapLayerMode value) async {
@@ -326,10 +446,36 @@ class SettingsProvider extends ChangeNotifier {
     await _setBool(_kBackgroundLocation, value);
   }
 
+  /// Liga/desliga o modo economia de bateria.
+  ///
+  /// - **Ligado**: durabilidade para longa estrada. Força qualidade economy,
+  ///   FPS limitado a 30, desliga predios 3D, GPS pede posicao com intervalo
+  ///   maior e clima atualiza a cada 10 min.
+  /// - **Desligado**: usa todo poder. Restaura FPS ate 144, qualidade escolhida
+  ///   pelo usuario, predios 3D, GPS no intervalo configurado e clima a cada 2 min.
   Future<void> setBatterySaver(bool value) async {
     _batterySaver = value;
+    if (value) {
+      // Modo economia: salvar FPS atual antes de limitar, e aplicar overrides de durabilidade.
+      _savedTargetFps = _targetFps;
+      _renderQuality = RenderQuality.economy;
+      _targetFps = 30;
+      _buildings3d = false;
+    } else {
+      // Modo potencia maxima: restaurar FPS do usuario e qualidade escolhida.
+      // Com o perfil automatico ligado, volta ao maximo que o aparelho aguenta.
+      _targetFps = _autoPerfil ? _detectadoFps : _savedTargetFps;
+      if (!supportedFps.contains(_targetFps)) _targetFps = 60;
+      _renderQuality = _autoPerfil ? _detectadaQualidade : _savedRenderQuality;
+      _buildings3d = _renderQuality != RenderQuality.economy;
+    }
     notifyListeners();
-    await _setBool(_kBatterySaver, value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kBatterySaver, value);
+    await prefs.setInt(_kTargetFps, _targetFps);
+    await prefs.setBool(_kBuildings3d, _buildings3d);
+    await prefs.setInt(_kRenderQuality, _renderQuality.index);
+    await prefs.setInt(_kSavedRenderQuality, _savedRenderQuality.index);
   }
 
   Future<void> setShowTrucks(bool value) async {
@@ -360,6 +506,12 @@ class SettingsProvider extends ChangeNotifier {
     _nightMode = value;
     notifyListeners();
     await _setBool(_kNightMode, value);
+  }
+
+  Future<void> setRealismo(bool value) async {
+    _realismo = value;
+    notifyListeners();
+    await _setBool(_kRealismo, value);
   }
 
   Future<void> setSoundEnabled(bool value) async {

@@ -167,18 +167,12 @@ class SettingsScreen extends StatelessWidget {
             context,
             icone: Icons.cleaning_services,
             titulo: 'Limpar sinais do mapa',
-            subtitulo: 'Apaga os sinais que você marcou no mapa',
+            subtitulo: 'Apaga os sinais que você marcou no mapa e limpa o cache',
             onTap: () {
               onLimparSinais?.call();
+              _limparCache(context);
               Navigator.of(context).pop();
             },
-          ),
-          _item(
-            context,
-            icone: Icons.delete_sweep,
-            titulo: 'Limpar cache offline',
-            subtitulo: 'Apaga alertas e mensagens salvos no aparelho',
-            onTap: () => _limparCache(context),
           ),
           _item(
             context,
@@ -187,7 +181,6 @@ class SettingsScreen extends StatelessWidget {
             cor: Colors.redAccent,
             onTap: () {
               onSairDaConta?.call();
-              Navigator.of(context).pop();
             },
           ),
         ],
@@ -255,8 +248,8 @@ class SettingsScreen extends StatelessWidget {
                       Text('Economia de bateria', style: TextStyle(color: ink)),
                   subtitle: Text(
                     settings.batterySaver
-                        ? 'Ligada: pede posição a cada ${settings.intervaloGpsReal}s'
-                        : 'Desligada: GPS sempre no máximo',
+                        ? 'Ligada: GPS leve (20s/50m), 30 FPS, sem clima e sem 3D'
+                        : 'Desligada: usa o máximo do aparelho (GPS e gráficos)',
                     style: TextStyle(color: muted, fontSize: 12),
                   ),
                   value: settings.batterySaver,
@@ -265,6 +258,27 @@ class SettingsScreen extends StatelessWidget {
                     setState(() {});
                   },
                 ),
+                if (settings.aparelhoResumo.isNotEmpty)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.phone_android, color: ink),
+                    title: Text('Este aparelho', style: TextStyle(color: ink)),
+                    subtitle: Text(
+                      '${settings.aparelhoResumo}\n'
+                      'Qualidade automática: ${settings.renderQuality.name} | '
+                      '${settings.targetFps} FPS',
+                      style: TextStyle(color: muted, fontSize: 12),
+                    ),
+                    isThreeLine: true,
+                    trailing: Switch(
+                      value: settings.autoPerfil,
+                      onChanged: (v) async {
+                        await settings.setAutoPerfil(v);
+                        setState(() {});
+                      },
+                      activeTrackColor: kEmergencyRed.withValues(alpha: 0.5),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Text('Intervalo de atualização',
                     style: TextStyle(color: ink, fontWeight: FontWeight.bold)),

@@ -9,6 +9,8 @@ class InfoSolar {
   final DateTime? porDoSol;
   final DateTime meioDiaSolar;
   final double elevacaoGraus;
+  /// Azimute do sol em graus (0 = norte, 90 = leste, 180 = sul).
+  final double azimuteGraus;
 
   /// true = o sol esta acima do horizonte.
   final bool ehDia;
@@ -18,6 +20,7 @@ class InfoSolar {
     this.porDoSol,
     required this.meioDiaSolar,
     required this.elevacaoGraus,
+    required this.azimuteGraus,
     required this.ehDia,
   });
 
@@ -43,10 +46,11 @@ InfoSolar calcularSolar({
 }) {
   final instante = (agora ?? DateTime.now()).toUtc();
   final dias = instante.difference(DateTime.utc(2000)).inDays;
-  final hora = instante.hour + instante.minute / 60.0;
+  final minutosUtc =
+      instante.hour * 60.0 + instante.minute + instante.second / 60.0;
 
   // Anos fracionarios (gamma)
-  final gamma = 2 * math.pi / 365 * (dias + (hora - 12) / 24);
+  final gamma = 2 * math.pi / 365 * (dias + (minutosUtc / 60 - 12) / 24);
 
   // Equacao do tempo (em minutos)
   final eqt = 229.18 *
@@ -65,35 +69,68 @@ InfoSolar calcularSolar({
       0.002697 * math.cos(3 * gamma) +
       0.00148 * math.sin(3 * gamma);
 
-  // Hora solar
-  final ts = hora * 60 + eqt + 4 * longitude;
-  final ha = math.acos(((math.cos(0.833 * math.pi / 180) -
-              math.sin(latitude * math.pi / 180) * math.sin(decl)) /
-          (math.cos(latitude * math.pi / 180) * math.cos(decl)))
-      .clamp(-1.0, 1.0));
+  final latRad = latitude * math.pi / 180;
 
-  // Nascer e por do sol (em UTC)
-  final meioDiaUtc = DateTime.utc(instante.year, instante.month, instante.day)
-      .add(Duration(minutes: ts.round()));
+  // Hora solar verdadeira (minutos) e angulo horario (radianos).
+  final ts = minutosUtc + eqt + 4 * longitude;
+  final anguloHorario = (ts / 4 - 180) * math.pi / 180;
+
+  // Meio-dia solar em UTC e hora do nascer/por do sol.
+  final meioDiaMin = 720 - 4 * longitude - eqt;
+  final ha = math.acos(((math.cos(0.833 * math.pi / 180) -
+              math.sin(latRad) * math.sin(decl)) /
+          (math.cos(latRad) * math.cos(decl)))
+      .clamp(-1.0, 1.0));
+  final meiaDuracaoMin = ha * 180 / math.pi * 4;
+
+  final base = DateTime.utc(instante.year, instante.month, instante.day);
+  final meioDiaUtc = base.add(Duration(minutes: meioDiaMin.round()));
   final nascer =
-      meioDiaUtc.subtract(Duration(minutes: (ha * 180 / math.pi * 4).round()));
+      base.add(Duration(minutes: (meioDiaMin - meiaDuracaoMin).round()));
   final por =
-      meioDiaUtc.add(Duration(minutes: (ha * 180 / math.pi * 4).round()));
+      base.add(Duration(minutes: (meioDiaMin + meiaDuracaoMin).round()));
 
   // Elevacao solar atual
   final elevacao = math.asin(
-          math.sin(latitude * math.pi / 180) * math.sin(decl) +
-              math.cos(latitude * math.pi / 180) *
-                  math.cos(decl) *
-                  math.cos(ts * math.pi / 180 - math.pi)) *
+          math.sin(latRad) * math.sin(decl) +
+              math.cos(latRad) * math.cos(decl) * math.cos(anguloHorario)) *
       180 /
       math.pi;
+
+  // Azimute solar (0 = norte, 90 = leste, 180 = sul, 270 = oeste).
+  final azimute = (math.atan2(
+                  math.sin(anguloHorario),
+                  math.cos(anguloHorario) * math.sin(latRad) -
+                      math.tan(decl) * math.cos(latRad)) *
+              180 /
+              math.pi +
+          180) %
+      360;
 
   return InfoSolar(
     nascerDoSol: nascer.toLocal(),
     porDoSol: por.toLocal(),
     meioDiaSolar: meioDiaUtc.toLocal(),
     elevacaoGraus: elevacao,
+    azimuteGraus: azimute,
     ehDia: elevacao > -0.833,
   );
+}
+
+/// Quanto escurecer o mapa no modo realista.
+///
+/// 0 = dia claro; 0,28 no crepusculo; ate ~0,5 na madrugada. A lua cheia
+/// clareia um pouco a cena noturna (menos escurecida).
+double fatorEscuridao({
+  required double elevacaoGraus,
+  double iluminacaoLua = 0,
+}) {
+  if (elevacaoGraus >= 6) return 0;
+  if (elevacaoGraus >= -6) {
+    return ((6 - elevacaoGraus) / 12 * 0.28).clamp(0.0, 0.28);
+  }
+  final noite = ((-elevacaoGraus - 6) / 12).clamp(0.0, 1.0);
+  final base = 0.34 + noite * 0.16;
+  final lua = (iluminacaoLua / 100).clamp(0.0, 1.0) * 0.12;
+  return (base - lua).clamp(0.0, 0.6);
 }

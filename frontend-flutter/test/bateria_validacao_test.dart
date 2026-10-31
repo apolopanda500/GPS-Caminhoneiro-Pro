@@ -10,7 +10,7 @@ import 'package:gps_camioneiro_pro/core/utils/estado_uf.dart';
 import 'package:gps_camioneiro_pro/data/models/alert_model.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
-import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
+import 'package:gps_camioneiro_pro/core/audio/som_da_parada.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/speed_hud.dart';
@@ -59,31 +59,17 @@ void main() {
     });
   });
 
-  group('Sons: slots de cada momento', () {
-    test('existe slot para o sino de chegada', () {
-      expect(SlotSom.values.any((s) => s.chave == 'entradaParada'), isTrue);
+  group('Sons: regra do sino unico', () {
+    test('o sino toca somente na chegada', () {
+      expect(SomDaParada.tocaSino(MomentoParada.chegada), isTrue);
+      expect(SomDaParada.tocaSino(MomentoParada.saida), isFalse);
+      expect(SomDaParada.tocaSino(MomentoParada.entrega), isFalse);
     });
 
-    test('existe slot para a proxima parada', () {
-      expect(SlotSom.values.any((s) => s.chave == 'proximaParada'), isTrue);
-    });
-
-    test('existe slot para o alarme de radar e o aviso geral', () {
-      expect(SlotSom.values.any((s) => s.chave == 'alertaRadar'), isTrue);
-      expect(SlotSom.values.any((s) => s.chave == 'avisoGeral'), isTrue);
-    });
-
-    test('cada slot tem titulo e descricao', () {
-      for (final s in SlotSom.values) {
-        expect(s.titulo, isNotEmpty);
-        expect(s.descricao, isNotEmpty);
-      }
-    });
-
-    test('comecar sem som nenhum e permitido', () {
-      final sons = SonsProvider();
-      expect(sons.temSom(SlotSom.entradaParada), isFalse);
-      expect(sons.som(SlotSom.proximaParada), isNull);
+    test('a voz fala na chegada e na saida', () {
+      expect(SomDaParada.fala(MomentoParada.chegada), isTrue);
+      expect(SomDaParada.fala(MomentoParada.saida), isTrue);
+      expect(SomDaParada.fala(MomentoParada.entrega), isFalse);
     });
   });
 

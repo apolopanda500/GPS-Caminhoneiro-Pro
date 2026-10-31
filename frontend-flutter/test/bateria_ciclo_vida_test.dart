@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:gps_camioneiro_pro/core/audio/falas.dart';
 import 'package:gps_camioneiro_pro/core/audio/som_da_parada.dart';
-import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/providers/shared_routes_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 
@@ -122,31 +121,19 @@ void main() {
       expect(SomDaParada.tocaSino(MomentoParada.entrega), isFalse);
     });
 
-    test('o sino de estacao toca junto com o de chegada', () {
-      expect(SomDaParada.tocaSinoEstacao(MomentoParada.chegada), isTrue);
-      expect(SomDaParada.tocaSinoEstacao(MomentoParada.saida), isFalse);
+    test('existe um unico sino: nao ha sino de estacao separado', () {
+      expect(SomDaParada.tocaSino(MomentoParada.chegada), isTrue);
+      expect(SomDaParada.tocaSino(MomentoParada.saida), isFalse);
     });
 
-    test('o som de saida toca SO na saida', () {
-      expect(SomDaParada.tocaSomSaida(MomentoParada.saida), isTrue);
-      expect(SomDaParada.tocaSomSaida(MomentoParada.chegada), isFalse);
+    test('o som de saida nao existe mais (so sino na chegada)', () {
+      expect(SomDaParada.tocaSino(MomentoParada.saida), isFalse);
     });
 
     test('a voz fala na chegada e na saida (anuncia a proxima)', () {
       expect(SomDaParada.fala(MomentoParada.chegada), isTrue);
       expect(SomDaParada.fala(MomentoParada.saida), isTrue);
       expect(SomDaParada.fala(MomentoParada.entrega), isFalse);
-    });
-
-    test('existem os slots de som: chegada, sino de estacao e saida', () {
-      expect(SlotSom.entradaParada.titulo, isNotEmpty);
-      expect(SlotSom.sinoEstacao.titulo, contains('estaç'));
-      expect(SlotSom.saidaParada.titulo, contains('saída'));
-      // Todo slot tem titulo e descricao (para a tela de configuracao).
-      for (final s in SlotSom.values) {
-        expect(s.titulo, isNotEmpty, reason: s.name);
-        expect(s.descricao, isNotEmpty, reason: s.name);
-      }
     });
   });
 

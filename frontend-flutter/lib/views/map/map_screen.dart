@@ -13,7 +13,6 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
 import 'package:gps_camioneiro_pro/core/audio/audio_provider.dart';
-import 'package:gps_camioneiro_pro/core/audio/sons_provider.dart';
 import 'package:gps_camioneiro_pro/core/audio/voice_service.dart';
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
@@ -24,7 +23,7 @@ import 'package:gps_camioneiro_pro/views/map/widgets/onda_aviso.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/rede_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/weather_panel.dart';
-import 'package:gps_camioneiro_pro/views/map/widgets/map_controls_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/realismo_overlay.dart';
 import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
@@ -35,6 +34,9 @@ import 'package:gps_camioneiro_pro/data/models/trip_model.dart';
 import 'package:gps_camioneiro_pro/core/utils/location_handler.dart';
 import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
 import 'package:gps_camioneiro_pro/core/utils/estado_uf.dart';
+import 'package:gps_camioneiro_pro/core/utils/fotos_motorista.dart';
+import 'package:gps_camioneiro_pro/core/utils/solar.dart';
+import 'package:gps_camioneiro_pro/core/utils/moon.dart';
 import 'package:gps_camioneiro_pro/core/database/local_cache.dart';
 import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
 import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
@@ -94,8 +96,22 @@ class _MapScreenState extends State<MapScreen> {
   bool _alertProviderHooked = false;
   final Set<String> _imagesAdded = {};
 
+  /// Simbolos vivos no mapa, por chave estavel. Nunca limpamos e recriamos
+  /// tudo: isso fazia a foto de perfil e os icones piscarem/andarem.
+  final Map<String, ml.Symbol> _simbolos = {};
+  final List<_SimboloDesejado> _novosSimbolos = [];
+  ml.Line? _linhaRotaBorda;
+  ml.Line? _linhaRota;
+  String _assinaturaLinhaRota = '';
+  String _assinaturaArea = '';
+  final Map<String, String> _assinaturaRotasCompartilhadas = {};
+  final Set<String> _rotasCompartilhadasCriadas = {};
+  bool _renderizandoMarcadores = false;
+  bool _renderPendente = false;
+
   LatLng _center = _fallbackCenter;
   LatLng? _currentPosition;
+  LatLng? _cameraSuave;
   double _zoom = 14;
   double _bearing = 0;
   Timer? _styleFallbackTimer;
@@ -104,6 +120,9 @@ class _MapScreenState extends State<MapScreen> {
   double _speedKmh = 0;
 
   double _heading = 0;
+
+  /// Rumo que a camera esta realmente olhando (suavizado, estilo Google Maps).
+  double _cameraBearing = 0;
   CameraMode _cameraMode = CameraMode.norte;
   int _foraDaRotaAmostras = 0;
   DateTime _ultimoRecalculoAutomatico = DateTime.fromMillisecondsSinceEpoch(0);
@@ -142,6 +161,9 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? _lastTripPos;
   double _tripDistanceMeters = 0;
   RenderQuality? _appliedQuality;
+  bool? _gpsModoEconomia;
+  int? _fpsAplicado;
+  bool _perfilMaximoAplicado = false;
   double _tripMaxSpeed = 0;
   double _tripSpeedSum = 0;
   int _tripSpeedSamples = 0;
@@ -181,6 +203,12 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Quando o app moveu a camera pela ultima vez.
   DateTime _ultimaCameraProgramatica = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Ultima camera aplicada (evita reanimar 1-2 m a cada GPS, que treme).
+  LatLng? _ultimaCameraAlvo;
+  double _ultimoCameraZoom = 0;
+  double _ultimoCameraBearing = 0;
+  double _ultimoCameraTilt = 0;
 
   Future<void> _atualizarMapaSeNecessario() async {
     if (!mounted) return;
@@ -515,7 +543,8 @@ class _MapScreenState extends State<MapScreen> {
     if (_positionSubscription != null) return;
     _positionSubscription = LocationHandler.positionStream(
       intervalMilliseconds: settings.intervaloGpsReal * 1000,
-      highAccuracy: true,
+      highAccuracy: settings.highAccuracy,
+      economia: settings.batterySaver,
     ).listen((pos) {
       final newPos = LatLng(pos.latitude, pos.longitude);
       final anterior = _currentPosition;
@@ -554,18 +583,33 @@ class _MapScreenState extends State<MapScreen> {
       _detectarChegadaSaida(newPos);
       unawaited(_atualizarEstadoLocal());
       _verificarLimiteVelocidade(newPos, _speedKmh);
-      // Clima em tempo real: busca assim que o GPS define a posicao.
+      // Clima em tempo real: busca assim que o GPS define a posicao (com
+      // cache; no modo economia o cache e bem maior).
       if (mounted) {
-        unawaited(context
-            .read<WeatherProvider>()
-            .refresh(lat: newPos.latitude, lon: newPos.longitude));
+        final clima = context.read<WeatherProvider>();
+        clima.cacheTtl = settings.intervaloClima;
+        unawaited(clima.refresh(lat: newPos.latitude, lon: newPos.longitude));
       }
       if (isFirst) {
+        _cameraSuave = newPos;
         _aplicarCameraNoVeiculo(newPos, instant: true);
       } else if (_seguirVeiculo) {
+        // Suaviza a posicao da camera (evita saltos do GPS), estilo Google
+        // Maps: segue colado no veiculo, mas sem tremer. Um salto grande de
+        // GPS (tunel/ponte) e assumido direto.
+        final anteriorCamera = _cameraSuave ?? newPos;
+        final salto = GeometriaRota.distancia(anteriorCamera, newPos) > 150;
+        final fator = salto ? 1.0 : 0.55;
+        final suave = LatLng(
+          anteriorCamera.latitude +
+              (newPos.latitude - anteriorCamera.latitude) * fator,
+          anteriorCamera.longitude +
+              (newPos.longitude - anteriorCamera.longitude) * fator,
+        );
+        _cameraSuave = suave;
         // A camera segue o caminhao no modo escolhido (2D, navegacao 3D ou
         // visao do caminhoneiro) ate o motorista mexer no mapa.
-        _aplicarCameraNoVeiculo(newPos);
+        _aplicarCameraNoVeiculo(suave);
       }
       unawaited(_verificarForaDaRota(newPos));
       _renderMarkers();
@@ -723,25 +767,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// Abre o painel unico "Mapa e graficos" (camada, transito, clima,
-  /// qualidade, FPS, cor da linha e aparencia).
-  void _abrirMapaGraficos() {
-    final settings = context.read<SettingsProvider>();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => MapControlsPanel(
-        onCamada: (modo) => settings.setLayer(modo),
-        onMostrarUi: (_) {},
-        uiVisivel: true,
-      ),
-    );
-  }
-
   /// Rede de caminhoneiros: chat, grupos, contatos e empresa.
   void _abrirRede() {
     final auth = context.read<AuthProvider>();
@@ -761,20 +786,19 @@ class _MapScreenState extends State<MapScreen> {
     RadioSheet.open(context);
   }
 
-  /// Clima e previsao (agora direto no mapa).
+  /// Abre o painel único do clima (previsão + camadas do mapa).
   void _abrirClima() {
     final clima = context.read<WeatherProvider>();
+    final pos = _currentPosition;
+    final lat = clima.lastLatitude ?? pos?.latitude;
+    final lon = clima.lastLongitude ?? pos?.longitude;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => WeatherPanel(
-        latitude: clima.lastLatitude,
-        longitude: clima.lastLongitude,
-      ),
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (_) => WeatherPanel(latitude: lat, longitude: lon),
     );
   }
 
@@ -874,6 +898,22 @@ class _MapScreenState extends State<MapScreen> {
       bool instant = false}) {
     final c = _mapController;
     if (c == null || !_styleLoaded) return;
+
+    if (!instant) {
+      final alvo = _ultimaCameraAlvo;
+      final dBearing = (bearing - _ultimoCameraBearing).abs() % 360;
+      if (alvo != null &&
+          GeometriaRota.distancia(alvo, target) < 1.5 &&
+          (zoom - _ultimoCameraZoom).abs() < 0.05 &&
+          (dBearing < 1.0 || dBearing > 359.0) &&
+          (tilt - _ultimoCameraTilt).abs() < 0.5) {
+        return;
+      }
+    }
+    _ultimaCameraAlvo = target;
+    _ultimoCameraZoom = zoom;
+    _ultimoCameraBearing = bearing;
+    _ultimoCameraTilt = tilt;
     _ultimaCameraProgramatica = DateTime.now();
     final update = ml.CameraUpdate.newCameraPosition(
       ml.CameraPosition(
@@ -887,41 +927,68 @@ class _MapScreenState extends State<MapScreen> {
       c.moveCamera(update).catchError((_) => false);
       return;
     }
-    c.animateCamera(
-      update,
-      duration: const Duration(milliseconds: 450),
-    ).catchError((_) => false);
+    c
+        .animateCamera(
+          update,
+          duration: const Duration(milliseconds: 700),
+        )
+        .catchError((_) => false);
   }
 
-  /// Posiciona a camera conforme o modo escolhido, usando o rumo real do
-  /// caminhao. A visao do caminhoneiro (cabine) aponta a camera para frente
-  /// e inclina o mapa, deixando o veiculo no rodape da tela.
+  /// Posiciona a camera conforme o modo escolhido, imitando o Google Maps:
+  ///
+  /// - o veiculo fica um pouco a frente do centro (look-ahead);
+  /// - o zoom afasta conforme a velocidade (parado = mais perto);
+  /// - o rumo tem uma "zona morta": em reta a camera nao fica girando com o
+  ///   tremor do GPS, so acompanha quando a curva e de verdade;
+  /// - a inclinacao cresce com a velocidade (45 graus parado, 62 na estrada);
+  /// - ao trocar para o modo Norte a camera volta suave para o norte.
   void _aplicarCameraNoVeiculo(LatLng pos, {bool instant = false}) {
     final rumo = _heading;
+    final velocidade = _speedKmh.clamp(0.0, 140.0);
+    final andando = velocidade >= 3;
+
     switch (_cameraMode) {
       case CameraMode.norte:
+        _cameraBearing =
+            instant ? 0 : GeometriaRota.suavizarBearing(_cameraBearing, 0, 0.3);
+        final zoom = (17.0 - velocidade * 0.018).clamp(14.6, 17.0);
         _moverCamera(
           pos,
-          zoom: 15,
+          zoom: zoom,
+          bearing: _cameraBearing,
           instant: instant,
         );
         break;
       case CameraMode.navegacao:
+        _cameraBearing = instant
+            ? rumo
+            : GeometriaRota.suavizarBearing(
+                _cameraBearing, rumo, andando ? 0.28 : 0.06);
+        final olhar = (25 + velocidade * 1.3).clamp(25.0, 165.0);
+        final zoom = (17.8 - velocidade * 0.026).clamp(15.0, 17.8);
+        final tilt = (46 + velocidade * 0.14).clamp(46.0, 62.0);
         _moverCamera(
-          pos,
-          zoom: 16.6,
-          bearing: rumo,
-          tilt: 50,
+          GeometriaRota.deslocar(pos, _cameraBearing, olhar),
+          zoom: zoom,
+          bearing: _cameraBearing,
+          tilt: tilt,
           instant: instant,
         );
         break;
       case CameraMode.cabine:
-        final alvo = GeometriaRota.deslocar(pos, rumo, 30);
+        _cameraBearing = instant
+            ? rumo
+            : GeometriaRota.suavizarBearing(
+                _cameraBearing, rumo, andando ? 0.32 : 0.08);
+        final olhar = (35 + velocidade * 1.5).clamp(35.0, 190.0);
+        final zoom = (18.2 - velocidade * 0.02).clamp(15.6, 18.2);
+        final tilt = (52 + velocidade * 0.12).clamp(52.0, 66.0);
         _moverCamera(
-          alvo,
-          zoom: 17.4,
-          bearing: rumo,
-          tilt: 60,
+          GeometriaRota.deslocar(pos, _cameraBearing, olhar),
+          zoom: zoom,
+          bearing: _cameraBearing,
+          tilt: tilt,
           instant: instant,
         );
         break;
@@ -1052,6 +1119,20 @@ class _MapScreenState extends State<MapScreen> {
     _styleLoaded = true;
     _styleFallbackTimer?.cancel();
     _imagesAdded.clear();
+    _simbolos.clear();
+    _novosSimbolos.clear();
+    _linhaRotaBorda = null;
+    _linhaRota = null;
+    _assinaturaLinhaRota = '';
+    _assinaturaArea = '';
+    _assinaturaRotasCompartilhadas.clear();
+    _rotasCompartilhadasCriadas.clear();
+    _cameraBearing = 0;
+    _ultimaCameraAlvo = null;
+    _ultimoCameraZoom = 0;
+    _ultimoCameraBearing = 0;
+    _ultimoCameraTilt = 0;
+    _fpsAplicado = null;
     await _ensureBuildings3d();
     await _renderMarkers();
     // As camadas de clima (chuva, nuvens, vento) entram DEPOIS dos
@@ -1164,6 +1245,123 @@ class _MapScreenState extends State<MapScreen> {
     _imagesAdded.add(name);
   }
 
+  String _assinaturaOpcoes(ml.SymbolOptions o) {
+    final g = o.geometry;
+    return '${g?.latitude},${g?.longitude}|${o.iconImage}|${o.iconSize}|'
+        '${o.iconRotate}|${o.iconOpacity}|${o.iconAnchor}';
+  }
+
+  String _assinaturaSimbolo(ml.Symbol s) => _assinaturaOpcoes(s.options);
+
+  /// Garante que o simbolo [chave] exista com as opcoes desejadas.
+  ///
+  /// Se ja existe e nada mudou, nao faz nada. Se mudou, usa `updateSymbol`
+  /// (atualiza so aquele ponto, sem redesenhar o mapa inteiro). Simbolos novos
+  /// entram em um lote unico no fim do render.
+  Future<void> _desejarSimbolo(
+    Set<String> desejados,
+    String chave,
+    ml.SymbolOptions opcoes,
+    Map<String, dynamic> dados,
+  ) async {
+    desejados.add(chave);
+    final atual = _simbolos[chave];
+    if (atual == null) {
+      _novosSimbolos.add(_SimboloDesejado(chave, opcoes, dados));
+      return;
+    }
+    if (_assinaturaSimbolo(atual) == _assinaturaOpcoes(opcoes)) return;
+    final c = _mapController;
+    if (c == null) return;
+    try {
+      await c.updateSymbol(atual, opcoes);
+    } catch (_) {}
+  }
+
+  /// Aplica o lote de simbolos novos e remove os que nao existem mais.
+  Future<void> _finalizarSimbolos(Set<String> desejados) async {
+    final c = _mapController;
+    if (c == null) return;
+
+    if (_novosSimbolos.isNotEmpty) {
+      final lote = List<_SimboloDesejado>.from(_novosSimbolos);
+      _novosSimbolos.clear();
+      try {
+        final criados = await c.addSymbols(
+          [for (final d in lote) d.opcoes],
+          [for (final d in lote) d.dados],
+        );
+        for (var i = 0; i < criados.length && i < lote.length; i++) {
+          _simbolos[lote[i].chave] = criados[i];
+        }
+      } catch (_) {
+        for (final d in lote) {
+          try {
+            _simbolos[d.chave] = await c.addSymbol(d.opcoes, d.dados);
+          } catch (_) {}
+        }
+      }
+    }
+
+    final remover = <ml.Symbol>[];
+    for (final entry in _simbolos.entries.toList()) {
+      if (desejados.contains(entry.key)) continue;
+      remover.add(entry.value);
+      _simbolos.remove(entry.key);
+    }
+    if (remover.isEmpty) return;
+    try {
+      await c.removeSymbols(remover);
+    } catch (_) {}
+  }
+
+  Future<void> _aplicarLinhaRota(List<ml.LatLng> geometry, String cor) async {
+    final c = _mapController;
+    if (c == null || geometry.length < 2) return;
+    final assinatura = '${geometry.length}|'
+        '${geometry.first.latitude},${geometry.first.longitude}|'
+        '${geometry.last.latitude},${geometry.last.longitude}|$cor';
+    if (assinatura == _assinaturaLinhaRota) return;
+    _assinaturaLinhaRota = assinatura;
+    final borda = ml.LineOptions(
+      geometry: geometry,
+      lineColor: '#1A0000',
+      lineWidth: 9,
+      lineOpacity: 0.55,
+    );
+    final linha = ml.LineOptions(
+      geometry: geometry,
+      lineColor: cor,
+      lineWidth: 5,
+      lineOpacity: 0.95,
+    );
+    try {
+      final bordaAtual = _linhaRotaBorda;
+      final linhaAtual = _linhaRota;
+      if (bordaAtual == null || linhaAtual == null) {
+        _linhaRotaBorda = await c.addLine(borda);
+        _linhaRota = await c.addLine(linha);
+      } else {
+        await c.updateLine(bordaAtual, borda);
+        await c.updateLine(linhaAtual, linha);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _removerLinhaRota() async {
+    final c = _mapController;
+    if (c == null) return;
+    final borda = _linhaRotaBorda;
+    final linha = _linhaRota;
+    _linhaRotaBorda = null;
+    _linhaRota = null;
+    _assinaturaLinhaRota = '';
+    if (borda == null && linha == null) return;
+    try {
+      await c.removeLines([if (borda != null) borda, if (linha != null) linha]);
+    } catch (_) {}
+  }
+
   final Map<String, Uint8List> _photoCache = {};
   final Map<String, String?> _fotoServidorCache = {};
 
@@ -1231,6 +1429,26 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _renderMarkers() async {
+    if (_renderizandoMarcadores) {
+      _renderPendente = true;
+      return;
+    }
+    _renderizandoMarcadores = true;
+    try {
+      await _renderMarkersInterno();
+    } finally {
+      _renderizandoMarcadores = false;
+      if (_renderPendente && mounted) {
+        _renderPendente = false;
+        unawaited(Future<void>.delayed(
+          const Duration(milliseconds: 120),
+          _renderMarkers,
+        ));
+      }
+    }
+  }
+
+  Future<void> _renderMarkersInterno() async {
     final c = _mapController;
     if (c == null || !_styleLoaded || !mounted) return;
 
@@ -1253,14 +1471,13 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
-    try {
-      await c.clearSymbols();
-      await c.clearLines();
-    } catch (_) {}
+    // Atualizacao incremental: nada de limpar o mapa a cada GPS.
+    final desejados = <String>{};
+    _novosSimbolos.clear();
 
+    final pos = _currentPosition;
     if (route != null && route.polyline.length >= 2) {
       var pontos = route.polyline;
-      final pos = _currentPosition;
       // A linha acompanha o caminhao: o trecho ja percorrido sai do mapa e
       // so fica um pequeno rastro atras do veiculo.
       if (pos != null &&
@@ -1269,22 +1486,12 @@ class _MapScreenState extends State<MapScreen> {
       }
       final geometry =
           pontos.map((p) => ml.LatLng(p.latitude, p.longitude)).toList();
-      await c.addLine(
-        ml.LineOptions(
-          geometry: geometry,
-          lineColor: '#1A0000',
-          lineWidth: 9,
-          lineOpacity: 0.55,
-        ),
+      await _aplicarLinhaRota(
+        geometry,
+        _settingsProvider?.corRota ?? '#1D4ED8',
       );
-      await c.addLine(
-        ml.LineOptions(
-          geometry: geometry,
-          lineColor: _settingsProvider?.corRota ?? '#1D4ED8',
-          lineWidth: 5,
-          lineOpacity: 0.95,
-        ),
-      );
+    } else {
+      await _removerLinhaRota();
     }
 
     await _renderHighlightedArea();
@@ -1293,7 +1500,9 @@ class _MapScreenState extends State<MapScreen> {
     final empresa = context.read<AuthProvider>().driver;
     if (empresa?.companyLat != null && empresa?.companyLon != null) {
       await _addImageOnce('icon_empresa', await MapIcons.emojiBadge('🏭'));
-      await c.addSymbol(
+      await _desejarSimbolo(
+        desejados,
+        'empresa',
         ml.SymbolOptions(
           geometry: ml.LatLng(empresa!.companyLat!, empresa.companyLon!),
           iconImage: 'icon_empresa',
@@ -1320,7 +1529,9 @@ class _MapScreenState extends State<MapScreen> {
       final imgName = 'stop_${cor.toARGB32()}_${i + 1}';
       await _addImageOnce(
           imgName, await MapIcons.waypointBadge(i + 1, color: cor));
-      await c.addSymbol(
+      await _desejarSimbolo(
+        desejados,
+        'stop_$i',
         ml.SymbolOptions(
           geometry: ml.LatLng(stop.point.latitude, stop.point.longitude),
           iconImage: imgName,
@@ -1343,7 +1554,9 @@ class _MapScreenState extends State<MapScreen> {
         in alertasSnapshot.where((a) => a.latitude != 0 && a.longitude != 0)) {
       if (hiddenIds.contains(a.id)) continue;
       final emDestaque = a.id == sinalSelecionado;
-      await c.addSymbol(
+      await _desejarSimbolo(
+        desejados,
+        'alert_${a.id}',
         ml.SymbolOptions(
           geometry: ml.LatLng(a.latitude, a.longitude),
           iconImage: 'icon_alert',
@@ -1387,13 +1600,15 @@ class _MapScreenState extends State<MapScreen> {
         } else {
           await _addImageOnce(imgName, await MapIcons.truckIcon(emoji));
         }
-        await c.addSymbol(
+        await _desejarSimbolo(
+          desejados,
+          'peer_${peerId.isEmpty ? '$lat,$lon' : peerId}',
           ml.SymbolOptions(
             geometry: ml.LatLng(lat, lon),
             iconImage: imgName,
             iconSize: helper ? 0.34 : 0.5,
           ),
-          {'kind': 'peer', 'peer': p},
+          {'kind': 'peer', 'driverId': peerId},
         );
       }
     }
@@ -1406,13 +1621,18 @@ class _MapScreenState extends State<MapScreen> {
       });
       String imgNameMe = 'icon_me';
       if (minhaFoto != null) {
-        imgNameMe = 'icon_me_foto';
+        // O nome inclui a foto atual: trocar a foto gera uma imagem nova,
+        // sem ficar presa na antiga.
+        imgNameMe =
+            'icon_me_foto_${minhaFoto.hashCode.abs()}_${_truckIcon.hashCode.abs()}';
         await _addImageOnce(imgNameMe,
             await MapIcons.photoBadge(minhaFoto, helper: false, mine: true));
       }
       await _addImageOnce(
           'icon_me', await MapIcons.truckIcon(_truckIcon, mine: true));
-      await c.addSymbol(
+      await _desejarSimbolo(
+        desejados,
+        'me',
         ml.SymbolOptions(
           geometry: ml.LatLng(me.latitude, me.longitude),
           iconImage: imgNameMe,
@@ -1425,7 +1645,9 @@ class _MapScreenState extends State<MapScreen> {
     for (final m in markers) {
       final imgName = 'emoji_${m.emoji}';
       await _addImageOnce(imgName, await MapIcons.emojiBadge(m.emoji));
-      await c.addSymbol(
+      await _desejarSimbolo(
+        desejados,
+        'marker_${m.id}',
         ml.SymbolOptions(
           geometry: ml.LatLng(m.latitude, m.longitude),
           iconImage: imgName,
@@ -1451,7 +1673,9 @@ class _MapScreenState extends State<MapScreen> {
       final imgName = 'wp_${color.toARGB32()}_${i + 1}';
       await _addImageOnce(
           imgName, await MapIcons.waypointBadge(i + 1, color: color));
-      await c.addSymbol(
+      await _desejarSimbolo(
+        desejados,
+        'wp_$i',
         ml.SymbolOptions(
           geometry: ml.LatLng(
               routeStops[i].point.latitude, routeStops[i].point.longitude),
@@ -1462,6 +1686,7 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
+    await _finalizarSimbolos(desejados);
     await _renderRotasCompartilhadas();
   }
 
@@ -1469,6 +1694,12 @@ class _MapScreenState extends State<MapScreen> {
     final c = _mapController;
     if (c == null) return;
     final area = context.read<RouteProvider>().highlightedArea;
+    final assinatura = area == null || area.isEmpty
+        ? ''
+        : '${area.length}|${area.first[0]},${area.first[1]}|'
+            '${area.last[0]},${area.last[1]}';
+    if (assinatura == _assinaturaArea) return;
+    _assinaturaArea = assinatura;
     try {
       await c.removeLayer('area_fill');
       await c.removeLayer('area_line');
@@ -1488,14 +1719,6 @@ class _MapScreenState extends State<MapScreen> {
     };
     try {
       await c.addGeoJsonSource('route_area', source);
-      await c.addFillLayer(
-        'route_area',
-        'area_fill',
-        const ml.FillLayerProperties(
-          fillColor: '#00B0FF',
-          fillOpacity: 0.07,
-        ),
-      );
       await c.addLineLayer(
         'route_area',
         'area_line',
@@ -1517,8 +1740,13 @@ class _MapScreenState extends State<MapScreen> {
         _abrirMeuPerfil();
         break;
       case 'peer':
-        final peer = data['peer'];
-        if (peer is Map) _openPeerProfile(Map<String, dynamic>.from(peer));
+        final peerId = data['driverId']?.toString() ?? '';
+        for (final p in _peerTrucks) {
+          if (p['driverId']?.toString() == peerId) {
+            _openPeerProfile(Map<String, dynamic>.from(p));
+            break;
+          }
+        }
         break;
       case 'marker':
         final id = data['id'];
@@ -1760,7 +1988,6 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Cartão de perfil do próprio motorista (tap no caminhão no mapa).
   void _abrirMeuPerfil() {
-    final driver = context.read<AuthProvider>().driver;
     showModalBottomSheet(
       context: context,
       backgroundColor: _superficie(context),
@@ -1768,7 +1995,12 @@ class _MapScreenState extends State<MapScreen> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
+        child: Consumer<AuthProvider>(
+          builder: (contexto, auth, _) {
+            final driver = auth.driver;
+            final url = driver?.avatarUrl ?? '';
+            final foto = FotosMotorista.provider(url);
+            return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1778,13 +2010,11 @@ class _MapScreenState extends State<MapScreen> {
                 child: CircleAvatar(
                   radius: 34,
                   backgroundColor: const Color(0xFF1C0303),
-                  backgroundImage: (driver?.avatarUrl ?? '').isNotEmpty
-                      ? NetworkImage(driver!.avatarUrl!)
-                      : null,
-                  child: (driver?.avatarUrl ?? '').isEmpty
-                      ? Text((driver?.truckIcon ?? '🚚'),
-                          style: const TextStyle(fontSize: 30))
-                      : null,
+                  foregroundImage: foto,
+                  onForegroundImageError:
+                      foto == null ? null : (_, __) {},
+                  child: Text((driver?.truckIcon ?? '🚚'),
+                      style: const TextStyle(fontSize: 30)),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1857,6 +2087,8 @@ class _MapScreenState extends State<MapScreen> {
               const SizedBox(height: 8),
             ],
           ),
+            );
+          },
         ),
       ),
     );
@@ -2284,8 +2516,15 @@ class _MapScreenState extends State<MapScreen> {
 
   void _recentralizarNoCaminhao() {
     final target = _currentPosition ?? _fallbackCenter;
+    // Forca a camera a voltar mesmo que o alvo seja o mesmo da ultima
+    // animacao (ex.: o motorista arrastou o mapa e o caminhao ficou parado).
+    _ultimaCameraAlvo = null;
+    _cameraSuave = target;
     setState(() => _seguirVeiculo = true);
     _aplicarCameraNoVeiculo(target);
+    if (_currentPosition == null) {
+      _showSnackBar('Aguardando o GPS para centralizar no caminhao.');
+    }
   }
 
   Future<void> _abrirContatosEstrada() async {
@@ -2319,37 +2558,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Falas automaticas de aproximacao: quando o caminhao passa de 1 km,
-  /// 500 m e 20 m da proxima parada, o app fala uma vez em cada faixa.
-  /// O aviso final fica entre 10 e 20 m, junto do ponto real de entrega.
-  static const double _raioChegadaKm = 0.02;
-  static const List<double> _faixasKm = [1.0, 0.5, _raioChegadaKm];
-  int _faixaAnunciada = -1;
-
-  /// Fala a aproximacao da proxima parada (uma vez por faixa).
-  void _anunciarAproximacao(RouteProvider route, int total) {
-    final km = route.distanciaProximaParadaKm;
-    if (km == null || km > _faixasKm.first) {
-      _faixaAnunciada = -1;
-      return;
-    }
-    var faixa = 0;
-    for (var i = 0; i < _faixasKm.length; i++) {
-      if (km <= _faixasKm[i]) faixa = i;
-    }
-    if (_faixaAnunciada == faixa) return;
-    _faixaAnunciada = faixa;
-
-    final proxima = route.nextStopLabel;
-    if (proxima.isEmpty || proxima.startsWith('Rota conclu')) return;
-    final texto = km <= _raioChegadaKm
-        ? 'Chegando: $proxima.'
-        : 'Faltam ${(km * 1000).round()} metros para $proxima.';
-    // Som de aproximacao (slot "Proxima parada") e depois a voz.
-    unawaited(context.read<SonsProvider>().tocar(SlotSom.proximaParada));
-    unawaited(VoiceService.instance.falar(texto));
-  }
-
   /// Monitor de chegada e saida das paradas (logica testada com milhares
   /// de simulacoes em test/simulacao_jornadas_test.dart).
   final MonitorDeParadas _monitorParadas = MonitorDeParadas();
@@ -2379,8 +2587,8 @@ class _MapScreenState extends State<MapScreen> {
         // o sino nao tocar duas vezes). Aqui fica so a vibracao.
         HapticFeedback.heavyImpact();
       } else if (ev.saiu) {
-        // Som de SAÍDA (nao e o sino de chegada) e a proxima parada.
-        unawaited(context.read<SonsProvider>().tocar(SlotSom.saidaParada));
+        // Sem som de saida: so a voz anuncia a proxima parada (numero ou
+        // nome do cliente), como pedido.
         unawaited(VoiceService.instance.proximaParada(
           numero: route.proximoNumero,
           nome: route.proximoNome,
@@ -2398,15 +2606,12 @@ class _MapScreenState extends State<MapScreen> {
     route.updatePosition(pos);
     final total = route.totalStops - (route.companyStopIndex != null ? 1 : 0);
 
-    // Chegou na parada: fala na hora (com a distancia real do momento) e
-    // vibra, sem esperar a confirmacao da entrega.
+    // Chegou na parada: sino + voz (numero ou nome do cliente).
     final chegada = route.consumeArrivalEvent();
     if (chegada != null) {
       HapticFeedback.heavyImpact();
       _emitirProgressoRota(chegada, StatusParadaCompartilhada.chegou, pos);
       unawaited(_falarChegada(route, total, chegada));
-    } else {
-      _anunciarAproximacao(route, total);
     }
 
     if (route.deliveredCount > before) {
@@ -2419,43 +2624,26 @@ class _MapScreenState extends State<MapScreen> {
         StatusParadaCompartilhada.entregue,
         pos,
       );
-      // Sequencia da chegada: primeiro o SINO, depois a VOZ (com o radio
-      // abaixado) dizendo a proxima parada e a distancia.
-      unawaited(_tocarChegadaEVoz(route, total));
+      // A voz da entrega ja foi dada na chegada. Aqui nao fala de novo.
     }
     if (route.allDelivered && route.consumeCompletionEvent()) {
       _mostrarViagemConcluida(route.deliveredCount);
     }
   }
 
-  /// Fala a chegada na parada com os dados atualizados do momento.
-  /// Toca o **sino de chegada** e o **sino de estação** (uma vez so).
+  /// Chegada na parada: toca o sino unico do app e fala o numero da parada
+  /// (ou o nome do cliente, conforme a escolha do motorista).
   Future<void> _falarChegada(
       RouteProvider route, int total, int indiceParada) async {
     final audio = context.read<AudioProvider>();
     await audio.tocarChegada();
     if (!mounted) return;
-    unawaited(context.read<SonsProvider>().tocar(SlotSom.sinoEstacao));
     final numero = route.numeroDaParada(indiceParada);
     await VoiceService.instance.chegadaNaParada(
       numero,
       total,
       proximoNumero: route.proximoNumero,
       proximoNome: route.proximoNome,
-      distanciaProximaKm: route.distanciaProximaParadaKm,
-    );
-  }
-
-  /// Depois da entrega: **so a voz** anuncia a proxima parada (o sino ja
-  /// tocou na chegada - nao toca duas vezes).
-  Future<void> _tocarChegadaEVoz(RouteProvider route, int total) async {
-    if (!mounted) return;
-    await VoiceService.instance.chegadaNaParada(
-      route.deliveredCount,
-      total,
-      proximoNumero: route.proximoNumero,
-      proximoNome: route.proximoNome,
-      distanciaProximaKm: route.distanciaProximaParadaKm,
     );
   }
 
@@ -2493,22 +2681,16 @@ class _MapScreenState extends State<MapScreen> {
     final provider = context.read<SharedRoutesProvider>();
     final visiveis = provider.visiveis;
 
-    // Limpa as linhas anteriores.
-    for (final rota in provider.todas) {
-      final id = 'rota_shared_${rota.shareId}';
-      try {
-        await c.removeLayer('${id}_linha');
-        await c.removeLayer('${id}_paradas');
-      } catch (_) {}
-      try {
-        await c.removeSource(id);
-      } catch (_) {}
-    }
-
+    final idsVisiveis = <String>{};
     for (final rota in visiveis) {
       if (rota.stops.length < 2) continue;
       final id = 'rota_shared_${rota.shareId}';
+      idsVisiveis.add(id);
       final coords = rota.linha;
+      final assinatura = '${coords.length}|${coords.first}|${coords.last}';
+      if (_assinaturaRotasCompartilhadas[id] == assinatura) continue;
+      _assinaturaRotasCompartilhadas[id] = assinatura;
+
       final source = {
         'type': 'Feature',
         'geometry': {
@@ -2518,18 +2700,38 @@ class _MapScreenState extends State<MapScreen> {
         'properties': <String, dynamic>{'shareId': rota.shareId},
       };
       try {
-        await c.addGeoJsonSource(id, source);
-        await c.addLineLayer(
-          id,
-          '${id}_linha',
-          const ml.LineLayerProperties(
-            lineColor: '#00E676',
-            lineWidth: 4,
-            lineOpacity: 0.85,
-            lineDasharray: [2, 1.4],
-          ),
-        );
+        if (_rotasCompartilhadasCriadas.contains(id)) {
+          // Atualiza a linha no lugar: recriar a cada atualizacao piscava.
+          await c.setGeoJsonSource(id, source);
+        } else {
+          await c.addGeoJsonSource(id, source);
+          await c.addLineLayer(
+            id,
+            '${id}_linha',
+            const ml.LineLayerProperties(
+              lineColor: '#00E676',
+              lineWidth: 4,
+              lineOpacity: 0.85,
+              lineDasharray: [2, 1.4],
+            ),
+          );
+          _rotasCompartilhadasCriadas.add(id);
+        }
       } catch (_) {}
+    }
+
+    final remover =
+        _rotasCompartilhadasCriadas.where((id) => !idsVisiveis.contains(id));
+    for (final id in remover.toList()) {
+      try {
+        await c.removeLayer('${id}_linha');
+        await c.removeLayer('${id}_paradas');
+      } catch (_) {}
+      try {
+        await c.removeSource(id);
+      } catch (_) {}
+      _rotasCompartilhadasCriadas.remove(id);
+      _assinaturaRotasCompartilhadas.remove(id);
     }
   }
 
@@ -2933,7 +3135,6 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _routePanelClosed = true;
       _sinalSelecionadoId = null;
-      _faixaAnunciada = -1;
     });
     _renderMarkers();
     // Sem viagem em andamento o app pode voltar ao normal: o servico em
@@ -3014,8 +3215,55 @@ class _MapScreenState extends State<MapScreen> {
       // Perfil economico: sem predios 3D e sem camadas pesadas de clima.
       _aplicarPerfilDeGraficos(quality);
     }
+    _aplicarModoEconomia();
     _syncTracking();
     _renderMarkers();
+  }
+
+  /// Aplica FPS maximo e o modo economia de bateria de verdade:
+  ///
+  /// - **Economia ligada**: 30 FPS, GPS de baixo consumo (1 posicao a cada
+  ///   20 s), sem clima, sem radar, sem predios 3D, sem animacoes.
+  /// - **Economia desligada**: FPS maximo que a tela do aparelho entrega
+  ///   (30/60/120) e todos os recursos do mapa.
+  void _aplicarModoEconomia() {
+    final settings = _settingsProvider;
+    if (settings == null) return;
+    final economia = settings.batterySaver;
+
+    if (_gpsModoEconomia != economia) {
+      _gpsModoEconomia = economia;
+      _positionSubscription?.cancel();
+      _positionSubscription = null;
+    }
+
+    final fps = settings.targetFps;
+    if (_fpsAplicado != fps) {
+      _fpsAplicado = fps;
+      final c = _mapController;
+      if (c != null) {
+        unawaited(c.setMaximumFps(fps).catchError((_) {}));
+      }
+    }
+
+    final camadas = context.read<MapLayersProvider>();
+    if (camadas.economia != economia) {
+      unawaited(camadas.setEconomia(economia));
+    }
+    if (economia) {
+      _perfilMaximoAplicado = false;
+    } else if (settings.autoPerfil) {
+      _garantirPerfilMaximo(settings);
+    }
+  }
+
+  void _garantirPerfilMaximo(SettingsProvider settings) {
+    if (_perfilMaximoAplicado) return;
+    _perfilMaximoAplicado = true;
+    final camadas = context.read<MapLayersProvider>();
+    if (!camadas.radar) unawaited(camadas.setRadar(true));
+    if (!camadas.nuvens) unawaited(camadas.setNuvens(true));
+    _ensureBuildings3d();
   }
 
   /// Aplica o perfil de graficos escolhido em Configuracoes.
@@ -3026,6 +3274,14 @@ class _MapScreenState extends State<MapScreen> {
   /// - **Ultra**: camadas de clima ligadas.
   void _aplicarPerfilDeGraficos(RenderQuality quality) {
     final camadas = context.read<MapLayersProvider>();
+    final economia = _settingsProvider?.batterySaver ?? false;
+    if (economia) {
+      if (camadas.radar) camadas.setRadar(false);
+      if (camadas.nuvens) camadas.setNuvens(false);
+      if (camadas.relevo) camadas.setRelevo(false);
+      if (mounted) setState(() {});
+      return;
+    }
     if (quality == RenderQuality.economy) {
       if (camadas.radar) camadas.setRadar(false);
       if (camadas.nuvens) camadas.setNuvens(false);
@@ -3114,7 +3370,6 @@ class _MapScreenState extends State<MapScreen> {
       case 'radar':
         if (s.radarSound) {
           AlertNotifier.triggerRadarWarning();
-          unawaited(context.read<SonsProvider>().tocar(SlotSom.alertaRadar));
         }
         break;
       case 'perigo':
@@ -3307,11 +3562,17 @@ class _MapScreenState extends State<MapScreen> {
     // O painel de rotas so aparece quando existe rota de verdade: painel
     // vazio sobre o mapa so atrapalhava.
     final totalParadas = context.watch<RouteProvider>().totalStops;
+    final realismo = context.watch<SettingsProvider>().realismo;
 
     return Scaffold(
       body: Stack(
         children: [
           _buildMapView(),
+          RealismoOverlay(
+            latitude: (_currentPosition ?? _center).latitude,
+            longitude: (_currentPosition ?? _center).longitude,
+            ativo: realismo && !_emPip,
+          ),
           if (_emPip) _miniJanela(context),
           // Onda de aviso (compartilhar posicao / marcar sinal).
           if (_onda != null)
@@ -3359,13 +3620,11 @@ class _MapScreenState extends State<MapScreen> {
                   _botaoFlutuante(
                       Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
                   _botaoFlutuante(
-                      Icons.tune, 'Mapa e graficos', _abrirMapaGraficos),
-                  _botaoFlutuante(
                       Icons.group, 'Rede de caminhoneiros', _abrirRede),
                   _botaoFlutuante(
                       Icons.radio_outlined, 'Radio da estrada', _abrirRadio),
-                  _botaoFlutuante(
-                      Icons.cloud_outlined, 'Clima e previsao', _abrirClima),
+                  _botaoClima(),
+                  _botaoCeu(),
                   _botaoFlutuante(
                       Icons.campaign,
                       'Compartilhar posicao com a rede',
@@ -3514,7 +3773,8 @@ class _MapScreenState extends State<MapScreen> {
           onTap: () {
             if (ativo) {
               setState(() => _seguirVeiculo = false);
-              _showSnackBar('📷 Tela solta. Centralize pelo botao quando quiser.');
+              _showSnackBar(
+                  '📷 Tela solta. Centralize pelo botao quando quiser.');
             } else {
               _recentralizarNoCaminhao();
             }
@@ -3560,6 +3820,145 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Botão único do clima: mostra temperatura/emoji e abre o painel completo.
+  Widget _botaoClima() {
+    final clima = context.watch<WeatherProvider>();
+    final now = clima.now;
+    final chuva = (now?.precipMm ?? 0) > 0 ||
+        clima.hours.take(3).any((h) => h.precipProb >= 50);
+    final accent = _settingsProvider?.overlayColor ?? kEmergencyRed;
+    final cor = chuva ? const Color(0xFF64B5F6) : accent;
+    final emoji = now == null ? '☁️' : clima.emojiForCode(now.code);
+    final temp = now == null ? '--' : '${now.tempC.round()}°';
+    final dica = now == null
+        ? 'Clima e previsão'
+        : '${clima.descricaoForCode(now.code)} • ${now.tempC.round()}°C • '
+            'vento ${now.windKmh.round()} km/h';
+    return Tooltip(
+      message: dica,
+      child: Material(
+        color: _superficie(context),
+        shape: CircleBorder(
+          side: BorderSide(
+            color: cor.withValues(alpha: 0.8),
+            width: 1.3,
+          ),
+        ),
+        elevation: 4,
+        shadowColor: Colors.black54,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _abrirClima,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(emoji,
+                        style: const TextStyle(fontSize: 15, height: 1)),
+                    Text(
+                      temp,
+                      style: TextStyle(
+                        color: cor,
+                        fontSize: 9,
+                        height: 1.1,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                if (chuva)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF64B5F6),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Botao do ceu em tempo real: mostra o sol ou a lua agora e liga/desliga o
+  /// modo realista (veu de noite/crepusculo sobre o mapa).
+  Widget _botaoCeu() {
+    final settings = context.watch<SettingsProvider>();
+    final pos = _currentPosition ?? _center;
+    final solar =
+        calcularSolar(latitude: pos.latitude, longitude: pos.longitude);
+    final lua = calcularLua();
+    final noite = !solar.ehDia;
+    final emoji = noite ? lua.emoji : '☀️';
+    final valor = noite
+        ? '${lua.iluminacao.round()}%'
+        : '${solar.elevacaoGraus.round()}°';
+    final accent = settings.realismo
+        ? const Color(0xFF7E57C2)
+        : (_settingsProvider?.overlayColor ?? kEmergencyRed);
+    final estado = noite
+        ? 'Noite • Lua ${lua.fase.toLowerCase()} ${lua.iluminacao.round()}%'
+        : 'Dia • Sol a ${solar.elevacaoGraus.round()}°';
+    final dica = 'Sol e Lua em tempo real\n$estado\n'
+        'Toque para ${settings.realismo ? 'desligar' : 'ligar'} o modo realista';
+    return Tooltip(
+      message: dica,
+      child: Material(
+        color: _superficie(context),
+        shape: CircleBorder(
+          side: BorderSide(color: accent.withValues(alpha: 0.8), width: 1.3),
+        ),
+        elevation: 4,
+        shadowColor: Colors.black54,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => _alternarRealismo(),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 15, height: 1)),
+                Text(
+                  valor,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 9,
+                    height: 1.1,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Liga/desliga o modo realista com um aviso curto.
+  void _alternarRealismo() {
+    final settings = context.read<SettingsProvider>();
+    final ligar = !settings.realismo;
+    settings.setRealismo(ligar);
+    _showSnackBar(ligar
+        ? 'Modo realista ligado: o mapa segue o sol e a lua agora.'
+        : 'Modo realista desligado.');
+  }
+
   /// Emite um sinal no mapa (aviso para a rede) no ponto atual.
   void _emitirSinalNoMapa() {
     _showWriteReportDialog();
@@ -3582,7 +3981,9 @@ class _MapScreenState extends State<MapScreen> {
     final ligado = context.watch<SettingsProvider>().trackingEnabled;
     final cor = ligado ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
     return Tooltip(
-      message: ligado ? 'Encerrar viagem, limpar rotas e reiniciar GPS' : 'Ligar o GPS',
+      message: ligado
+          ? 'Encerrar viagem, limpar rotas e reiniciar GPS'
+          : 'Ligar o GPS',
       child: Material(
         color: cor,
         shape: const CircleBorder(),
@@ -3639,12 +4040,18 @@ class _MapScreenState extends State<MapScreen> {
     if (!mounted) return;
     _limparMapaAoFinalizar();
 
-    // 2) Reinicia o rastreio automaticamente para a proxima viagem: novo
-    //    expediente, servico em primeiro plano e fluxo de posicao ativo.
+    // 2) Encerra o rastreio para que o botao de GPS fique verde (desligado)
+    //    e o motorista religue manualmente quando quiser a proxima viagem.
     if (!mounted) return;
-    await _ligarGps();
+    await _sincronizarServicoDeFundo(false);
     if (!mounted) return;
-    _showSnackBar('Viagem encerrada e mapa limpo. GPS pronto para a proxima rota.');
+    final settings = context.read<SettingsProvider>();
+    await settings.endDay();
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
+    if (!mounted) return;
+    _showSnackBar(
+        'Viagem encerrada e mapa limpo. GPS desligado (botao verde).');
   }
 
   /// Puxador de arraste dos paineis (arrasta e mostra o nome do painel).
@@ -3743,4 +4150,13 @@ class _MapScreenState extends State<MapScreen> {
       attributionButtonMargins: const math.Point(-1000, -1000),
     );
   }
+}
+
+/// Simbolo que o render deseja manter no mapa (chave estavel + aparencia).
+class _SimboloDesejado {
+  final String chave;
+  final ml.SymbolOptions opcoes;
+  final Map<String, dynamic> dados;
+
+  const _SimboloDesejado(this.chave, this.opcoes, this.dados);
 }

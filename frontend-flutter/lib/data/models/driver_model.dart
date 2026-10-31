@@ -47,6 +47,48 @@ class DriverModel {
 
   bool get isHelper => role == 'ajudante';
 
+  /// Copia o perfil trocando apenas os campos informados.
+  DriverModel copyWith({
+    String? driverId,
+    String? email,
+    String? name,
+    bool? isPremium,
+    double? truckHeight,
+    double? truckWeight,
+    int? axleCount,
+    bool? hazmat,
+    String? avatarUrl,
+    String? truckPhotoUrl,
+    String? truckModel,
+    String? cargoType,
+    String? truckIcon,
+    String? role,
+    String? helpType,
+    String? companyName,
+    double? companyLat,
+    double? companyLon,
+  }) =>
+      DriverModel(
+        driverId: driverId ?? this.driverId,
+        email: email ?? this.email,
+        name: name ?? this.name,
+        isPremium: isPremium ?? this.isPremium,
+        truckHeight: truckHeight ?? this.truckHeight,
+        truckWeight: truckWeight ?? this.truckWeight,
+        axleCount: axleCount ?? this.axleCount,
+        hazmat: hazmat ?? this.hazmat,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
+        truckPhotoUrl: truckPhotoUrl ?? this.truckPhotoUrl,
+        truckModel: truckModel ?? this.truckModel,
+        cargoType: cargoType ?? this.cargoType,
+        truckIcon: truckIcon ?? this.truckIcon,
+        role: role ?? this.role,
+        helpType: helpType ?? this.helpType,
+        companyName: companyName ?? this.companyName,
+        companyLat: companyLat ?? this.companyLat,
+        companyLon: companyLon ?? this.companyLon,
+      );
+
   factory DriverModel.fromJson(Map<String, dynamic> json) => DriverModel(
         driverId: json['driverId'] ?? json['driver_id'] ?? '',
         email: json['email'] ?? '',

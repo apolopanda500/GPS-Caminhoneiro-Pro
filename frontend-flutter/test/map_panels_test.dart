@@ -80,6 +80,28 @@ void main() {
     expect(find.text('Tabela de rotas'), findsOneWidget);
   });
 
+  testWidgets('tabela de rotas no menor tamanho nao estoura (240 px)',
+      (tester) async {
+    await tester.pumpWidget(app(Stack(
+      children: [
+        RouteTablePanel(
+          onShowRoute: () {},
+          onShare: () {},
+          onStart: () {},
+          onConfirmNext: () {},
+          onClose: () {},
+        ),
+      ],
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byIcon(Icons.drag_handle), const Offset(-120, 0));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Tabela de rotas'), findsOneWidget);
+  });
+
   testWidgets('FloatingPanel minimiza ao ser solto na borda', (tester) async {
     await tester.pumpWidget(app(const Stack(
       children: [

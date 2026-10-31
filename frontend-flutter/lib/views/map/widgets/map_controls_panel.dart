@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import 'package:gps_camioneiro_pro/core/theme/app_theme.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
-import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
 import 'package:gps_camioneiro_pro/providers/settings_provider.dart';
 
 /// Painel unico do mapa: camada (satelite/ruas/3D), predios 3D, clima ao
@@ -14,18 +13,19 @@ class MapControlsPanel extends StatelessWidget {
   final ValueChanged<MapLayerMode> onCamada;
   final ValueChanged<bool> onMostrarUi;
   final bool uiVisivel;
+  final ValueChanged<bool>? onTrafficChanged;
 
   const MapControlsPanel({
     super.key,
     required this.onCamada,
     required this.onMostrarUi,
     required this.uiVisivel,
+    this.onTrafficChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    final camadas = context.watch<MapLayersProvider>();
     final texto = overlayText(context);
     final muted = overlayTextMuted(context);
 
@@ -138,126 +138,9 @@ class MapControlsPanel extends StatelessWidget {
               ),
             ),
 
-            // Transito em tempo real (TomTom)
-            linha(
-              Icons.traffic,
-              'Trânsito em tempo real',
-              'Mostra o gargalo na via (verde a vermelho)',
-              settings.trafficLayer,
-              settings.setTrafficLayer,
-            ),
-
-            // Predios 3D
-            linha(
-              Icons.apartment,
-              'Prédios 3D',
-              'Volume e sombra dos prédios',
-              settings.buildings3d,
-              settings.setBuildings3d,
-            ),
-
-            // ------------------------------------------------- clima
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
-              child: Text('Clima em tempo real',
-                  style: TextStyle(
-                      color: muted, fontSize: 10, fontWeight: FontWeight.bold)),
-            ),
-            linha(
-              Icons.grain,
-              'Radar de chuva',
-              camadas.animando
-                  ? 'Animando • ${camadas.rotuloFrame} (${camadas.totalFrames} frames)'
-                  : '1200+ radares • ${camadas.rotuloFrame.isEmpty ? 'carregando' : camadas.rotuloFrame}',
-              camadas.radar,
-              camadas.setRadar,
-            ),
-            if (camadas.radar && camadas.totalFrames > 1)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: camadas.animando ? 'Pausar' : 'Animar',
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 32, minHeight: 32),
-                      onPressed: camadas.alternarAnimacao,
-                      icon: Icon(
-                        camadas.animando ? Icons.pause : Icons.play_arrow,
-                        color: overlayAccent(context),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Voltar ao início',
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 32, minHeight: 32),
-                      onPressed: camadas.recomecarRadar,
-                      icon: Icon(Icons.replay, color: overlayAccent(context)),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Passado e previsão • ${camadas.rotuloFrame}',
-                        style: TextStyle(color: muted, fontSize: 11),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            linha(
-              Icons.water_drop_outlined,
-              'Precipitação',
-              'Chance de chuva (previsão)',
-              camadas.precipitacao,
-              camadas.setPrecipitacao,
-            ),
-            linha(
-              Icons.air,
-              'Vento',
-              'Velocidade do vento na região',
-              camadas.vento,
-              camadas.setVento,
-            ),
-            linha(
-              Icons.thermostat,
-              'Temperatura',
-              'Calor e frio na região',
-              camadas.temperatura,
-              camadas.setTemperatura,
-            ),
-            linha(
-              Icons.cloud_outlined,
-              'Nuvens',
-              camadas.nuvensPorSatelite
-                  ? 'Satélite em tempo real'
-                  : 'Cobertura prevista (satélite indisponível)',
-              camadas.nuvens,
-              camadas.setNuvens,
-            ),
-            linha(
-              Icons.cloud_queue,
-              'Cobertura de nuvens',
-              'Previsão de nuvens',
-              camadas.nuvensPrevistas,
-              camadas.setNuvensPrevistas,
-            ),
-            linha(
-              Icons.terrain,
-              'Relevo',
-              'Sombreamento do terreno real',
-              camadas.relevo,
-              camadas.setRelevo,
-            ),
-
-            const Divider(color: Colors.white12, height: 12),
-
             // Qualidade grafica: leve / medio / pesado
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
               child: Text('Qualidade dos gráficos',
                   style: TextStyle(
                       color: muted, fontSize: 10, fontWeight: FontWeight.bold)),
@@ -287,10 +170,50 @@ class MapControlsPanel extends StatelessWidget {
                     icon: Icon(Icons.speed, size: 14),
                   ),
                 ],
-                selected: {settings.renderQuality},
-                onSelectionChanged: (v) => settings.setRenderQuality(v.first),
+                selected: {settings.savedRenderQuality},
+                onSelectionChanged: settings.batterySaver
+                    ? null
+                    : (v) => settings.setRenderQuality(v.first),
               ),
             ),
+            if (settings.batterySaver)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 2, 10, 6),
+                child: Text(
+                  'Economia de bateria ligada: graficos em modo leve.',
+                  style: TextStyle(
+                      color: muted, fontSize: 9, fontStyle: FontStyle.italic),
+                ),
+              ),
+
+            // Transito em tempo real (TomTom)
+            linha(
+              Icons.traffic,
+              'Trânsito em tempo real',
+              'Mostra o gargalo na via (verde a vermelho)',
+              settings.trafficLayer,
+              settings.setTrafficLayer,
+            ),
+
+            // Predios 3D
+            linha(
+              Icons.apartment,
+              'Prédios 3D',
+              'Volume e sombra dos prédios',
+              settings.buildings3d,
+              settings.setBuildings3d,
+            ),
+
+            // Modo realista: sol e lua reais, ceu escurece sozinho
+            linha(
+              Icons.nightlight_round,
+              'Modo realista (sol e lua)',
+              'Escurece o mapa conforme a hora real e a luz da lua',
+              settings.realismo,
+              settings.setRealismo,
+            ),
+
+            const Divider(color: Colors.white12, height: 12),
 
             // Mostrar/ocultar os elementos da tela (antes era um botao solto)
             linha(

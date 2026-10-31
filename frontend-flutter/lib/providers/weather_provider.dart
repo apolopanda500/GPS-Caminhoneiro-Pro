@@ -66,6 +66,10 @@ class WeatherProvider extends ChangeNotifier {
   DateTime? _updatedAt;
   String? _lastAlertKey;
 
+  /// Tempo de cache do clima. No modo normal 2 min; no modo economia de
+  /// bateria 10 min (menos rede e menos GPS).
+  Duration cacheTtl = const Duration(minutes: 2);
+
   WeatherNow? get now => _now;
 
   /// Ultima posicao consultada (para abrir o clima de qualquer tela).
@@ -89,6 +93,23 @@ class WeatherProvider extends ChangeNotifier {
     if (code <= 86) return '🌧️';
     if (code <= 99) return '⛈️';
     return '☁️';
+  }
+
+  /// Descricao curta do codigo WMO (Open-Meteo).
+  String descricaoForCode(int? code) {
+    if (code == null) return 'Condições não informadas';
+    if (code == 0) return 'Céu limpo';
+    if (code == 1) return 'Predomínio de sol';
+    if (code == 2) return 'Parcialmente nublado';
+    if (code == 3) return 'Nublado';
+    if (code <= 47) return 'Neblina ou nevoeiro';
+    if (code <= 57) return 'Garoa';
+    if (code <= 67) return 'Chuva';
+    if (code <= 77) return 'Neve';
+    if (code <= 82) return 'Pancadas de chuva';
+    if (code <= 86) return 'Pancadas de neve';
+    if (code <= 99) return 'Tempestade';
+    return 'Tempo instável';
   }
 
   String? ventoNivel() {
@@ -157,11 +178,11 @@ class WeatherProvider extends ChangeNotifier {
     bool force = false,
   }) async {
     final cacheOk = _updatedAt != null &&
-        DateTime.now().difference(_updatedAt!) < const Duration(minutes: 15) &&
+        DateTime.now().difference(_updatedAt!) < cacheTtl &&
         _lat != null &&
         _lon != null &&
-        (lat - _lat!).abs() < 0.3 &&
-        (lon - _lon!).abs() < 0.3;
+        (lat - _lat!).abs() < 0.01 &&
+        (lon - _lon!).abs() < 0.01;
     if (!force && (cacheOk || _loading)) return;
     _loading = true;
     _error = null;

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:latlong2/latlong.dart';
 
@@ -22,7 +24,6 @@ class MapLayersProvider extends ChangeNotifier {
   bool _temperatura = false;
   bool _carregando = false;
 
-  String? _frameRadar;
   String? _frameInfrarrojo;
   Timer? _timer;
 
@@ -34,6 +35,19 @@ class MapLayersProvider extends ChangeNotifier {
 
   /// Pontos da grade de previsao (por camada).
   final Map<String, List<Ponto>> _grades = {};
+  List<Map<String, double>> _ventoSetas = const [];
+
+  /// Controle do que ja esta desenhado no mapa. Sem isso o provider
+  /// removia/recriava as camadas a cada atualizacao do GPS: era isso que
+  /// fazia as nuvens e o radar piscarem na tela.
+  final Map<String, String> _rasterAplicado = {};
+  final Set<String> _radarCamadasCriadas = {};
+  final Map<String, String> _assinaturaGrade = {};
+  String _assinaturaVento = '';
+  String _radarAssinatura = '';
+  bool _relevoAplicado = false;
+  bool _setaVentoPronta = false;
+  bool _ventoAplicado = false;
 
   ml.MapLibreMapController? _controller;
 
@@ -64,6 +78,7 @@ class MapLayersProvider extends ChangeNotifier {
   /// Liga/desliga o radar de chuva.
   Future<void> setRadar(bool value) async {
     if (_radar == value) return;
+    if (_economia && value) return;
     _radar = value;
     notifyListeners();
     try {
@@ -86,12 +101,13 @@ class MapLayersProvider extends ChangeNotifier {
   /// Liga/desliga as nuvens (infravermelho).
   Future<void> setNuvens(bool value) async {
     if (_nuvens == value) return;
+    if (_economia && value) return;
     _nuvens = value;
     notifyListeners();
     try {
       if (value) {
         await _atualizarFrames();
-        if (_frameInfrarrojo == null) await _atualizarGrade('nuvens');
+        if (_frameInfrarrojo == null) await _atualizarClima();
       }
       // Só aplica se o controller ainda for válido
       if (_controller != null) {
@@ -110,6 +126,7 @@ class MapLayersProvider extends ChangeNotifier {
   /// Liga/desliga o relevo (hillshade com relevo real).
   Future<void> setRelevo(bool value) async {
     if (_relevo == value) return;
+    if (_economia && value) return;
     _relevo = value;
     notifyListeners();
     await aplicar(_controller);
@@ -118,41 +135,110 @@ class MapLayersProvider extends ChangeNotifier {
   /// Liga/desliga a previsao de precipitacao (Open-Meteo).
   Future<void> setPrecipitacao(bool value) async {
     if (_precipitacao == value) return;
+    if (_economia && value) return;
     _precipitacao = value;
     notifyListeners();
-    if (value) await _atualizarGrade('precipitacao');
+    if (value) await _atualizarClima();
     await aplicar(_controller);
+  }
+
+  /// Radar + chuva + nuvens + vento + temperatura em um unico controle.
+  ///
+  /// O relevo fica de fora: e a unica camada que continua com botao proprio.
+  bool get climaCompleto =>
+      _radar &&
+      _precipitacao &&
+      (_nuvens || _nuvensPrevistas) &&
+      _vento &&
+      _temperatura;
+
+  /// Liga/desliga juntos o radar, a chuva, as nuvens, o vento e a
+  /// temperatura. Centraliza num unico lugar o que antes eram cinco botoes.
+  Future<void> setClimaCompleto(bool value) async {
+    if (_economia && value) return;
+    if (_radar == value &&
+        _nuvens == value &&
+        _nuvensPrevistas == value &&
+        _precipitacao == value &&
+        _vento == value &&
+        _temperatura == value) {
+      return;
+    }
+    _radar = value;
+    _nuvens = value;
+    _nuvensPrevistas = value;
+    _precipitacao = value;
+    _vento = value;
+    _temperatura = value;
+    if (!value) _pararAnimacao();
+    notifyListeners();
+    try {
+      if (value) {
+        await _atualizarFrames();
+        _iniciarAnimacao();
+        await _atualizarClima();
+      }
+      if (_controller != null) await aplicar(_controller);
+    } catch (e) {
+      debugPrint('Erro ao aplicar clima: $e');
+    }
   }
 
   /// Liga/desliga o vento (Open-Meteo).
   Future<void> setVento(bool value) async {
     if (_vento == value) return;
+    if (_economia && value) return;
     _vento = value;
     notifyListeners();
-    if (value) await _atualizarGrade('vento');
+    if (value) await _atualizarClima();
     await aplicar(_controller);
   }
 
   /// Liga/desliga a temperatura (Open-Meteo).
   Future<void> setTemperatura(bool value) async {
     if (_temperatura == value) return;
+    if (_economia && value) return;
     _temperatura = value;
     notifyListeners();
-    if (value) await _atualizarGrade('temperatura');
+    if (value) await _atualizarClima();
     await aplicar(_controller);
   }
 
   /// Liga/desliga a cobertura de nuvens prevista (Open-Meteo).
   Future<void> setNuvensPrevistas(bool value) async {
     if (_nuvensPrevistas == value) return;
+    if (_economia && value) return;
     _nuvensPrevistas = value;
     notifyListeners();
-    if (value) await _atualizarGrade('nuvens');
+    if (value) await _atualizarClima();
     await aplicar(_controller);
   }
 
   bool _nuvensPrevistas = false;
   bool get nuvensPrevistas => _nuvensPrevistas;
+
+  /// Modo economia de bateria: o mapa fica so com o essencial (rota,
+  /// caminhao e avisos). Nenhuma camada de clima e ligada nesse modo.
+  bool _economia = false;
+  bool get economia => _economia;
+
+  /// Liga/desliga o modo economia de bateria nas camadas do mapa.
+  Future<void> setEconomia(bool value) async {
+    if (_economia == value) return;
+    _economia = value;
+    if (value) {
+      _radar = false;
+      _nuvens = false;
+      _nuvensPrevistas = false;
+      _relevo = false;
+      _precipitacao = false;
+      _vento = false;
+      _temperatura = false;
+      _pararAnimacao();
+    }
+    notifyListeners();
+    if (_controller != null) await aplicar(_controller);
+  }
 
   /// Da play/pause na animacao do radar.
   void alternarAnimacao() {
@@ -190,22 +276,98 @@ class MapLayersProvider extends ChangeNotifier {
 
   void _aplicarFrame() {
     if (_frames.isEmpty) return;
-    final f = _frames[_frameAtual.clamp(0, _frames.length - 1)];
-    _frameRadar = f.path;
     final c = _controller;
     if (c == null) return;
-    _aplicarRaster(
-      c,
-      id: 'camada_radar',
-      url: WeatherLayers.templateRadar(f.path),
-      ativo: _radar,
-      opacidade: 0.6,
-    );
+    unawaited(_mostrarFrameRadar(c));
+  }
+
+  /// Troca o frame do radar apenas mudando a visibilidade das camadas ja
+  /// criadas. Recriar a camada a cada frame (a cada 700 ms) piscava a tela.
+  Future<void> _mostrarFrameRadar(ml.MapLibreMapController c) async {
+    if (!_radar || _frames.isEmpty) {
+      for (final id in _radarCamadasCriadas) {
+        try {
+          await c.setLayerVisibility(id, false);
+        } catch (_) {}
+      }
+      return;
+    }
+
+    // O feed do radar muda a cada ~10 min: ai as camadas sao trocadas.
+    final novaAssinatura = _frames.map((f) => f.path).join('|');
+    if (novaAssinatura != _radarAssinatura) {
+      _radarAssinatura = novaAssinatura;
+      for (final id in _radarCamadasCriadas) {
+        try {
+          await c.removeLayer(id);
+        } catch (_) {}
+        try {
+          await c.removeSource('${id}_fonte');
+        } catch (_) {}
+      }
+      _radarCamadasCriadas.clear();
+    }
+
+    for (var i = 0; i < _frames.length; i++) {
+      final id = 'camada_radar_$i';
+      if (_radarCamadasCriadas.contains(id)) continue;
+      final url = WeatherLayers.templateRadar(_frames[i].path);
+      try {
+        await c.addSource(
+          '${id}_fonte',
+          ml.RasterSourceProperties(
+            tiles: [url],
+            tileSize: 256,
+            minzoom: 0,
+            maxzoom: WeatherLayers.maxZoomTiles.toDouble(),
+          ),
+        );
+        await c.addLayer(
+          '${id}_fonte',
+          id,
+          const ml.RasterLayerProperties(
+            rasterOpacity: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              11, 0.0,
+              12, 0.7,
+              15, 0.7,
+              17, 0.4,
+              18, 0.18,
+            ],
+            rasterResampling: 'linear',
+            rasterFadeDuration: 700,
+          ),
+          maxzoom: WeatherLayers.maxZoomCamada,
+        );
+        _radarCamadasCriadas.add(id);
+      } catch (_) {}
+    }
+
+    for (var i = 0; i < _frames.length; i++) {
+      final id = 'camada_radar_$i';
+      if (!_radarCamadasCriadas.contains(id)) continue;
+      try {
+        await c.setLayerVisibility(id, i == _frameAtual);
+      } catch (_) {}
+    }
   }
 
   /// Guarda o controller, agenda a atualizacao e aplica as camadas.
   Future<void> ligar(ml.MapLibreMapController controller) async {
     _controller = controller;
+    // O estilo foi (re)carregado: tudo que estava desenhado sumiu do mapa.
+    _rasterAplicado.clear();
+    _radarCamadasCriadas.clear();
+    _circulosCriados.clear();
+    _emojisClima.clear();
+    _assinaturaGrade.clear();
+    _assinaturaVento = '';
+    _radarAssinatura = '';
+    _relevoAplicado = false;
+    _setaVentoPronta = false;
+    _ventoAplicado = false;
     _timer ??= Timer.periodic(const Duration(minutes: 10), (_) async {
       final temRaster = _radar || _nuvens;
       final temGrade = _precipitacao ||
@@ -215,7 +377,7 @@ class MapLayersProvider extends ChangeNotifier {
           (_nuvens && _frameInfrarrojo == null);
       if (!temRaster && !temGrade) return;
       if (temRaster) await _atualizarFrames();
-      if (temGrade) await _atualizarGradesAtivas();
+      if (temGrade) await _atualizarClima();
       await aplicar(_controller);
     });
     final precisaFrames = _radar || _nuvens;
@@ -223,20 +385,26 @@ class MapLayersProvider extends ChangeNotifier {
       await _atualizarFrames();
     } else {
       _frames = const [];
-      _frameRadar = null;
       _frameInfrarrojo = null;
     }
     await aplicar(controller);
   }
 
-  /// Recarrega so as camadas de grade que estao ligadas.
-  Future<void> _atualizarGradesAtivas() async {
-    if (_precipitacao) await _atualizarGrade('precipitacao');
-    if (_vento) await _atualizarGrade('vento');
-    if (_temperatura) await _atualizarGrade('temperatura');
-    if (_nuvensPrevistas || (_nuvens && _frameInfrarrojo == null)) {
-      await _atualizarGrade('nuvens');
-    }
+  /// Recarrega a grade de clima (uma unica chamada para todas as camadas).
+  Future<void> _atualizarClima() async {
+    final pos = _posicaoAtual;
+    if (pos == null) return;
+    _carregando = true;
+    notifyListeners();
+    final grade =
+        await WeatherLayers.gradeClima(pos.latitude, pos.longitude);
+    _grades['precipitacao'] = grade.precipitacao;
+    _grades['temperatura'] = grade.temperatura;
+    _grades['nuvens'] = grade.nuvens;
+    _ventoSetas = grade.vento;
+    _centroDaGrade = pos;
+    _carregando = false;
+    notifyListeners();
   }
 
   Future<void> _atualizarFrames() async {
@@ -246,32 +414,9 @@ class MapLayersProvider extends ChangeNotifier {
     _frames = frames;
     if (frames.isNotEmpty) {
       _frameAtual = frames.length - 1;
-      _frameRadar = frames[_frameAtual].path;
     }
     final mapa = await WeatherLayers.framesAtuais();
     _frameInfrarrojo = mapa['infrarrojo'];
-    _carregando = false;
-    notifyListeners();
-  }
-
-  /// Busca a grade de previsao de uma camada (Open-Meteo).
-  Future<void> _atualizarGrade(String camada) async {
-    final pos = _posicaoAtual;
-    if (pos == null) return;
-    _carregando = true;
-    notifyListeners();
-    final pontos = await WeatherLayers.gradePrevisao(
-      pos.latitude,
-      pos.longitude,
-      campo: switch (camada) {
-        'precipitacao' => 'precipitation_probability',
-        'vento' => 'wind_speed_10m',
-        'temperatura' => 'temperature_2m',
-        _ => 'cloud_cover',
-      },
-    );
-    _grades[camada] = pontos;
-    _centroDaGrade = pos;
     _carregando = false;
     notifyListeners();
   }
@@ -293,18 +438,18 @@ class MapLayersProvider extends ChangeNotifier {
     if (_atualizandoGrade) return;
     final camadasGrade = [
       if (_precipitacao) 'precipitacao',
-      if (_vento) 'vento',
       if (_temperatura) 'temperatura',
       if (_nuvensPrevistas || (_nuvens && _frameInfrarrojo == null)) 'nuvens',
     ];
-    if (camadasGrade.isEmpty) return;
+    if (camadasGrade.isEmpty && !_vento) return;
     final faltando = camadasGrade
-        .any((camada) => (_grades[camada] ?? const []).isEmpty);
+            .any((camada) => (_grades[camada] ?? const []).isEmpty) ||
+        (_vento && _ventoSetas.isEmpty);
     if (faltando) {
       _atualizandoGrade = true;
       unawaited(() async {
         try {
-          await _atualizarGradesAtivas();
+          await _atualizarClima();
           await aplicar(_controller);
         } finally {
           _atualizandoGrade = false;
@@ -320,7 +465,7 @@ class MapLayersProvider extends ChangeNotifier {
     _atualizandoGrade = true;
     unawaited(() async {
       try {
-        await _atualizarGradesAtivas();
+        await _atualizarClima();
         await aplicar(_controller);
       } finally {
         _atualizandoGrade = false;
@@ -329,99 +474,647 @@ class MapLayersProvider extends ChangeNotifier {
   }
 
   /// Aplica (ou remove) as camadas no mapa.
+  ///
+  /// Tudo aqui e incremental: se a camada ja esta com a mesma URL/config,
+  /// nada e removido nem recriado. E o que mantem nuvens e radar estaveis.
   Future<void> aplicar(ml.MapLibreMapController? controller) async {
     final c = controller;
     if (c == null) return;
     try {
-      // PRIORIDADE 1: Radar de chuva com tile real (já tem formatos de chuva)
-      await _aplicarRaster(
-        c,
-        id: 'camada_radar',
-        url: _frameRadar == null
-            ? null
-            : WeatherLayers.templateRadar(_frameRadar!),
-        ativo: _radar && _frameRadar != null,
-        opacidade: 0.8,
-      );
-      
-      // PRIORIDADE 2: Nuvens com tile infravermelho real (já tem formatos de nuvens)
-      await _aplicarRaster(
+      // Radar de chuva: camadas por frame (animacao sem piscar).
+      await _mostrarFrameRadar(c);
+
+      // Nuvens com tile infravermelho real (nuvens de verdade, com formato).
+      await _aplicarRasterEstavel(
         c,
         id: 'camada_nuvens',
         url: _frameInfrarrojo == null
             ? null
             : WeatherLayers.templateInfrarrojo(_frameInfrarrojo!),
-        ativo: _nuvens && _frameInfrarrojo != null,
-        opacidade: 0.6,
+        ativo: _nuvens && _frameInfrarrojo != null && !_nuvensPrevistas,
+        opacidade: 0.5,
+        suavizar: true,
       );
-      
-      // PRIORIDADE 3: Relevo apenas se nada mais estiver ativo
-      if (!_radar && !_nuvens) {
-        await _aplicarRelevo(c);
+
+      // Relevo apenas quando nao ha camada de satelite por cima.
+      await _aplicarRelevo(c);
+
+      if (_precipitacao) {
+        await _aplicarCirculos(c, 'precipitacao', const Color(0xFF64B5F6));
+      } else {
+        await _removerCirculos(c, 'precipitacao');
       }
-      
-      // Camadas de grade (precipitação, vento, temperatura) só se usuário quiser
-      // Estas usam círculos/gradientes como fallback quando não há tiles disponíveis
-      if (_precipitacao && !_radar) {
-        // Se radar já está ativo, precipitacao fica por conta do radar
+      if (_temperatura) {
+        await _aplicarCirculos(c, 'temperatura', const Color(0xFFFF7043));
+      } else {
+        await _removerCirculos(c, 'temperatura');
       }
-      if (_vento && !_radar && !_nuvens) {
-        // Apenas como fallback visual
+      // Sem satelite, as nuvens viram a cobertura prevista (Open-Meteo).
+      if (_nuvensPrevistas || (_nuvens && _frameInfrarrojo == null)) {
+        await _aplicarCirculos(c, 'nuvens', const Color(0xFFB0BEC5));
+      } else {
+        await _removerCirculos(c, 'nuvens');
       }
-      if (_temperatura && !_radar && !_nuvens) {
-        // Apenas como fallback visual
+      if (_vento) {
+        await _aplicarVento(c);
+      } else {
+        await _removerVento(c);
       }
-      
     } catch (_) {
       // Estilo recarregado: a proxima atualizacao reaplica as camadas.
     }
   }
 
-  Future<void> _aplicarRaster(
-    ml.MapLibreMapController c, {
-    required String id,
-    required String? url,
-    required bool ativo,
-    required double opacidade,
-    int maxzoom = WeatherLayers.maxZoomTiles,
-  }) async {
-    final sourceId = '${id}_fonte';
-    final layerId = '${id}_camada';
+  /// Desenha (ou atualiza) as setas de vento.
+  ///
+  /// Usa uma imagem de seta de verdade (SDF) em vez do caractere "➤", que
+  /// renderizava torto e em tamanho diferente em cada aparelho.
+  Future<void> _aplicarVento(ml.MapLibreMapController c) async {
+    const sourceId = 'vento_setas_fonte';
+    const layerId = 'vento_setas_camada';
+    const labelId = 'vento_velocidade_camada';
+    if (_ventoSetas.isEmpty) {
+      await _removerVento(c);
+      return;
+    }
+    final features = _ventoSetas.map((e) => {
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [e['lon'], e['lat']],
+          },
+          'properties': {
+            'dir': ((e['dir'] ?? 0) + 180) % 360,
+            'speed': (e['speed'] ?? 0).clamp(0, 200),
+            'label': '${(e['speed'] ?? 0).round()}',
+          },
+        }).toList();
+    final assinatura = _ventoSetas
+        .map((e) => '${e['lat']},${e['lon']},${e['dir']},${e['speed']}')
+        .join(';');
+    if (assinatura == _assinaturaVento && _ventoAplicado) return;
 
-    if (!ativo || url == null || url.isEmpty) {
+    final geojson = <String, dynamic>{
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+
+    if (_ventoAplicado) {
+      try {
+        await c.setGeoJsonSource(sourceId, geojson);
+        _assinaturaVento = assinatura;
+        return;
+      } catch (_) {
+        _ventoAplicado = false;
+      }
+    }
+
+    if (!_setaVentoPronta) {
+      try {
+        await c.addImage('seta_vento', await _imagemSetaVento(), true);
+        _setaVentoPronta = true;
+      } catch (_) {}
+    }
+    if (!_setaVentoPronta) return;
+
+    const fade = [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      10, 0.0,
+      11, 0.5,
+      13, 0.95,
+      15, 0.95,
+      17, 0.65,
+      18, 0.35,
+    ];
+
+    try {
+      try {
+        await c.removeLayer('vento_velocidade_camada');
+      } catch (_) {}
+      try {
+        await c.removeLayer('vento_setas_camada');
+      } catch (_) {}
+      try {
+        await c.removeSource(sourceId);
+      } catch (_) {}
+      await c.addGeoJsonSource(sourceId, geojson);
+      await c.addSymbolLayer(
+        sourceId,
+        layerId,
+        ml.SymbolLayerProperties(
+          iconImage: 'seta_vento',
+          iconColor: '#E3F2FD',
+          iconOpacity: fade,
+          iconRotate: ['get', 'dir'],
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
+          iconSize: [
+            'interpolate',
+            ['linear'],
+            ['get', 'speed'],
+            0, 0.4,
+            25, 0.7,
+            60, 1.0,
+            100, 1.3,
+          ],
+        ),
+      );
+      await c.addSymbolLayer(
+        sourceId,
+        labelId,
+        ml.SymbolLayerProperties(
+          textField: ['get', 'label'],
+          textSize: 10,
+          textColor: '#0D1B2A',
+          textHaloColor: '#E3F2FD',
+          textHaloWidth: 2,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+          textOpacity: fade,
+          textOffset: [0, 1.6],
+        ),
+      );
+      _ventoAplicado = true;
+      _assinaturaVento = assinatura;
+    } catch (_) {
+      _ventoAplicado = false;
+    }
+  }
+
+  Future<void> _removerVento(ml.MapLibreMapController c) async {
+    if (!_ventoAplicado && _assinaturaVento.isEmpty) return;
+    _assinaturaVento = '';
+    _ventoAplicado = false;
+    try {
+      await c.removeLayer('vento_velocidade_camada');
+    } catch (_) {}
+    try {
+      await c.removeLayer('vento_setas_camada');
+    } catch (_) {}
+    try {
+      await c.removeSource('vento_setas_fonte');
+    } catch (_) {}
+  }
+
+  /// Seta branca apontando para cima (norte), usada como imagem SDF.
+  Future<Uint8List> _imagemSetaVento() async {
+    const size = 64.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+      recorder,
+      const Rect.fromLTWH(0, 0, size, size),
+    );
+    final paint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..isAntiAlias = true;
+    final path = ui.Path()
+      ..moveTo(size * 0.5, size * 0.05)
+      ..lineTo(size * 0.80, size * 0.66)
+      ..lineTo(size * 0.60, size * 0.58)
+      ..lineTo(size * 0.60, size * 0.95)
+      ..lineTo(size * 0.40, size * 0.95)
+      ..lineTo(size * 0.40, size * 0.58)
+      ..lineTo(size * 0.20, size * 0.66)
+      ..close();
+    canvas.drawPath(path, paint);
+    final imagem = await recorder.endRecording().toImage(64, 64);
+    final dados = await imagem.toByteData(format: ui.ImageByteFormat.png);
+    imagem.dispose();
+    return dados!.buffer.asUint8List();
+  }
+
+  /// Emoji usado em cada camada de previsao (imagem real, nao texto).
+  static const Map<String, String> _emojiDaCamada = {
+    'precipitacao': '🌧️',
+    'temperatura': '🌡️',
+    'nuvens': '☁️',
+  };
+
+  /// Emoji de cada tipo de ceu (nuvens com e sem chuva).
+  static const Map<String, String> _emojiNuvem = {
+    'limpo': '☀️',
+    'poucas': '🌤️',
+    'parcial': '⛅',
+    'nublado': '☁️',
+    'encoberto': '🌥️',
+    'chuva': '🌧️',
+    'chuva_forte': '🌧️',
+    'tempestade': '⛈️',
+    'neve': '🌨️',
+  };
+
+  /// Cor de fundo de cada tipo de ceu.
+  static const Map<String, String> _corNuvem = {
+    'limpo': '#FFD54F',
+    'poucas': '#FFF59D',
+    'parcial': '#E0E0E0',
+    'nublado': '#B0BEC5',
+    'encoberto': '#78909C',
+    'chuva': '#4FC3F7',
+    'chuva_forte': '#0288D1',
+    'tempestade': '#5C6BC0',
+    'neve': '#E1F5FE',
+  };
+
+  /// Cor suave do circulo de fundo de cada camada.
+  static const Map<String, Color> _corDaCamada = {
+    'precipitacao': Color(0xFF64B5F6),
+    'temperatura': Color(0xFFFF7043),
+    'nuvens': Color(0xFFCFD8DC),
+  };
+
+  /// Sufixo do valor mostrado ao lado do emoji.
+  static const Map<String, String> _sufixoDaCamada = {
+    'precipitacao': '%',
+    'temperatura': '°',
+    'nuvens': '%',
+  };
+
+  /// Imagens de emoji ja enviadas ao mapa (evita reenviar a cada render).
+  final Set<String> _emojisClima = {};
+  final Set<String> _circulosCriados = {};
+
+  /// Emoji de verdade desenhado como PNG (o MapLibre nao renderiza emoji em
+  /// text-layer de forma confiavel; imagem sempre aparece igual).
+  Future<Uint8List> _imagemEmoji(String emoji) async {
+    const size = 96.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, size, size));
+    const centro = Offset(48, 48);
+    canvas.drawCircle(
+      centro,
+      size * 0.44,
+      Paint()..color = const Color(0xE6FFFFFF),
+    );
+    canvas.drawCircle(
+      centro,
+      size * 0.44,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0x44000000),
+    );
+    final tp = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(text: emoji, style: const TextStyle(fontSize: size * 0.56)),
+    )..layout();
+    tp.paint(canvas, Offset(centro.dx - tp.width / 2, centro.dy - tp.height / 2));
+    final imagem =
+        await recorder.endRecording().toImage(size.toInt(), size.toInt());
+    final dados = await imagem.toByteData(format: ui.ImageByteFormat.png);
+    imagem.dispose();
+    return dados!.buffer.asUint8List();
+  }
+
+  /// Previsao desenhada com emoji real + valor (chuva, temperatura, nuvens).
+  ///
+  /// Atualiza a fonte no lugar (sem recriar as camadas): nao pisca.
+  Future<void> _aplicarCirculos(
+    ml.MapLibreMapController c,
+    String camada,
+    Color cor,
+  ) async {
+    final sourceId = '${camada}_circulos_fonte';
+    final layerId = '${camada}_circulos_camada';
+    final emojiLayerId = '${camada}_emoji_camada';
+    final valorLayerId = '${camada}_valor_camada';
+    final pontos = _grades[camada] ?? const [];
+    if (pontos.isEmpty) {
+      await _removerCirculos(c, camada);
+      return;
+    }
+    final nuvens = camada == 'nuvens';
+    final assinatura = pontos
+        .map((p) => '${p.lat},${p.lon},${p.valor},${p.tipo ?? ''}')
+        .join(';');
+    if (_assinaturaGrade[camada] == assinatura &&
+        _circulosCriados.contains(camada)) {
+      return;
+    }
+
+    final features = pontos.map((p) => {
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [p.lon, p.lat],
+          },
+          'properties': {
+            'v': p.valor,
+            'tipo': p.tipo ?? 'nublado',
+            'chuva': p.chuva,
+            'valor': '${p.valor.round()}${_sufixoDaCamada[camada] ?? ''}',
+          },
+        }).toList();
+    final geojson = <String, dynamic>{
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+
+    // Cada tipo de ceu tem sua imagem (sol, nuvem, chuva, trovoada, neve).
+    final tipos = nuvens
+        ? pontos.map((p) => p.tipo ?? 'nublado').toSet()
+        : <String>{};
+    if (nuvens) {
+      for (final tipo in tipos) {
+        final nome = 'clima_nuvem_$tipo';
+        if (_emojisClima.contains(nome)) continue;
+        try {
+          await c.addImage(
+            nome,
+            await _imagemEmoji(_emojiNuvem[tipo] ?? '☁️'),
+          );
+          _emojisClima.add(nome);
+        } catch (_) {}
+      }
+    } else {
+      final emojiNome = 'clima_$camada';
+      if (!_emojisClima.contains(emojiNome)) {
+        try {
+          await c.addImage(
+            emojiNome,
+            await _imagemEmoji(_emojiDaCamada[camada] ?? '☁️'),
+          );
+          _emojisClima.add(emojiNome);
+        } catch (_) {}
+      }
+    }
+
+    const fade = [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      10, 0.0,
+      11, 0.45,
+      13, 0.9,
+      15, 0.9,
+      17, 0.55,
+      18, 0.3,
+    ];
+
+    try {
+      await c.setGeoJsonSource(sourceId, geojson);
+    } catch (_) {
+      _circulosCriados.remove(camada);
+    }
+    if (_circulosCriados.contains(camada)) {
+      _assinaturaGrade[camada] = assinatura;
+      return;
+    }
+
+    final corHex = (cor == const Color(0x00000000) ? _corDaCamada[camada]! : cor)
+        .toARGB32()
+        .toRadixString(16)
+        .substring(2);
+    try {
+      try {
+        await c.removeLayer(valorLayerId);
+      } catch (_) {}
+      try {
+        await c.removeLayer(emojiLayerId);
+      } catch (_) {}
       try {
         await c.removeLayer(layerId);
       } catch (_) {}
       try {
         await c.removeSource(sourceId);
       } catch (_) {}
+      await c.addGeoJsonSource(sourceId, geojson);
+      if (nuvens) {
+        await c.addCircleLayer(
+          sourceId,
+          layerId,
+          ml.CircleLayerProperties(
+            circleRadius: [
+              'interpolate',
+              ['linear'],
+              ['get', 'v'],
+              0, 10,
+              50, 26,
+              100, 46,
+            ],
+            circleColor: [
+              'match',
+              ['get', 'tipo'],
+              'limpo', _corNuvem['limpo'],
+              'poucas', _corNuvem['poucas'],
+              'parcial', _corNuvem['parcial'],
+              'nublado', _corNuvem['nublado'],
+              'encoberto', _corNuvem['encoberto'],
+              'chuva', _corNuvem['chuva'],
+              'chuva_forte', _corNuvem['chuva_forte'],
+              'tempestade', _corNuvem['tempestade'],
+              'neve', _corNuvem['neve'],
+              _corNuvem['nublado'],
+            ],
+            circleOpacity: [
+              'interpolate',
+              ['linear'],
+              ['get', 'v'],
+              0, 0.12,
+              50, 0.3,
+              100, 0.5,
+            ],
+            circleBlur: 3.0,
+          ),
+        );
+        await c.addSymbolLayer(
+          sourceId,
+          emojiLayerId,
+          ml.SymbolLayerProperties(
+            iconImage: [
+              'match',
+              ['get', 'tipo'],
+              'limpo', 'clima_nuvem_limpo',
+              'poucas', 'clima_nuvem_poucas',
+              'parcial', 'clima_nuvem_parcial',
+              'nublado', 'clima_nuvem_nublado',
+              'encoberto', 'clima_nuvem_encoberto',
+              'chuva', 'clima_nuvem_chuva',
+              'chuva_forte', 'clima_nuvem_chuva_forte',
+              'tempestade', 'clima_nuvem_tempestade',
+              'neve', 'clima_nuvem_neve',
+              'clima_nuvem_nublado',
+            ],
+            iconAllowOverlap: true,
+            iconIgnorePlacement: true,
+            iconOpacity: fade,
+            iconSize: [
+              'interpolate',
+              ['linear'],
+              ['get', 'v'],
+              0, 0.42,
+              50, 0.56,
+              100, 0.72,
+            ],
+          ),
+        );
+      } else {
+        await c.addCircleLayer(
+          sourceId,
+          layerId,
+          ml.CircleLayerProperties(
+            circleRadius: 8.0,
+            circleColor: '#$corHex',
+            circleOpacity: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              10, 0.0,
+              11, 0.3,
+              13, 0.52,
+              15, 0.52,
+              17, 0.32,
+              18, 0.15,
+            ],
+            circleBlur: 0.0,
+          ),
+        );
+        await c.addSymbolLayer(
+          sourceId,
+          emojiLayerId,
+          ml.SymbolLayerProperties(
+            iconImage: 'clima_$camada',
+            iconAllowOverlap: true,
+            iconIgnorePlacement: true,
+            iconOpacity: fade,
+            iconSize: [
+              'interpolate',
+              ['linear'],
+              ['get', 'v'],
+              if (camada == 'temperatura') ...[
+                0, 0.42,
+                20, 0.5,
+                40, 0.62,
+              ] else ...[
+                0, 0.38,
+                50, 0.5,
+                100, 0.62,
+              ],
+            ],
+          ),
+        );
+      }
+      await c.addSymbolLayer(
+        sourceId,
+        valorLayerId,
+        ml.SymbolLayerProperties(
+          textField: nuvens
+              ? [
+                  'case',
+                  ['>=', ['get', 'v'], 30],
+                  ['get', 'valor'],
+                  '',
+                ]
+              : ['get', 'valor'],
+          textSize: 11,
+          textColor: '#0D1B2A',
+          textHaloColor: '#FFFFFF',
+          textHaloWidth: 2.2,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+          textOpacity: fade,
+          textOffset: [0, 1.3],
+        ),
+      );
+      _circulosCriados.add(camada);
+      _assinaturaGrade[camada] = assinatura;
+    } catch (_) {
+      _circulosCriados.remove(camada);
+    }
+  }
+
+  Future<void> _removerCirculos(ml.MapLibreMapController c, String camada) async {
+    if (!_assinaturaGrade.containsKey(camada)) return;
+    _assinaturaGrade.remove(camada);
+    _circulosCriados.remove(camada);
+    try {
+      await c.removeLayer('${camada}_valor_camada');
+    } catch (_) {}
+    try {
+      await c.removeLayer('${camada}_emoji_camada');
+    } catch (_) {}
+    try {
+      await c.removeLayer('${camada}_circulos_camada');
+    } catch (_) {}
+    try {
+      await c.removeSource('${camada}_circulos_fonte');
+    } catch (_) {}
+  }
+
+  /// Camada raster unica, recriada SO quando a URL muda de verdade.
+  Future<void> _aplicarRasterEstavel(
+    ml.MapLibreMapController c, {
+    required String id,
+    required String? url,
+    required bool ativo,
+    required double opacidade,
+    bool suavizar = false,
+  }) async {
+    final sourceId = '${id}_fonte';
+    final layerId = '${id}_camada';
+
+    if (!ativo || url == null || url.isEmpty) {
+      if (!_rasterAplicado.containsKey(id)) return;
+      _rasterAplicado.remove(id);
+      try {
+        await c.setLayerVisibility(layerId, false);
+      } catch (_) {}
       return;
     }
 
-    try {
-      await c.removeLayer(layerId);
-    } catch (_) {}
-    try {
-      await c.removeSource(sourceId);
-    } catch (_) {}
+    if (_rasterAplicado[id] == url) {
+      try {
+        await c.setLayerVisibility(layerId, true);
+      } catch (_) {}
+      return;
+    }
+    _rasterAplicado[id] = url;
 
-    c.addSource(
+    try {
+      try {
+        await c.removeLayer(layerId);
+      } catch (_) {}
+      try {
+        await c.removeSource(sourceId);
+      } catch (_) {}
+      await c.addSource(
         sourceId,
         ml.RasterSourceProperties(
           tiles: [url],
           tileSize: 256,
           minzoom: 0,
-          maxzoom: maxzoom.toDouble(),
-        ));
-    c.addLayer(
+          maxzoom: WeatherLayers.maxZoomTiles.toDouble(),
+        ),
+      );
+      await c.addLayer(
         sourceId,
         layerId,
         ml.RasterLayerProperties(
-          rasterOpacity: opacidade,
-        ));
+          // Some suavemente ao aproximar: no zoom de rua/cabine o clima
+          // atrapalharia enxergar a via, entao a opacidade vai a zero.
+          rasterOpacity: [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            11, 0.0,
+            12, opacidade,
+            15, opacidade,
+            17, opacidade * 0.55,
+            18, opacidade * 0.25,
+          ],
+          rasterResampling: 'linear',
+          rasterFadeDuration: 900,
+          rasterSaturation: suavizar ? -0.25 : null,
+          rasterContrast: suavizar ? 0.08 : null,
+        ),
+        maxzoom: WeatherLayers.maxZoomCamada,
+      );
+    } catch (_) {
+      _rasterAplicado.remove(id);
+    }
   }
-
-
 
   /// Relevo real (hillshade) a partir do DEM dos AWS Terrain Tiles.
   Future<void> _aplicarRelevo(ml.MapLibreMapController c) async {
@@ -429,6 +1122,8 @@ class MapLayersProvider extends ChangeNotifier {
     const layerId = 'terreno_relevo_camada';
 
     if (!_relevo) {
+      if (!_relevoAplicado) return;
+      _relevoAplicado = false;
       try {
         await c.removeLayer(layerId);
       } catch (_) {}
@@ -437,15 +1132,11 @@ class MapLayersProvider extends ChangeNotifier {
       } catch (_) {}
       return;
     }
+    if (_relevoAplicado) return;
+    _relevoAplicado = true;
 
     try {
-      await c.removeLayer(layerId);
-    } catch (_) {}
-    try {
-      await c.removeSource(sourceId);
-    } catch (_) {}
-
-    c.addSource(
+      await c.addSource(
         sourceId,
         const ml.RasterDemSourceProperties(
           tiles: [
@@ -454,14 +1145,19 @@ class MapLayersProvider extends ChangeNotifier {
           tileSize: 256,
           encoding: 'terrarium',
           maxzoom: 15,
-        ));
-    c.addLayer(
+        ),
+      );
+      await c.addLayer(
         sourceId,
         layerId,
         const ml.HillshadeLayerProperties(
           hillshadeExaggeration: 0.5,
           hillshadeShadowColor: '#1A1A1A',
-        ));
+        ),
+      );
+    } catch (_) {
+      _relevoAplicado = false;
+    }
   }
 
   @override

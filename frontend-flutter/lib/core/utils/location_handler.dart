@@ -35,20 +35,36 @@ class LocationHandler {
     if (permission == LocationPermission.deniedForever) return null;
 
     return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.bestForNavigation,
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+      ),
     );
   }
 
   static Stream<Position> positionStream({
     int intervalMilliseconds = 100,
     bool highAccuracy = true,
+    bool economia = false,
   }) {
+    if (economia) {
+      // Modo economia de bateria de verdade: GPS de baixo consumo, uma
+      // posicao a cada 20 s e so quando andar 50 m. O suficiente para o
+      // caminhao aparecer no mapa e a rota seguir, gastando o minimo.
+      return Geolocator.getPositionStream(
+        locationSettings: AndroidSettings(
+          accuracy: LocationAccuracy.low,
+          distanceFilter: 50,
+          intervalDuration: const Duration(seconds: 20),
+          forceLocationManager: true,
+        ),
+      );
+    }
     return Geolocator.getPositionStream(
       locationSettings: AndroidSettings(
         accuracy: highAccuracy
             ? LocationAccuracy.bestForNavigation
             : LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 0,
         intervalDuration: Duration(milliseconds: intervalMilliseconds),
         forceLocationManager: false,
       ),

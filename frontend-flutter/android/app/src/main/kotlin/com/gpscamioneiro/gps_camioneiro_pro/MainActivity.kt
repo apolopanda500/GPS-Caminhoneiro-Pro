@@ -78,6 +78,9 @@ class MainActivity : FlutterActivity() {
                     "energia/otimizacao" -> {
                         resp.success(abrirOptimizacaoDeBateria())
                     }
+                    "aparelho/info" -> {
+                        resp.success(informacoesDoAparelho())
+                    }
                     else -> resp.notImplemented()
                 }
             }
@@ -166,6 +169,33 @@ class MainActivity : FlutterActivity() {
         val engine = flutterEngine ?: return
         MethodChannel(engine.dartExecutor.binaryMessenger, canal)
             .invokeMethod("pip/estado", isInPictureInPictureMode)
+    }
+
+    /**
+     * Le a configuracao REAL do aparelho para o app escolher a qualidade
+     * maxima que aquele celular aguenta.
+     */
+    private fun informacoesDoAparelho(): Map<String, Any> {
+        val am = getSystemService(Context.ACTIVITY_SERVICE)
+            as android.app.ActivityManager
+        val memoria = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(memoria)
+        val totalMb = (memoria.totalMem / (1024 * 1024)).toInt()
+        val refresh = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.refreshRate ?: 60f
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.refreshRate
+        }
+        return mapOf(
+            "ramMb" to totalMb,
+            "nucleos" to Runtime.getRuntime().availableProcessors(),
+            "refreshHz" to refresh.toDouble(),
+            "lowRam" to am.isLowRamDevice,
+            "sdk" to Build.VERSION.SDK_INT,
+            "modelo" to "${Build.MANUFACTURER} ${Build.MODEL}",
+            "androide" to Build.VERSION.RELEASE,
+        )
     }
 
     /**

@@ -841,3 +841,20 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   (HIGH_ACCURACY + last location=Location[gps ...]). Resultado: 12/12 nota 10.0 em duas
   rodadas (01:45 e 01:49), backend npm test 29/29, flutter analyze "No issues found!",
   flutter test 235/235, backend build EXIT=0 e /status online/database connected.
+
+- 30/10/2026 AGENTE-CLIMA/REALISMO: clima unificado em um unico botao "Clima completo"
+  (radar + chuva + nuvens + vento + temperatura; relevo segue sozinho) em
+  map_layers_provider.dart/weather_panel.dart. Uma so chamada ao Open-Meteo
+  (gradeClima) alimenta todas as camadas e o vento, que antes nao aparecia porque
+  a grade tinha 9 km de passo e as setas sumiam no zoom de estrada; agora e 7x7
+  (~3 km), com rotulo de km/h e sem sumir acima do zoom 14. Nuvens classificadas
+  em limpo/poucas/parcial/nublado/encoberto/chuva/chuva forte/tempestade/neve,
+  com emoji, cor, raio e opacidade proprios. Radar/nuvens continuam limitados ao
+  zoom 7 do RainViewer (maxZoomTiles) e as camadas de clima seguem visiveis ate o
+  zoom 18 com opacidade caindo (antes sumiam em 16,5). Modo realista novo
+  (settings.realismo): veu de crepusculo/noite + estrelas sobre o mapa calculado
+  em tempo real pela altura do sol e pela luz da lua (solar.dart agora calcula
+  azimute e corrige a hora solar/minutos UTC; fatorEscuridao em solar.dart).
+  Botao do sol/lua no mapa, switch no painel de clima e em Mapa e graficos,
+  card "Sol agora/Lua agora" no painel de clima. flutter analyze "No issues
+  found!", flutter test 229/229.

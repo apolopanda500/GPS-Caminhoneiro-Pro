@@ -153,6 +153,11 @@ class GroupProvider extends ChangeNotifier {
     required String driverId,
     required Map<String, String> auth,
   }) async {
+    if (!AppConstants.serverConfigured) {
+      _error = 'Servidor não configurado (keys.json). Rode em modo offline.';
+      notifyListeners();
+      return false;
+    }
     try {
       final resp = await http
           .post(
@@ -162,8 +167,19 @@ class GroupProvider extends ChangeNotifier {
           )
           .timeout(const Duration(seconds: 10));
       final ok = resp.statusCode == 201 || resp.statusCode == 200;
+      if (!ok) {
+        try {
+          final body = jsonDecode(resp.body);
+          _error = (body is Map ? body['error'] : null)?.toString() ??
+              'Falha ao criar grupo (HTTP ${resp.statusCode}).';
+        } catch (_) {
+          _error = 'Falha ao criar grupo (HTTP ${resp.statusCode}).';
+        }
+        notifyListeners();
+        return false;
+      }
       if (ok) await load(driverId: driverId, auth: auth);
-      return ok;
+      return true;
     } catch (_) {
       _error = 'Falha ao criar grupo (offline?).';
       notifyListeners();
