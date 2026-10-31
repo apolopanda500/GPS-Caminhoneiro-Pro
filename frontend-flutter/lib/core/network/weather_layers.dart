@@ -40,7 +40,15 @@ class WeatherLayers {
       'https://api.rainviewer.com/public/weather-maps.json';
   static const String _openMeteo = 'https://api.open-meteo.com/v1/forecast';
 
+  /// Zoom maximo REAL dos tiles de clima (radar/satelite). Acima disso o
+  /// MapLibre amplia o ultimo tile, entao a camada continua visivel mesmo
+  /// com o mapa bem de perto (estrada/cabine).
   static const int maxZoomTiles = 7;
+
+  /// Zoom maximo em que o clima aparece no mapa. Um pouco mais perto do que
+  /// antes (ruas de bairro), mas escondido no zoom de rua/cabine: de muito
+  /// perto a chuva/nuvem atrapalharia enxergar a via.
+  static const double maxZoomCamada = 15.5;
 
   /// Timeline completa do radar: 2 horas de passado + nowcast (previsao).
   static Future<List<FrameRadar>> framesRadar() async {
@@ -210,7 +218,75 @@ class WeatherLayers {
     }
   }
 
-  /// Modelo de URL XYZ do radar de chuva para o MapLibre.
+  /// Grade de vento: velocidade (km/h) e direcao (graus) para desenhar setas.
+  static Future<List<Map<String, double>>> gradeVento(
+    double lat,
+    double lon,
+  ) async {
+    try {
+      const passos = 5;
+      const passoGraus = 0.08;
+      final lats = <double>[];
+      final lons = <double>[];
+      for (var i = 0; i < passos; i++) {
+        for (var j = 0; j < passos; j++) {
+          lats.add(lat + (i - (passos - 1) / 2) * passoGraus);
+          lons.add(lon + (j - (passos - 1) / 2) * passoGraus);
+        }
+      }
+      final uri = Uri.parse(_openMeteo).replace(queryParameters: {
+        'latitude': lats.map((v) => v.toStringAsFixed(4)).join(','),
+        'longitude': lons.map((v) => v.toStringAsFixed(4)).join(','),
+        'hourly': 'wind_speed_10m,wind_direction_10m',
+        'forecast_days': '2',
+        'timezone': 'auto',
+      });
+      final resp = await http.get(uri, headers: {
+        'User-Agent': 'gps-camioneiro-pro/1.0'
+      }).timeout(const Duration(seconds: 15));
+      if (resp.statusCode != 200) return const [];
+      final dinamico = jsonDecode(utf8.decode(resp.bodyBytes));
+      final locais = dinamico is List ? dinamico : [dinamico];
+      final agora = DateTime.now();
+      final out = <Map<String, double>>[];
+      for (var i = 0; i < locais.length; i++) {
+        final local = locais[i];
+        if (local is! Map) continue;
+        final hourly = local['hourly'];
+        if (hourly is! Map) continue;
+        final speeds = hourly['wind_speed_10m'];
+        final dirs = hourly['wind_direction_10m'];
+        final times = hourly['time'];
+        if (speeds is! List || dirs is! List || times is! List) continue;
+        var indice = 0;
+        var menor = 1e12;
+        for (var t = 0; t < times.length; t++) {
+          final hora = DateTime.tryParse(times[t].toString());
+          if (hora == null) continue;
+          final d = hora.difference(agora).inMinutes.abs().toDouble();
+          if (d < menor) {
+            menor = d;
+            indice = t;
+          }
+        }
+        if (indice >= speeds.length || indice >= dirs.length) continue;
+        final v = speeds[indice];
+        final dr = dirs[indice];
+        if (v is! num) continue;
+        final latRet = local['latitude'];
+        final lonRet = local['longitude'];
+        out.add({
+          'lat': latRet is num ? latRet.toDouble() : lats[i],
+          'lon': lonRet is num ? lonRet.toDouble() : lons[i],
+          'speed': v.toDouble(),
+          'dir': dr is num ? dr.toDouble() : 0.0,
+        });
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
   static String templateRadar(String path) => '$path/256/{z}/{x}/{y}/2/1_1.png';
 
   /// Modelo de URL XYZ do infravermelho (nuvens reais).
