@@ -859,6 +859,12 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   card "Sol agora/Lua agora" no painel de clima. flutter analyze "No issues
   found!", flutter test 229/229.
 
+- 01/11/2026 AGENTE-A-FLUTTER: checklist completo de botoes (media prioridade do README_MELHORIAS).
+  Estendeu test/buttons_test.dart com 5 telas novas (MapControlsPanel, SonsScreen,
+  PermissionsScreen, ProfileScreen, ContactsScreen) — total 13 testes de botoes, todos
+  verdes. Nenhum botao/ListTile sem acao encontrado nas telas principais.
+  Checks: flutter analyze "No issues found!", flutter test 235/235 (era 230).
+  Commit 07616ed so em frontend-flutter/test/buttons_test.dart.
 - 01/11/2026 AGENTE-VALIDACAO-FINAL: validacao completa do repositorio.
   flutter analyze: No issues found!; flutter test: 230/230 todos verdes;
   backend: npm test 29/29 + tsc OK. Nao ha erros de codigo pendentes.
