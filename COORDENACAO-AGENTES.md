@@ -858,3 +858,17 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   Botao do sol/lua no mapa, switch no painel de clima e em Mapa e graficos,
   card "Sol agora/Lua agora" no painel de clima. flutter analyze "No issues
   found!", flutter test 229/229.
+
+- 01/11/2026 AGENTE-VALIDACAO-FINAL: validacao completa do repositorio.
+  flutter analyze: No issues found!; flutter test: 230/230 todos verdes;
+  backend: npm test 29/29 + tsc OK. Nao ha erros de codigo pendentes.
+  Tarefas Flutter da fila (#3 foto motorista no mapa, #4 tap no sinal
+  hiddenIds/bottom sheet, #5 filtro peers grupos estrito) ja implementadas
+  em map_screen.dart/peer_provider.dart/group_provider.dart/alert_provider.dart.
+  Pendentes restantes dependem do USUARIO (envs do Render: DATABASE_URL ->
+  pooler Supabase, SUPABASE_SECRET_KEY real, SHA-1 release+debug na chave
+  Routes API, PIX_* para Premium nao devolver 503, SMTP Brevo). Fila #8,
+  #9, #14, #16, #17, #18, #20, #21 aguardam acao do usuario no painel Render.
+  Celular R9XY1016R6V conectado via adb; APK release assinado ja instalado
+  anteriormente. Recomendado: usuario faz push dos 5 commits locais (main
+  esta 5 commits a frente de origin/main) e reconfirma as envs no Render.
