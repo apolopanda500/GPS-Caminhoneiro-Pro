@@ -95,12 +95,6 @@ class _SplashScreenState extends State<SplashScreen> {
                 letterSpacing: 2,
               ),
             ),
-            SizedBox(height: 12),
-            Text(
-              'Rede Veicular V2X • Chat da Estrada • Alertas em Tempo Real',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kLightText, fontSize: 14),
-            ),
             SizedBox(height: 32),
             CircularProgressIndicator(color: kEmergencyRed),
           ],

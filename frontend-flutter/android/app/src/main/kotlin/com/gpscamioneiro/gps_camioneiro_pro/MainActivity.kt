@@ -28,6 +28,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 
     private val canal = "com.gpscamioneiro.gps_camioneiro_pro/nativo"
+    private val canalHome = "gps.camioneiro.pro/move_to_home"
 
     /** O app esta em modo mini (Picture-in-Picture)? */
     private var emPip = false
@@ -80,6 +81,9 @@ class MainActivity : FlutterActivity() {
                     }
                     "aparelho/info" -> {
                         resp.success(informacoesDoAparelho())
+                    }
+                    "move/task/to/back" -> {
+                        resp.success(moveTaskToBack(true))
                     }
                     else -> resp.notImplemented()
                 }
@@ -169,6 +173,14 @@ class MainActivity : FlutterActivity() {
         val engine = flutterEngine ?: return
         MethodChannel(engine.dartExecutor.binaryMessenger, canal)
             .invokeMethod("pip/estado", isInPictureInPictureMode)
+    }
+
+    /**
+     * Botao Voltar do Android minimiza o app (envia para a home) em vez de
+     * fechar, igual a maioria dos apps de navegacao/mapa.
+     */
+    override fun onBackPressed() {
+        moveTaskToBack(true)
     }
 
     /**

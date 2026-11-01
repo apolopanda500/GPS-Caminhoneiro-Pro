@@ -865,6 +865,17 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   verdes. Nenhum botao/ListTile sem acao encontrado nas telas principais.
   Checks: flutter analyze "No issues found!", flutter test 235/235 (era 230).
   Commit 07616ed so em frontend-flutter/test/buttons_test.dart.
+- 01/11/2026 AGENTE-A-FLUTTER: simplificacao do mapa + clima e radio ao vivo.
+  Removeu botoes duplicados (clima, ceu/modo realista, centralizar/camera como
+  botoes flutuantes extras) da coluna de acoes do mapa. Deixou apenas: Buscar
+  rua, Rota, Rede de caminhoneiros, Radio ao vivo, Emitir sinal, Clima e Parar
+  (GPS). Adicionou botao "Radio ao vivo" que abre o RadioSheet com estacoes
+  reais do Brasil. Removeu codigo morto (_sairDaConta, _limparSinaisDoMapa,
+  _limparMapaCompleto, _abrirConfiguracoes, _abrirRadio antigo, _botaoClima
+  antigo, _botaoCeu, _alternarRealismo, _alternarCamera, _nomeCamera,
+  _iconeCamera, imports inuteis). Botao Voltar do Android agora minimiza o app
+  (moveTaskToBack) via MainActivity onBackPressed + method channel.
+  Checks: flutter analyze "No issues found!", flutter test 235/235.
 - 01/11/2026 AGENTE-A-FLUTTER: app instalado e rodando no celular R9XY1016R6V (conectado via adb).
   Desinstalou a versao debug (assinatura incompatível) e instalou o app-release.apk assinado (Success).
   App aberto com am start (MainActivity) e screenshot confirmado. Tarefa de validacao em aparelho real

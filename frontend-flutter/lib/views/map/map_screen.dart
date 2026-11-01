@@ -35,8 +35,6 @@ import 'package:gps_camioneiro_pro/core/utils/location_handler.dart';
 import 'package:gps_camioneiro_pro/core/utils/confirm.dart';
 import 'package:gps_camioneiro_pro/core/utils/estado_uf.dart';
 import 'package:gps_camioneiro_pro/core/utils/fotos_motorista.dart';
-import 'package:gps_camioneiro_pro/core/utils/solar.dart';
-import 'package:gps_camioneiro_pro/core/utils/moon.dart';
 import 'package:gps_camioneiro_pro/core/database/local_cache.dart';
 import 'package:gps_camioneiro_pro/providers/alert_notifier.dart';
 import 'package:gps_camioneiro_pro/providers/alert_provider.dart';
@@ -51,7 +49,6 @@ import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/providers/route_provider.dart';
 import 'package:gps_camioneiro_pro/providers/group_provider.dart';
 import 'package:gps_camioneiro_pro/providers/map_layers_provider.dart';
-import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/utils/map_icons.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/report_dialog.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/speed_hud.dart';
@@ -64,7 +61,6 @@ import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
-import 'package:gps_camioneiro_pro/views/settings/settings_screen.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -219,7 +215,6 @@ class _MapScreenState extends State<MapScreen> {
     if (_styleLoaded) {
       _mapController?.setStyle(_styleAtual);
     }
-    _showSnackBar('Mapa atualizado com as vias mais recentes.');
   }
 
   Future<void> _carregarEstilos() async {
@@ -781,11 +776,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Radio da estrada (agora direto no mapa).
-  void _abrirRadio() {
-    RadioSheet.open(context);
-  }
-
   /// Abre o painel único do clima (previsão + camadas do mapa).
   void _abrirClima() {
     final clima = context.read<WeatherProvider>();
@@ -800,6 +790,11 @@ class _MapScreenState extends State<MapScreen> {
       barrierColor: Colors.black54,
       builder: (_) => WeatherPanel(latitude: lat, longitude: lon),
     );
+  }
+
+  /// Radio ao vivo (estacoes do Brasil): abre a lista e o tocador.
+  void _abrirRadio() {
+    RadioSheet.open(context);
   }
 
   /// Limpa a rota: some com a linha, as paradas, a empresa, o painel e
@@ -843,53 +838,6 @@ class _MapScreenState extends State<MapScreen> {
   ({Offset posicao, Color cor})? _onda;
 
   /// Momento do ultimo aviso: evita encher a rede de sinais iguais.
-  DateTime? _ultimoAviso;
-
-  /// Compartilha a posicao com a rede: emite uma onda, avisa os caminhoes
-  /// por perto (sinal no mapa de todos) e mostra o alerta na lista.
-  void _compartilharLocalizacao() {
-    final pos = _currentPosition ?? _center;
-    final agora = DateTime.now();
-    final ultimo = _ultimoAviso;
-    if (ultimo != null &&
-        agora.difference(ultimo) < const Duration(minutes: 2)) {
-      final falta = 2 - agora.difference(ultimo).inMinutes;
-      _showSnackBar('Aguarde $falta min para avisar de novo.');
-      return;
-    }
-    _ultimoAviso = agora;
-
-    final auth = context.read<AuthProvider>();
-    final driverId = auth.driver?.driverId ?? widget.driverId;
-    final nome = auth.driver?.name ?? 'Motorista';
-
-    // Sinal no mapa de todos (vai para o banco e chega pela rede).
-    _socket.sendRoadAlert(
-      driverId: driverId,
-      type: 'sinal',
-      message: '$nome esta passando por aqui',
-      lat: pos.latitude,
-      lon: pos.longitude,
-    );
-    // Mensagem no chat da rodovia (todo mundo ouve).
-    _socket.sendChatMessage(
-      driverId: driverId,
-      driverName: nome,
-      message: 'Passando por aqui. Seguam com cuidado.',
-      lat: pos.latitude,
-      lon: pos.longitude,
-    );
-
-    // Onda na tela, no ponto do caminhao.
-    final size = MediaQuery.of(context).size;
-    setState(() {
-      _onda = (
-        posicao: Offset(size.width / 2, size.height / 2),
-        cor: kEmergencyRed
-      );
-    });
-    _showSnackBar('📡 Posicao compartilhada com a rede.');
-  }
 
   void _moverCamera(LatLng target,
       {required double zoom,
@@ -995,37 +943,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// Proxima camera de acompanhamento (2D -> navegacao 3D -> cabine 3D).
-  /// Nao religa o modo centralizado: a camera so volta ao caminhao pelo
-  /// botao de centralizar.
-  void _alternarCamera() {
-    const modos = CameraMode.values;
-    final proximo = modos[(_cameraMode.index + 1) % modos.length];
-    setState(() => _cameraMode = proximo);
-    unawaited(context.read<SettingsProvider>().setCameraMode(proximo));
-    final pos = _currentPosition;
-    if (pos != null && _seguirVeiculo) {
-      _aplicarCameraNoVeiculo(pos, instant: true);
-    }
-    _showSnackBar('Camera: ${_nomeCamera(proximo)}');
-  }
-
-  String _nomeCamera(CameraMode modo) {
-    return switch (modo) {
-      CameraMode.norte => '2D norte',
-      CameraMode.navegacao => '3D navegacao',
-      CameraMode.cabine => 'visao do caminhoneiro',
-    };
-  }
-
-  IconData get _iconeCamera {
-    return switch (_cameraMode) {
-      CameraMode.norte => Icons.explore,
-      CameraMode.navegacao => Icons.navigation,
-      CameraMode.cabine => Icons.remove_red_eye,
-    };
-  }
-
   /// Saiu do tracado? Recalcula sozinho mantendo as entregas que faltam.
   Future<void> _verificarForaDaRota(LatLng pos) async {
     if (!mounted) return;
@@ -1105,11 +1022,9 @@ class _MapScreenState extends State<MapScreen> {
     _networkSub = _network.onChange.listen((kind) {
       if (!mounted) return;
       if (kind == NetKind.none) {
-        _showSnackBar('📡 Sem conexão. Tentando reconectar...');
         return;
       }
       if (kind == NetKind.mobile) {
-        _showSnackBar('📶 Dados móveis (4G/5G): mapa 3D completo ativo.');
       }
       _renderMarkers();
     });
@@ -2537,27 +2452,6 @@ class _MapScreenState extends State<MapScreen> {
     _moverCamera(result, zoom: 15);
   }
 
-  void _sairDaConta() {
-    confirmarEExecutar(
-      context,
-      titulo: 'Sair da conta',
-      mensagem:
-          'Voce vai sair da conta neste aparelho.\n\nA sessao do servidor continua valida, mas sera preciso entrar de novo.',
-      textoConfirmar: 'SAIR',
-      destrutivo: true,
-      icone: Icons.logout,
-      acao: () async {
-        final navigator = Navigator.of(context);
-        context.read<AuthProvider>().logout();
-        context.read<PeerProvider>().clear();
-        navigator.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-      },
-    );
-  }
-
   /// Monitor de chegada e saida das paradas (logica testada com milhares
   /// de simulacoes em test/simulacao_jornadas_test.dart).
   final MonitorDeParadas _monitorParadas = MonitorDeParadas();
@@ -3054,27 +2948,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _limparMapaCompleto() {
-    // Os sinais que estao na tela ficam ocultos ate o fim da sessao: sem
-    // isso a varredura de proximidade (socket) os recoloca na hora e o
-    // usuario acha que o botao nao fez nada.
-    for (final a in _activeAlerts) {
-      _sinaisOcultosSessao.add(a.id);
-    }
-    final daProvider = context.read<AlertProvider>().alerts;
-    for (final a in daProvider) {
-      _sinaisOcultosSessao.add(a.id);
-    }
-    _sinalSelecionadoId = null;
-    context.read<MarkerProvider>().clear();
-    context.read<AlertProvider>().clearAlerts();
-    context.read<RouteProvider>().clear();
-    setState(() => _activeAlerts.clear());
-    _renderMarkers();
-    _showSnackBar(
-        'Mapa limpo: sinais, alertas e rota removidos (ficam ocultos nesta viagem).');
-  }
-
   void _onTripSample(LatLng pos, double speedKmh) {
     _tripStart ??= DateTime.now();
     _tripStartPos ??= pos;
@@ -3381,33 +3254,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _limparSinaisDoMapa() {
-    confirmarEExecutar(
-      context,
-      titulo: 'Limpar sinais do mapa',
-      mensagem:
-          'Todos os sinais e marcadores deste mapa serao apagados.\n\nOs avisos ja enviados para a rede continuam valendo.',
-      textoConfirmar: 'LIMPAR',
-      destrutivo: true,
-      icone: Icons.delete_sweep_outlined,
-      acao: () async {
-        _limparMapaCompleto();
-      },
-    );
-  }
-
-  void _abrirConfiguracoes() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SettingsScreen(
-          onLimparSinais: _limparSinaisDoMapa,
-          onSairDaConta: _sairDaConta,
-        ),
-      ),
-    );
-  }
-
   Future<void> _onMapLongPress(LatLng point) async {
     final draft = await MarkerDialog.show(context);
     if (draft == null) return;
@@ -3607,7 +3453,7 @@ class _MapScreenState extends State<MapScreen> {
               id: 'acoes',
               initial: const Offset(16, 120),
               width: 138,
-              height: 210,
+              height: 150,
               dragWholeChild: true,
               resizable: false,
               minimizedChild: const Icon(Icons.apps, size: 18),
@@ -3621,18 +3467,10 @@ class _MapScreenState extends State<MapScreen> {
                       Icons.alt_route, 'Rota', _abrirPlanejadorDeRota),
                   _botaoFlutuante(
                       Icons.group, 'Rede de caminhoneiros', _abrirRede),
-                  _botaoFlutuante(
-                      Icons.radio_outlined, 'Radio da estrada', _abrirRadio),
-                  _botaoClima(),
-                  _botaoCeu(),
-                  _botaoFlutuante(
-                      Icons.campaign,
-                      'Compartilhar posicao com a rede',
-                      _compartilharLocalizacao),
+                  _botaoFlutuante(Icons.radio_outlined, 'Radio ao vivo', _abrirRadio),
                   _botaoFlutuante(Icons.add_location_alt,
                       'Emitir sinal no mapa', _emitirSinalNoMapa),
-                  _botaoFlutuante(
-                      Icons.settings, 'Configuracoes', _abrirConfiguracoes),
+                  _botaoClima(),
                   _botaoParar(),
                 ],
               ),
@@ -3652,21 +3490,6 @@ class _MapScreenState extends State<MapScreen> {
                       : Icons.center_focus_weak,
                   size: 18),
               child: _botaoCentralizar(),
-            ),
-          // Modo de camera: 2D norte -> 3D navegacao -> visao do caminhoneiro.
-          if (ui)
-            FloatingPanel(
-              id: 'camera_modo',
-              initial: Offset(16, size.height - 480),
-              width: 52,
-              height: 52,
-              dragWholeChild: true,
-              resizable: false,
-              minimizedChild: Icon(_iconeCamera, size: 18),
-              child: _botaoFlutuante(
-                  _iconeCamera,
-                  'Camera: ${_nomeCamera(_cameraMode)} (toque para trocar)',
-                  _alternarCamera),
             ),
           if (ui && !_routePanelClosed && totalParadas > 0)
             Builder(builder: (ctx) {
@@ -3820,7 +3643,54 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Botão único do clima: mostra temperatura/emoji e abre o painel completo.
+  /// Emite um sinal no mapa (aviso para a rede) no ponto atual.
+  void _emitirSinalNoMapa() {
+    _showWriteReportDialog();
+  }
+
+  /// Botao de camada do mapa: alterna Satelite -> Ruas -> 3D (detalhado) com
+  /// um toque. O icone mostra em qual modo o mapa esta.
+  /// Troca a camada do mapa (satelite -> ruas -> 3D) e avisa o usuario.
+  /// Botao vermelho de encerrar a viagem: fica sempre a vista na coluna de
+  /// acoes do mapa (no menu ele ficava longe e era facil esquecer).
+  ///
+  /// Ele **para o GPS de verdade**: salva a viagem (se houver), cancela o
+  /// fluxo de posicao, encerra o expediente e desliga o servico em primeiro
+  /// plano (a notificacao some).
+  /// Botao do GPS: **verde para ligar** e **vermelho para desligar**.
+  ///
+  /// Desligar encerra a viagem, cancela o fluxo de posicao e desliga o
+  /// servico em primeiro plano; ligar volta o rastreio com a tela acesa.
+  Widget _botaoParar() {
+    final ligado = context.watch<SettingsProvider>().trackingEnabled;
+    final cor = ligado ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
+    return Tooltip(
+      message: ligado
+          ? 'Encerrar viagem, limpar rotas e reiniciar GPS'
+          : 'Ligar o GPS',
+      child: Material(
+        color: cor,
+        shape: const CircleBorder(),
+        elevation: 4,
+        shadowColor: Colors.black54,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: ligado ? _pararGpsEEncerrarViagem : _ligarGps,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              ligado ? Icons.stop_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 21,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Botao unico do clima: mostra temperatura/emoji e abre o painel completo.
   Widget _botaoClima() {
     final clima = context.watch<WeatherProvider>();
     final now = clima.now;
@@ -3831,9 +3701,8 @@ class _MapScreenState extends State<MapScreen> {
     final emoji = now == null ? '☁️' : clima.emojiForCode(now.code);
     final temp = now == null ? '--' : '${now.tempC.round()}°';
     final dica = now == null
-        ? 'Clima e previsão'
-        : '${clima.descricaoForCode(now.code)} • ${now.tempC.round()}°C • '
-            'vento ${now.windKmh.round()} km/h';
+        ? 'Clima e previsao'
+        : '${clima.descricaoForCode(now.code)} • ${now.tempC.round()}°C • vento ${now.windKmh.round()} km/h';
     return Tooltip(
       message: dica,
       child: Material(
@@ -3885,120 +3754,6 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Botao do ceu em tempo real: mostra o sol ou a lua agora e liga/desliga o
-  /// modo realista (veu de noite/crepusculo sobre o mapa).
-  Widget _botaoCeu() {
-    final settings = context.watch<SettingsProvider>();
-    final pos = _currentPosition ?? _center;
-    final solar =
-        calcularSolar(latitude: pos.latitude, longitude: pos.longitude);
-    final lua = calcularLua();
-    final noite = !solar.ehDia;
-    final emoji = noite ? lua.emoji : '☀️';
-    final valor = noite
-        ? '${lua.iluminacao.round()}%'
-        : '${solar.elevacaoGraus.round()}°';
-    final accent = settings.realismo
-        ? const Color(0xFF7E57C2)
-        : (_settingsProvider?.overlayColor ?? kEmergencyRed);
-    final estado = noite
-        ? 'Noite • Lua ${lua.fase.toLowerCase()} ${lua.iluminacao.round()}%'
-        : 'Dia • Sol a ${solar.elevacaoGraus.round()}°';
-    final dica = 'Sol e Lua em tempo real\n$estado\n'
-        'Toque para ${settings.realismo ? 'desligar' : 'ligar'} o modo realista';
-    return Tooltip(
-      message: dica,
-      child: Material(
-        color: _superficie(context),
-        shape: CircleBorder(
-          side: BorderSide(color: accent.withValues(alpha: 0.8), width: 1.3),
-        ),
-        elevation: 4,
-        shadowColor: Colors.black54,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () => _alternarRealismo(),
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 15, height: 1)),
-                Text(
-                  valor,
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 9,
-                    height: 1.1,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Liga/desliga o modo realista com um aviso curto.
-  void _alternarRealismo() {
-    final settings = context.read<SettingsProvider>();
-    final ligar = !settings.realismo;
-    settings.setRealismo(ligar);
-    _showSnackBar(ligar
-        ? 'Modo realista ligado: o mapa segue o sol e a lua agora.'
-        : 'Modo realista desligado.');
-  }
-
-  /// Emite um sinal no mapa (aviso para a rede) no ponto atual.
-  void _emitirSinalNoMapa() {
-    _showWriteReportDialog();
-  }
-
-  /// Botao de camada do mapa: alterna Satelite -> Ruas -> 3D (detalhado) com
-  /// um toque. O icone mostra em qual modo o mapa esta.
-  /// Troca a camada do mapa (satelite -> ruas -> 3D) e avisa o usuario.
-  /// Botao vermelho de encerrar a viagem: fica sempre a vista na coluna de
-  /// acoes do mapa (no menu ele ficava longe e era facil esquecer).
-  ///
-  /// Ele **para o GPS de verdade**: salva a viagem (se houver), cancela o
-  /// fluxo de posicao, encerra o expediente e desliga o servico em primeiro
-  /// plano (a notificacao some).
-  /// Botao do GPS: **verde para ligar** e **vermelho para desligar**.
-  ///
-  /// Desligar encerra a viagem, cancela o fluxo de posicao e desliga o
-  /// servico em primeiro plano; ligar volta o rastreio com a tela acesa.
-  Widget _botaoParar() {
-    final ligado = context.watch<SettingsProvider>().trackingEnabled;
-    final cor = ligado ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
-    return Tooltip(
-      message: ligado
-          ? 'Encerrar viagem, limpar rotas e reiniciar GPS'
-          : 'Ligar o GPS',
-      child: Material(
-        color: cor,
-        shape: const CircleBorder(),
-        elevation: 4,
-        shadowColor: Colors.black54,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: ligado ? _pararGpsEEncerrarViagem : _ligarGps,
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Icon(
-              ligado ? Icons.stop_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 21,
             ),
           ),
         ),
