@@ -16,11 +16,16 @@ import 'package:gps_camioneiro_pro/providers/trip_provider.dart';
 import 'package:gps_camioneiro_pro/views/auth/login_screen.dart';
 import 'package:gps_camioneiro_pro/views/config/truck_setup_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/map_controls_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/route_table_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/speed_hud.dart';
+import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
 import 'package:gps_camioneiro_pro/views/premium/payment_gate.dart';
 import 'package:gps_camioneiro_pro/views/settings/appearance_screen.dart';
+import 'package:gps_camioneiro_pro/views/settings/permissions_screen.dart';
+import 'package:gps_camioneiro_pro/views/settings/sons_screen.dart';
 import 'package:gps_camioneiro_pro/views/settings/settings_screen.dart';
+import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
 
 /// Tipos de botao/interacao que o app usa.
 final _tiposDeBotao = <Type>[
@@ -205,5 +210,102 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(Scaffold), findsOneWidget);
     await testarTodosOsBotoes(tester, [() => const SettingsScreen()]);
+  });
+
+  testWidgets('botoes do painel de controles do mapa nao estouram',
+      (tester) async {
+    await tester.pumpWidget(_app(Material(
+      child: MapControlsPanel(
+        onCamada: (_) {},
+        onMostrarUi: (_) {},
+        uiVisivel: true,
+      ),
+    )));
+    await tester.pump(const Duration(milliseconds: 300));
+    final total = _contarBotoes(tester);
+    for (var i = 0; i < total; i++) {
+      await tester.pumpWidget(_app(Material(
+        child: MapControlsPanel(
+          onCamada: (_) {},
+          onMostrarUi: (_) {},
+          uiVisivel: true,
+        ),
+      )));
+      await tester.pump(const Duration(milliseconds: 300));
+      final alvo = _botaoPorIndice(tester, i);
+      if (alvo == null) continue;
+      await tester.tap(alvo, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull,
+          reason: 'Botao #$i do painel de controles lancou excecao');
+    }
+  });
+
+  testWidgets('botoes da tela de sons e voz nao estouram', (tester) async {
+    await tester.pumpWidget(_app(const SonsScreen()));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(Scaffold), findsOneWidget);
+    final total = _contarBotoes(tester);
+    for (var i = 0; i < total; i++) {
+      await tester.pumpWidget(_app(const SonsScreen()));
+      await tester.pump(const Duration(milliseconds: 500));
+      final alvo = _botaoPorIndice(tester, i);
+      if (alvo == null) continue;
+      await tester.tap(alvo, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull,
+          reason: 'Botao #$i de sons lancou excecao');
+    }
+  });
+
+  testWidgets('botoes da tela de permissoes nao estouram', (tester) async {
+    await tester.pumpWidget(_app(const PermissionsScreen()));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(Scaffold), findsOneWidget);
+    final total = _contarBotoes(tester);
+    for (var i = 0; i < total; i++) {
+      await tester.pumpWidget(_app(const PermissionsScreen()));
+      await tester.pump(const Duration(milliseconds: 500));
+      final alvo = _botaoPorIndice(tester, i);
+      if (alvo == null) continue;
+      await tester.tap(alvo, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull,
+          reason: 'Botao #$i de permissoes lancou excecao');
+    }
+  });
+
+  testWidgets('botoes da tela de perfil nao estouram', (tester) async {
+    await tester.pumpWidget(_app(const ProfileScreen()));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(Scaffold), findsOneWidget);
+    final total = _contarBotoes(tester);
+    for (var i = 0; i < total; i++) {
+      await tester.pumpWidget(_app(const ProfileScreen()));
+      await tester.pump(const Duration(milliseconds: 500));
+      final alvo = _botaoPorIndice(tester, i);
+      if (alvo == null) continue;
+      await tester.tap(alvo, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull,
+          reason: 'Botao #$i do perfil lancou excecao');
+    }
+  });
+
+  testWidgets('botoes da tela de contatos nao estouram', (tester) async {
+    await tester.pumpWidget(_app(const ContactsScreen()));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(Scaffold), findsOneWidget);
+    final total = _contarBotoes(tester);
+    for (var i = 0; i < total; i++) {
+      await tester.pumpWidget(_app(const ContactsScreen()));
+      await tester.pump(const Duration(milliseconds: 300));
+      final alvo = _botaoPorIndice(tester, i);
+      if (alvo == null) continue;
+      await tester.tap(alvo, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull,
+          reason: 'Botao #$i de contatos lancou excecao');
+    }
   });
 }
