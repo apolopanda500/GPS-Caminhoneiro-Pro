@@ -192,7 +192,26 @@ class MapControlsPanel extends StatelessWidget {
               'Trânsito em tempo real',
               'Mostra o gargalo na via (verde a vermelho)',
               settings.trafficLayer,
-              settings.setTrafficLayer,
+              (v) async {
+                await settings.setTrafficLayer(v);
+                if (v) {
+                  context.read<MapLayersProvider>().setTrafego(true);
+                } else {
+                  context.read<MapLayersProvider>().setTrafego(false);
+                }
+              },
+            ),
+
+            // Modo offline (mapas em cache)
+            linha(
+              Icons.cloud_off,
+              'Modo offline',
+              'Usa mapas em cache quando nao houver sinal',
+              settings.batterySaver || settings.gpsIntervalSeconds > 5,
+              (v) async {
+                final camadas = context.read<MapLayersProvider>();
+                await camadas.setOffline(v);
+              },
             ),
 
             // Predios 3D

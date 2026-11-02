@@ -28,7 +28,8 @@ import 'package:gps_camioneiro_pro/views/map/widgets/rede_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/weather_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/realismo_overlay.dart';
-import 'package:gps_camioneiro_pro/core/network/socket_client.dart';
+import 'package:gps_camioneiro_pro/core/gps/dead_reckoning_service.dart';
+import 'package:gps_camioneiro_pro/core/network/traffic_layer.dart';
 import 'package:gps_camioneiro_pro/core/network/speed_limit_service.dart';
 import 'package:gps_camioneiro_pro/core/network/geocoding_service.dart';
 import 'package:gps_camioneiro_pro/core/network/network_status_service.dart';
@@ -90,6 +91,7 @@ class _MapScreenState extends State<MapScreen> {
   StreamSubscription? _positionSubscription;
   ml.MapLibreMapController? _mapController;
   final FiltroKalman _kalman = FiltroKalman();
+  final DeadReckoningService _deadReckoning = DeadReckoningService();
   final NavegadorTbt _navegador = NavegadorTbt(voz: VoiceService.instance);
   SnapshotNavegacao? _nav;
   RouteResult? _rotaNavegada;
@@ -188,6 +190,11 @@ class _MapScreenState extends State<MapScreen> {
     _carregarEstilos();
     _initRealtimeSocket();
     _startLocationStream();
+    // Inicializa servicos de offline e dead reckoning.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<MapLayersProvider>().initOffline();
+    });
     // No mapa a musica de entrada para (so toca no splash e no login).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -564,21 +571,33 @@ class _MapScreenState extends State<MapScreen> {
       final newPos = filtrada.pos;
       _ultimoGpsTick = DateTime.now();
       _avisouPosicaoEstimada = false;
+      // Atualiza o dead reckoning com a leitura GPS real.
+      _deadReckoning.atualizarGps(
+        newPos,
+        pos.speedKmh ?? 0,
+        pos.headingDegrees ?? 0,
+        DateTime.now(),
+      );
       _timerGps ??= Timer.periodic(const Duration(seconds: 3), (t) {
         if (!mounted || _currentPosition == null || _positionSubscription == null) return;
         final decorrido = DateTime.now().difference(_ultimoGpsTick);
         if (decorrido.inSeconds < 3) return;
         final estimada = _kalman.prevista(desdeUltimoGps: decorrido);
         if (estimada.precisao > 400) return;
+        // Dead reckoning: usa a estimativa do Kalman + dados do veículo
+        // quando o GPS está ausente (túnel, zona rural).
+        final posEstimada = _deadReckoning.estimarAgora(
+                semGpsDesde: decorrido) ??
+            estimada.pos;
         if (!_avisouPosicaoEstimada) {
           _avisouPosicaoEstimada = true;
           _showSnackBar(
               'Sinal de GPS fraco (tunel?). Seguindo por calculo ate voltar.');
         }
-        setState(() => _currentPosition = estimada.pos);
+        setState(() => _currentPosition = posEstimada);
         _socket.sendLocationUpdate(
-            lat: estimada.pos.latitude,
-            lon: estimada.pos.longitude,
+            lat: posEstimada.latitude,
+            lon: posEstimada.longitude,
             driverId: widget.driverId);
       });
       final anterior = _currentPosition;
@@ -1367,6 +1386,12 @@ class _MapScreenState extends State<MapScreen> {
         await c.updateLine(linhaAtual, linha);
       }
     } catch (_) {}
+    // Atualiza a camada de tráfego sobre a rota (se ativada).
+    final camadas = context.read<MapLayersProvider>();
+    camadas.definirRotaParaTrafego(geometry.map((p) => LatLng(p.latitude, p.longitude)).toList());
+    if (camadas.trafego) {
+      unawaited(camadas.setTrafego(true));
+    }
   }
 
   Future<void> _removerLinhaRota() async {

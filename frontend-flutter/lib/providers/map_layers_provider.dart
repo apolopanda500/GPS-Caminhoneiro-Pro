@@ -1153,10 +1153,115 @@ class MapLayersProvider extends ChangeNotifier {
     }
   }
 
+  bool _trafego = false;
+  bool _offline = false;
+  final TrafficService _trafficService = TrafficService();
+  final OfflineMapsService _offlineMaps = OfflineMapsService();
+  List<LatLng> _linhaRotaParaTrafego = const [];
+
+  bool get trafego => _trafego;
+  bool get offline => _offline;
+
+  /// Inicializa o servico de mapas offline.
+  Future<void> initOffline() async {
+    await _offlineMaps.init();
+  }
+
+  /// Liga/desliga a camada de tráfego em tempo real sobre a rota.
+  Future<void> setTrafego(bool value) async {
+    if (_trafego == value) return;
+    _trafego = value;
+    notifyListeners();
+    if (_controller != null && value) {
+      await _aplicarTrafego(_controller!);
+    } else if (_controller != null) {
+      await _removerTrafego(_controller!);
+    }
+  }
+
+  /// Atualiza a polyline da rota usada para desenhar o tráfego.
+  void definirRotaParaTrafego(List<LatLng> pontos) {
+    _linhaRotaParaTrafego = pontos;
+    if (_trafego && _controller != null) {
+      unawaited(_aplicarTrafego(_controller!));
+    }
+  }
+
+  /// Desenha a camada de tráfego (linha colorida) sobre a rota atual.
+  Future<void> _aplicarTrafego(ml.MapLibreMapController c) async {
+    if (!_trafego || _linhaRotaParaTrafego.isEmpty) return;
+    final pos = _posicaoAtual;
+    if (pos == null) return;
+    // Consulta o tráfego na posição atual do caminhão.
+    final speed = await _trafficService.fetch(pos.latitude, pos.longitude);
+    final cor = TrafficService.corTrafego(speed);
+    final sourceId = 'trafego_rota_fonte';
+    final layerId = 'trafego_rota_camada';
+
+    try {
+      await c.removeLayer(layerId);
+    } catch (_) {}
+    try {
+      await c.removeSource(sourceId);
+    } catch (_) {}
+
+    final coords = _linhaRotaParaTrafego
+        .map((p) => [p.longitude, p.latitude])
+        .toList();
+    await c.addSource(
+      sourceId,
+      ml.GeoJsonSourceProperties(
+        data: {
+          'type': 'FeatureCollection',
+          'features': [
+            {
+              'type': 'Feature',
+              'properties': {'cor': cor},
+              'geometry': {
+                'type': 'LineString',
+                'coordinates': coords,
+              },
+            },
+          ],
+        },
+      ),
+    );
+    await c.addLayer(
+      sourceId,
+      layerId,
+      ml.LineLayerProperties(
+        lineColor: cor,
+        lineWidth: 5,
+        lineOpacity: 0.7,
+        lineCap: 'round',
+        lineJoin: 'round',
+      ),
+    );
+  }
+
+  /// Remove a camada de tráfego do mapa.
+  Future<void> _removerTrafego(ml.MapLibreMapController c) async {
+    try {
+      await c.removeLayer('trafego_rota_camada');
+    } catch (_) {}
+    try {
+      await c.removeSource('trafego_rota_fonte');
+    } catch (_) {}
+  }
+
+  /// Liga/desliga o modo offline (usa tiles em cache quando disponível).
+  Future<void> setOffline(bool value) async {
+    if (_offline == value) return;
+    _offline = value;
+    notifyListeners();
+    if (_controller != null) await aplicar(_controller!);
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
     _animador?.cancel();
+    _trafficService.dispose();
     super.dispose();
   }
 }
