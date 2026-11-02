@@ -1173,7 +1173,9 @@ class MapLayersProvider extends ChangeNotifier {
     _trafego = value;
     notifyListeners();
     if (_controller != null && value) {
-      await _aplicarTrafego(_controller!);
+      // Acesso ao tráfego foi desabilitado temporariamente.
+      // Para reativar, reintegre o TrafficService ao MapLayersProvider.
+      // context.read<MapLayersProvider>().setTrafego(true);
     } else if (_controller != null) {
       await _removerTrafego(_controller!);
     }

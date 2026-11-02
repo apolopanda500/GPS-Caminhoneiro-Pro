@@ -192,14 +192,7 @@ class MapControlsPanel extends StatelessWidget {
               'Trânsito em tempo real',
               'Mostra o gargalo na via (verde a vermelho)',
               settings.trafficLayer,
-              (v) async {
-                await settings.setTrafficLayer(v);
-                if (v) {
-                  context.read<MapLayersProvider>().setTrafego(true);
-                } else {
-                  context.read<MapLayersProvider>().setTrafego(false);
-                }
-              },
+              settings.setTrafficLayer,
             ),
 
             // Modo offline (mapas em cache)
