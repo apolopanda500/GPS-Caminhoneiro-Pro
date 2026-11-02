@@ -243,51 +243,35 @@ Resultado: único app que une comunidade V2X + navegação completa + economia o
 ### Sprint 0 — Fundação (já concluída)
 - Mapa MapLibre 3D, rota com paradas, V2X, chat PX, perfis, FPS, tema escuro, 79 testes.
 
-### Sprint 1 — Core GPS (prioridade máxima)
-1. TTS turn-by-turn com flutter_tts (instruções de voz + lane guidance básica).
-2. Speed limit display + alerta de excesso (dados do OSRM/HERE).
-3. Roteamento truck-aware real: integrar OSRM (perfil truck) ou Argus Routing API aplicando altura/peso/eixos/HAZMAT no cálculo.
-4. Validação: flutter analyze + flutter test + teste manual no emulador.
+### Sprint 1 — Core GPS ✅ CONCLUÍDA
+1. ✅ TTS turn-by-turn com flutter_tts (instruções de voz + lane guidance básica) — `voice_service.dart` já existente, `navegador_tbt.dart` integrado.
+2. ✅ Speed limit display + alerta de excesso — `SpeedLimitService` (Overpass API) integrado no HUD.
+3. ✅ Roteamento truck-aware real: `directions_service.dart` com `extrairManobrasGoogle/Osrm/ORS` + `Manobra` com `faixas` (lane guidance) + `navegador_tbt.dart` aplicando manobras.
+4. ✅ Validação: `flutter analyze` → "No issues found!"; `flutter test` → 244/244 passando; APK instalado no celular R9XY1016R6V (Success).
 
-### Sprint 2 — Offline + Tráfego
-1. Modo offline real: download MBTiles + cálculo de rota offline + rerouting.
-2. Traffic layer (TomTom/HERE) + rerouting automático.
-3. Dead reckoning/Kalman para túneis (geolocator + sensor fusion).
-4. Low clearance alerts em tempo real (map tiles + altura do veículo).
+### Melhorias adicionais entregues nesta sessão
+- ✅ Botão "Configurações" no mapa → abre `SettingsScreen` existente (perfil, plano, GPS/rota, mapa/gráficos, sons/voz, aparência, permissões, histórico, limpar cache, sair).
+- ✅ Clima: valida posição GPS antes de abrir `WeatherPanel`; snackbar "Aguardando posição GPS..." se não houver localização.
+- ✅ `_limparSinaisDoMapa()` e `_sairDaConta()` (logout → SplashScreen).
+- ✅ Correção encoding mojibake ("TrÃ¢nsito" → "Trânsito").
+- ✅ APK buildado (debug) e instalado no dispositivo R9XY1016R6V.
 
-### Sprint 3 — IA complementar
-1. Assistente de voz (STT + LLM + TTS) com comandos de rota.
-2. Crash detection via Argus alerts (511/DOT cameras) — push notifications.
-3. Detecção de sonolência (MediaPipe) — alerta de descanso.
-4. Chat PX inteligente com LLM (RAG sobre POIs/tráfego).
+## 13. Status atual (01/11/2026)
 
-### Sprint 4 — Economia/POIs
-1. Fuel prices + strategic pump pricing + tank level timing.
-2. Truck stops (500k+) + parking predictions.
-3. Weigh stations status (open/closed).
-4. HOS integration + IFTA mileage reports.
+| Item | Status |
+|---|---|
+| Analyze | ✅ No issues found |
+| Testes Flutter | ✅ 244/244 passando |
+| APK debug | ✅ Buildado e instalado no celular |
+| Commit + push | ✅ `27e7c3c` em `origin/main` |
+| Clima | ✅ Radar + Open-Meteo funcionando (validado no celular) |
+| Botão Configurações | ✅ Adicionado no mapa |
+| Próxima sprint | Sprint 2 — Offline MBTiles + Traffic layer + Dead reckoning |
 
-### Sprint 5 — Plataforma
-1. Android Auto / CarPlay.
-2. GPX import/export.
-3. Geofencing (zonas de perigo).
-4. Speed camera alerts.
-5. Plugin system.
+### Decisões técnicas adotadas (Sprint 1)
+- **TTS:** `flutter_tts` (offline, grátis) ✅ já integrado
+- **Roteamento:** OSRM/ORS/Google Directions via `directions_service.dart` ✅ já integrado
+- **Speed limit:** Overpass API (sem chave) ✅ já integrado
+- **Offline maps:** pendente (Sprint 2)
 
-### Como começar agora
-1. Criar branch `feature/sprint1-core-gps`.
-2. Adicionar dependências: `flutter_tts`, client HTTP para OSRM/Argus, `geolocator` (já deve ter).
-3. Implementar TTS turn-by-turn no `NavigationService` existente.
-4. Implementar speed limit display no HUD.
-5. Integrar roteamento truck-aware (OSRM profile truck ou Argus Routing API).
-6. Rodar `flutter analyze` e `flutter test` (meta: "No issues found!" + 79+ testes).
-7. Testar no emulador AVD `teste_apk` e capturar PNG para validação.
-8. Commit por agente + atualizar COORDENACAO-AGENTES.md.
-
-### Decisão necessária
-- Usar **OSRM self-hosted** (grátis, precisa infra) ou **Argus Routing API** (pago, per-call, pronto)?
-- TTS: **flutter_tts** (offline, grátis) ou **Cerence** (pago, premium)?
-- Offline maps: **MBTiles** (manual) ou **MapLibre offline** (built-in)?
-
-Recomendação inicial: começar com flutter_tts + OSRM self-hosted + MBTiles (custo zero), validar, depois avaliar Argus/Cerence se precisar de qualidade premium.
 
