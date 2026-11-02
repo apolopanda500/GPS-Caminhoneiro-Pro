@@ -876,6 +876,13 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   _iconeCamera, imports inuteis). Botao Voltar do Android agora minimiza o app
   (moveTaskToBack) via MainActivity onBackPressed + method channel.
   Checks: flutter analyze "No issues found!", flutter test 235/235.
+- 01/11/2026 AGENTE-A-FLUTTER: atualização de dependências e pendências Windows.
+  flutter pub upgrade: 3 dependências atualizadas (archive, file_picker,
+  file_picker_darwin). backend npm install: 149 pacotes, 0 vulnerabilidades.
+  flutter analyze: No issues found!. flutter test: 235/235 todos passam.
+  Pendências Windows: adb duplicado removido (C:\Program Files\platform-tools),
+  licenças Android XR pendentes (não críticas para celular físico R9XY1016R6V
+  conectado via adb). Flutter 3.47.7 estável, Dart 3.13.5, Android SDK 36.0.0.
 - 01/11/2026 AGENTE-A-FLUTTER: app instalado e rodando no celular R9XY1016R6V (conectado via adb).
   Desinstalou a versao debug (assinatura incompatível) e instalou o app-release.apk assinado (Success).
   App aberto com am start (MainActivity) e screenshot confirmado. Tarefa de validacao em aparelho real
