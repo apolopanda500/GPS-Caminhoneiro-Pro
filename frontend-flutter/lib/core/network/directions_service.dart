@@ -4,6 +4,163 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import 'package:gps_camioneiro_pro/core/constants/app_constants.dart';
+import 'package:gps_camioneiro_pro/core/rota/manobra.dart';
+
+List<LatLng> decodificarPolyline(String encoded) {
+  final points = <LatLng>[];
+  int index = 0;
+  int lat = 0;
+  int lng = 0;
+
+  while (index < encoded.length) {
+    int result = 0;
+    int shift = 0;
+    int b;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+    result = 0;
+    shift = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+    points.add(LatLng(lat / 1e5, lng / 1e5));
+  }
+  return points;
+}
+
+Map<String, List<Manobra>> extrairManobrasGoogle(Map<String, dynamic> route) {
+  final legs = (route['legs'] as List? ?? const []);
+  final saida = <List<Manobra>>[];
+  for (final leg0 in legs) {
+    if (leg0 is! Map) continue;
+    final leg = leg0.cast<String, dynamic>();
+    final steps = leg['steps'] as List? ?? const [];
+    final manobras = <Manobra>[];
+    double acumulado = 0;
+    for (final s in steps) {
+      if (s is! Map) continue;
+      final st = s.cast<String, dynamic>();
+      final encoded = (st['polyline']?['encodedPolyline'] as String?) ?? '';
+      final geo = decodificarPolyline(encoded);
+      if (geo.isEmpty) continue;
+      final nav = (st['navigationInstruction'] as Map?)?.cast<String, dynamic>()
+          ?? const {};
+      final texto = (nav['instructions'] as String?) ?? '';
+      final manobra = Manobra(
+        posicao: geo.first,
+        tipo: normalizarManobra((nav['maneuver'] as String?) ?? 'STRAIGHT'),
+        texto: texto,
+        distancia: (st['distanceMeters'] as num?)?.toDouble() ?? 0,
+        geometria: geo,
+        acumulado: acumulado,
+      );
+      acumulado += manobra.distancia;
+      manobras.add(manobra);
+    }
+    if (manobras.isNotEmpty) saida.add(manobras);
+  }
+  return {'manobras': saida.expand((e) => e).toList()};
+}
+
+List<List<Manobra>> extrairManobrasOsrm(Map<String, dynamic> rota) {
+  final legs = rota['legs'] as List? ?? const [];
+  final manobras = <Manobra>[];
+  double acumulado = 0;
+  for (final l in legs) {
+    if (l is! Map) continue;
+    final leg = l.cast<String, dynamic>();
+    final steps = leg['steps'] as List? ?? const [];
+    for (final s in steps) {
+      if (s is! Map) continue;
+      final st = s.cast<String, dynamic>();
+      final geo = (st['geometry'] as Map?)?.cast<String, dynamic>();
+      final coords = (geo?['coordinates'] as List?) ?? const [];
+      final pontos = coords
+          .whereType<List>()
+          .where((c) => c.length >= 2)
+          .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+          .toList();
+      if (pontos.isEmpty) continue;
+      final m = (st['maneuver'] as Map?)?.cast<String, dynamic>() ?? const {};
+      var texto = ((m['modifier'] as String?) ?? m['type'] ?? '')
+          .toString().replaceAll('_', ' ');
+      final nomeVia = (st['name'] as String?) ?? '';
+      if (nomeVia.isNotEmpty) texto += ' para $nomeVia';
+      final intersec = st['intersections'] as List? ?? const [];
+      var faixas = const <FaixaRota>[];
+      for (final inter in intersec.reversed) {
+        final lanes = ((inter is Map ? inter : const {})
+            .cast<String, dynamic>()['lanes'] as List?) ?? const [];
+        if (lanes.isNotEmpty) {
+          faixas = [
+            for (final ln in lanes)
+              if (ln is Map)
+                FaixaRota(
+                  eValida: (ln['valid'] as bool?) ?? false,
+                  indicacao: ((ln['indications'] as List?) ?? const [])
+                      .join('+'),
+                ),
+          ];
+          break;
+        }
+      }
+      final manobra = Manobra(
+        posicao: pontos.first,
+        tipo: normalizarManobra(
+            '${m['type'] ?? ''} ${m['modifier'] ?? ''}'),
+        texto: texto,
+        distancia: (st['distance'] as num?)?.toDouble() ?? 0,
+        geometria: pontos,
+        faixas: faixas,
+        acumulado: acumulado,
+      );
+      acumulado += manobra.distancia;
+      manobras.add(manobra);
+    }
+  }
+  return [manobras];
+}
+
+List<List<Manobra>> extrairManobrasOrs(
+    Map<String, dynamic> properties, List<LatLng> polyline) {
+  final lista = properties['instructions'] as List? ?? const [];
+  final wayPoints = properties['way_points'] as List? ?? const [];
+  final manobras = <Manobra>[];
+  double acumulado = 0;
+  for (var i = 0; i < lista.length; i++) {
+    final ins = (lista[i] as Map?)?.cast<String, dynamic>();
+    if (ins == null) continue;
+    final ini = (wayPoints[i] as num?)?.toInt() ?? 0;
+    final fim = i + 1 < wayPoints.length
+        ? (wayPoints[i + 1] as num?)?.toInt() ?? 0
+        : polyline.length - 1;
+    if (ini >= polyline.length) break;
+    final fimClamp = fim.clamp(ini, polyline.length - 1);
+    final geo = polyline.sublist(ini, fimClamp + 1);
+    final manobra = Manobra(
+      posicao: polyline[ini],
+      tipo: normalizarManobra((ins['type'] as String?) ?? 'continue'),
+      texto: ((ins['text'] as String?) ?? '')
+          .replaceAll(RegExp(r'<[^>]+>'), '')
+          .trim(),
+      distancia: (ins['distance'] as num?)?.toDouble() ?? 0,
+      geometria: geo,
+      acumulado: acumulado,
+    );
+    acumulado += manobra.distancia;
+    manobras.add(manobra);
+  }
+  return [manobras];
+}
 
 class RouteResult {
   final List<LatLng> polyline;
@@ -13,6 +170,7 @@ class RouteResult {
   final String summary;
   final String provider;
   final bool heavyVehicle;
+  final List<Manobra> manobras;
 
   const RouteResult({
     required this.polyline,
@@ -22,6 +180,7 @@ class RouteResult {
     required this.summary,
     this.provider = 'google',
     this.heavyVehicle = false,
+    this.manobras = const [],
   });
 
   double get distanceKm => distanceMeters / 1000;
@@ -48,9 +207,9 @@ class RouteResult {
   }
 }
 
-/// Rotas rodoviárias com paradas.
-/// Preferência: OpenRouteService `driving-hgv` (restrições reais de caminhão).
-/// Alternativa: Google Routes API com trânsito em tempo real (sem dimensões).
+/// Rotas rodoviÃ¡rias com paradas.
+/// PreferÃªncia: OpenRouteService `driving-hgv` (restriÃ§Ãµes reais de caminhÃ£o).
+/// Alternativa: Google Routes API com trÃ¢nsito em tempo real (sem dimensÃµes).
 class DirectionsService {
   final http.Client _client;
 
@@ -243,6 +402,7 @@ class DirectionsService {
       if (truckWidth != null) 'width': truckWidth,
       if (truckLength != null) 'length': truckLength,
       if (axleCount != null) 'axleload': (truckWeight ?? 20) / axleCount,
+      if (hazmat) 'hazmat': true,
     };
     final body = <String, dynamic>{
       'coordinates': [
@@ -251,7 +411,8 @@ class DirectionsService {
         [destination.longitude, destination.latitude],
       ],
       'preference': 'recommended',
-      'instructions': false,
+      'instructions': true,
+      'instructions_format': 'text',
       'units': 'm',
       'language': 'pt',
       'options': {
@@ -274,14 +435,14 @@ class DirectionsService {
 
     if (resp.statusCode != 200) {
       throw Exception(
-          'Falha ao calcular rota de caminhão (HTTP ${resp.statusCode}).');
+          'Falha ao calcular rota de caminhÃ£o (HTTP ${resp.statusCode}).');
     }
 
     final data =
         jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
     final features = data['features'] as List<dynamic>? ?? const [];
     if (features.isEmpty) {
-      throw Exception('Nenhuma rota de caminhão encontrada.');
+      throw Exception('Nenhuma rota de caminhÃ£o encontrada.');
     }
 
     final feature = features.first as Map<String, dynamic>;
@@ -303,6 +464,8 @@ class DirectionsService {
 
     final distance = (summary['distance'] as num?)?.toDouble() ?? 0;
     final duration = (summary['duration'] as num?)?.toDouble() ?? 0;
+    final manobras =
+        extrairManobrasOrs(properties, polyline).expand((e) => e).toList();
 
     return RouteResult(
       polyline: polyline,
@@ -310,9 +473,10 @@ class DirectionsService {
       durationSeconds: duration,
       staticDurationSeconds: duration,
       summary:
-          hazmat ? 'Rota HGV • cargas perigosas' : 'Rota para veículos pesados',
+          hazmat ? 'Rota HGV â€¢ cargas perigosas' : 'Rota para veÃ­culos pesados',
       provider: 'ors-hgv',
       heavyVehicle: true,
+      manobras: manobras,
     );
   }
 
@@ -365,7 +529,7 @@ class DirectionsService {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': AppConstants.googleDirectionsApiKey,
             'X-Goog-FieldMask':
-                'routes.duration,routes.staticDuration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description',
+                'routes.duration,routes.staticDuration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description,routes.legs.steps.distanceMeters,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.navigationInstruction.maneuver',
             // Necessario quando a chave do Google e restrita para Android.
             if (AppConstants.androidCertSha1.isNotEmpty)
               'X-Android-Package': AppConstants.androidPackage,
@@ -389,7 +553,7 @@ class DirectionsService {
 
     final route0 = routes.first as Map<String, dynamic>;
     final encoded = (route0['polyline']?['encodedPolyline'] as String?) ?? '';
-    final polyline = _decode(encoded);
+    final polyline = decodificarPolyline(encoded);
 
     final distance = _parseDistance(route0['distanceMeters']);
     final duration = _parseDuration(route0['duration']);
@@ -403,6 +567,8 @@ class DirectionsService {
       summary: (route0['description'] as String?) ?? '',
       provider: 'google',
       heavyVehicle: false,
+      manobras:
+          extrairManobrasGoogle(route0)['manobras'] ?? const [],
     );
   }
 
@@ -421,7 +587,7 @@ class DirectionsService {
 
     final uri = Uri.parse(
       'https://router.project-osrm.org/route/v1/driving/$pontos'
-      '?overview=full&geometries=geojson',
+      '?overview=full&geometries=geojson&steps=true',
     );
     final resp = await _client.get(uri).timeout(const Duration(seconds: 20));
     if (resp.statusCode != 200) {
@@ -443,6 +609,7 @@ class DirectionsService {
         .toList();
     final distance = (rota['distance'] as num?)?.toDouble() ?? 0;
     final duration = (rota['duration'] as num?)?.toDouble() ?? 0;
+    final manobras = extrairManobrasOsrm(rota).expand((e) => e).toList();
     return RouteResult(
       polyline: polyline,
       distanceMeters: distance,
@@ -451,6 +618,7 @@ class DirectionsService {
       summary: 'Rota de carro (OSRM)',
       provider: 'osrm',
       heavyVehicle: false,
+      manobras: manobras,
     );
   }
 
@@ -474,48 +642,19 @@ class DirectionsService {
   String _mensagemStatus(String status) {
     switch (status) {
       case 'ZERO_RESULTS':
-        return 'Não existe rota entre esses pontos.';
+        return 'NÃ£o existe rota entre esses pontos.';
       case 'REQUEST_DENIED':
-        return 'Chave do Google Directions inválida ou sem permissão.';
+        return 'Chave do Google Directions invÃ¡lida ou sem permissÃ£o.';
       case 'OVER_QUERY_LIMIT':
         return 'Limite de uso da API atingido.';
       case 'NOT_FOUND':
-        return 'Um dos endereços não foi localizado.';
+        return 'Um dos endereÃ§os nÃ£o foi localizado.';
       case 'INVALID_REQUEST':
-        return 'Pedido de rota inválido.';
+        return 'Pedido de rota invÃ¡lido.';
       default:
-        return 'Não foi possível calcular a rota ($status).';
+        return 'NÃ£o foi possÃ­vel calcular a rota ($status).';
     }
   }
 
-  static List<LatLng> _decode(String encoded) {
-    final points = <LatLng>[];
-    int index = 0;
-    int lat = 0;
-    int lng = 0;
-
-    while (index < encoded.length) {
-      int result = 0;
-      int shift = 0;
-      int b;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-
-      result = 0;
-      shift = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-
-      points.add(LatLng(lat / 1e5, lng / 1e5));
-    }
-    return points;
-  }
 }
+

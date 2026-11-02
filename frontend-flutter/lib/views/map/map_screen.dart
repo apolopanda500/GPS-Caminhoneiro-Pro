@@ -19,6 +19,10 @@ import 'package:gps_camioneiro_pro/core/native/servico_rastreio.dart';
 import 'package:gps_camioneiro_pro/core/map/traffic_layer.dart';
 import 'package:gps_camioneiro_pro/core/rota/geometria_rota.dart';
 import 'package:gps_camioneiro_pro/core/rota/monitor_paradas.dart';
+import 'package:gps_camioneiro_pro/core/rota/navegador_tbt.dart';
+import 'package:gps_camioneiro_pro/core/gps/filtro_kalman.dart';
+import 'package:gps_camioneiro_pro/core/network/directions_service.dart';
+import 'package:gps_camioneiro_pro/views/map/widgets/navegacao_banner.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/onda_aviso.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/rede_screen.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/radio_sheet.dart';
@@ -62,6 +66,8 @@ import 'package:gps_camioneiro_pro/views/map/widgets/alerts_panel.dart';
 import 'package:gps_camioneiro_pro/views/map/widgets/floating_panel.dart';
 import 'package:gps_camioneiro_pro/views/contacts/contacts_screen.dart';
 import 'package:gps_camioneiro_pro/views/profile/profile_screen.dart';
+import 'package:gps_camioneiro_pro/views/settings/settings_screen.dart';
+import 'package:gps_camioneiro_pro/views/splash/splash_screen.dart';
 
 class MapScreen extends StatefulWidget {
   final String driverId;
@@ -83,6 +89,13 @@ class _MapScreenState extends State<MapScreen> {
 
   StreamSubscription? _positionSubscription;
   ml.MapLibreMapController? _mapController;
+  final FiltroKalman _kalman = FiltroKalman();
+  final NavegadorTbt _navegador = NavegadorTbt(voz: VoiceService.instance);
+  SnapshotNavegacao? _nav;
+  RouteResult? _rotaNavegada;
+  Timer? _timerGps;
+  DateTime _ultimoGpsTick = DateTime(0);
+  bool _avisouPosicaoEstimada = false;
 
   String? _styleJsonSat;
   String? _styleJsonStreetsLight;
@@ -546,7 +559,28 @@ class _MapScreenState extends State<MapScreen> {
       highAccuracy: settings.highAccuracy,
       economia: settings.batterySaver,
     ).listen((pos) {
-      final newPos = LatLng(pos.latitude, pos.longitude);
+      final filtrada = _kalman.filtrar(
+          LatLng(pos.latitude, pos.longitude), pos.accuracy.toDouble());
+      final newPos = filtrada.pos;
+      _ultimoGpsTick = DateTime.now();
+      _avisouPosicaoEstimada = false;
+      _timerGps ??= Timer.periodic(const Duration(seconds: 3), (t) {
+        if (!mounted || _currentPosition == null || _positionSubscription == null) return;
+        final decorrido = DateTime.now().difference(_ultimoGpsTick);
+        if (decorrido.inSeconds < 3) return;
+        final estimada = _kalman.prevista(desdeUltimoGps: decorrido);
+        if (estimada.precisao > 400) return;
+        if (!_avisouPosicaoEstimada) {
+          _avisouPosicaoEstimada = true;
+          _showSnackBar(
+              'Sinal de GPS fraco (tunel?). Seguindo por calculo ate voltar.');
+        }
+        setState(() => _currentPosition = estimada.pos);
+        _socket.sendLocationUpdate(
+            lat: estimada.pos.latitude,
+            lon: estimada.pos.longitude,
+            driverId: widget.driverId);
+      });
       final anterior = _currentPosition;
       final isFirst = anterior == null;
       final deslocamento =
@@ -612,6 +646,7 @@ class _MapScreenState extends State<MapScreen> {
         _aplicarCameraNoVeiculo(suave);
       }
       unawaited(_verificarForaDaRota(newPos));
+      _navegarTbt(newPos);
       _renderMarkers();
     });
   }
@@ -787,6 +822,10 @@ class _MapScreenState extends State<MapScreen> {
     final pos = _currentPosition;
     final lat = clima.lastLatitude ?? pos?.latitude;
     final lon = clima.lastLongitude ?? pos?.longitude;
+    if (lat == null || lon == null) {
+      _showSnackBar('Aguardando posição GPS para carregar o clima.');
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -795,6 +834,37 @@ class _MapScreenState extends State<MapScreen> {
       barrierColor: Colors.black54,
       builder: (_) => WeatherPanel(latitude: lat, longitude: lon),
     );
+  }
+
+  /// Abre a tela de Configurações do app.
+  void _abrirConfiguracoes() {
+    SettingsScreen.show(
+      context,
+      onLimparSinais: _limparSinaisDoMapa,
+      onSairDaConta: _sairDaConta,
+    );
+  }
+
+  /// Limpa os sinais (alertas) do mapa e da sessão.
+  void _limparSinaisDoMapa() {
+    setState(() {
+      _activeAlerts.clear();
+      _sinaisOcultosSessao.clear();
+    });
+    _renderMarkers();
+    _showSnackBar('Sinais do mapa limpos.');
+  }
+
+  /// Sai da conta e volta para a tela de login (splash).
+  Future<void> _sairDaConta() async {
+    final auth = context.read<AuthProvider>();
+    auth.logout();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SplashScreen()),
+        (_) => false,
+      );
+    }
   }
 
   /// Radio ao vivo (estacoes do Brasil): abre a lista e o tocador.
@@ -957,6 +1027,26 @@ class _MapScreenState extends State<MapScreen> {
         );
         break;
     }
+  }
+
+  void _navegarTbt(LatLng pos) {
+    final route = context.read<RouteProvider>();
+    final resultado = route.result;
+    if (resultado != null && !identical(resultado, _rotaNavegada)) {
+      _rotaNavegada = resultado;
+      _navegador.definirRota(resultado);
+    }
+    if (!_navegador.ativa) return;
+    final destinoAqui = _navegador.restanteAoDestino <= 30;
+    final snap = _navegador.atualizar(pos);
+    if (!mounted) return;
+    if (destinoAqui) {
+      setState(() => _nav = null);
+      _navegador.limpar();
+      _rotaNavegada = null;
+      return;
+    }
+    setState(() => _nav = snap);
   }
 
   /// Saiu do tracado? Recalcula sozinho mantendo as entregas que faltam.
@@ -3122,6 +3212,7 @@ class _MapScreenState extends State<MapScreen> {
 
     if (_gpsModoEconomia != economia) {
       _gpsModoEconomia = economia;
+      _timerGps?.cancel();
       _positionSubscription?.cancel();
       _positionSubscription = null;
     }
@@ -3189,6 +3280,7 @@ class _MapScreenState extends State<MapScreen> {
     if (tracking && !hasStream) {
       _startLocationStream();
     } else if (!tracking && hasStream) {
+      _timerGps?.cancel();
       _positionSubscription?.cancel();
       _positionSubscription = null;
       setState(() => _currentPosition = null);
@@ -3405,6 +3497,7 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     final trip = _buildTrip();
     if (trip != null) _tripProvider?.addTrip(trip);
+    _timerGps?.cancel();
     _positionSubscription?.cancel();
     _socket.disconnect();
     _markerProvider?.removeListener(_onDataChanged);
@@ -3436,6 +3529,19 @@ class _MapScreenState extends State<MapScreen> {
             ativo: realismo && !_emPip,
           ),
           if (_emPip) _miniJanela(context),
+          if (ui && _nav?.proxima != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: NavegacaoBanner(
+                  proxima: _nav!.proxima!,
+                  distancia: _nav!.distanciaProxima,
+                  restante: _nav!.restanteAoDestino,
+                ),
+              ),
+            ),
           // Onda de aviso (compartilhar posicao / marcar sinal).
           if (_onda != null)
             Positioned.fill(
@@ -3488,6 +3594,7 @@ class _MapScreenState extends State<MapScreen> {
                       'Emitir sinal no mapa', _emitirSinalNoMapa),
                   _botaoTrocaMapa(),
                   _botaoClima(),
+                  _botaoFlutuante(Icons.settings, 'Configurações', _abrirConfiguracoes),
                   _botaoParar(),
                 ],
               ),
@@ -3950,6 +4057,7 @@ class _MapScreenState extends State<MapScreen> {
     if (!mounted) return;
     final settings = context.read<SettingsProvider>();
     await settings.endDay();
+    _timerGps?.cancel();
     _positionSubscription?.cancel();
     _positionSubscription = null;
     if (!mounted) return;
