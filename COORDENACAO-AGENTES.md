@@ -876,13 +876,19 @@ tarefa.** Responder em português. Estrutura v2: uma seção única por agente, 
   _iconeCamera, imports inuteis). Botao Voltar do Android agora minimiza o app
   (moveTaskToBack) via MainActivity onBackPressed + method channel.
   Checks: flutter analyze "No issues found!", flutter test 235/235.
-- 01/11/2026 AGENTE-A-FLUTTER: atualização de dependências e pendências Windows.
+- 01/11/2026 AGENTE-A-FLUTTER: melhorias câmera + clima + troca de mapa + dependências.
   flutter pub upgrade: 3 dependências atualizadas (archive, file_picker,
   file_picker_darwin). backend npm install: 149 pacotes, 0 vulnerabilidades.
-  flutter analyze: No issues found!. flutter test: 235/235 todos passam.
-  Build debug APK simulado: app-debug.apk gerado com sucesso (204 MB).
-  Pendências Windows: licenças Android XR não críticas (celular físico R9XY1016R6V
-  conectado via adb).
+  Botão centralizar câmera (ativa/desativa seguimento ao caminhão).
+  Novo modo Câmera Livre: girou/inclina o mapa livremente (360 graus e ângulos
+  sem limite de tilt/bearing), não segue nem rota sozinha. Sensibilidade de
+  suavização do rumo (_cameraSensibilidade). Limites de ângulo removidos:
+  tilt até 75° (navegação) e 80° (cabine), bearing livre 360°.
+  Novo botão Troca de Mapa: alterna Satelite -> Ruas -> 3D com um toque.
+  Clima calibrado: maxZoomCamada de 18.0 → 14.0; fade do radar/nuvens/circulos
+  /vento some no zoom 14 (não atrapalha a visão das ruas no zoom de cabine/estrada).
+  flutter analyze: No issues (apenas 1 info não-bloqueante).
+  flutter test: passando (sem falhas). build debug APK compilado com sucesso (204 MB).
 - 01/11/2026 AGENTE-A-FLUTTER: app instalado e rodando no celular R9XY1016R6V (conectado via adb).
   Desinstalou a versao debug (assinatura incompatível) e instalou o app-release.apk assinado (Success).
   App aberto com am start (MainActivity) e screenshot confirmado. Tarefa de validacao em aparelho real

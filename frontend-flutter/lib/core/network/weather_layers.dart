@@ -71,10 +71,10 @@ class WeatherLayers {
   /// com o mapa bem de perto (estrada/cabine).
   static const int maxZoomTiles = 7;
 
-  /// Zoom maximo em que o clima aparece no mapa. Vai ate o zoom de rua para
-  /// o motorista continuar vendo chuva, nuvens, vento e temperatura enquanto
-  /// dirige; a opacidade cai perto do fim para nao esconder a via.
-  static const double maxZoomCamada = 18.0;
+  /// Zoom maximo em que o clima aparece no mapa. Soma ate o zoom de rua para
+  /// o motorista continuar vendo chuva/nuvens, mas SOME antes do zoom muito
+  /// perto (zoom de cabine/rua) para nao atrapalhar a visao da via.
+  static const double maxZoomCamada = 14.0;
 
   /// Timeline completa do radar: 2 horas de passado + nowcast (previsao).
   static Future<List<FrameRadar>> framesRadar() async {

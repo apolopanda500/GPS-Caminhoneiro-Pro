@@ -120,6 +120,11 @@ class _MapScreenState extends State<MapScreen> {
   /// Rumo que a camera esta realmente olhando (suavizado, estilo Google Maps).
   double _cameraBearing = 0;
   CameraMode _cameraMode = CameraMode.norte;
+  /// Câmera livre: permite girar/inclinar o mapa livremente (360 graus e
+  /// ângulos sem limite) sem a camera voltar ao caminhao automaticamente.
+  bool _cameraLivre = false;
+  /// Sensibilidade da suavização do rumo e inclinação (0 = instante, 1 = muito suave).
+  final double _cameraSensibilidade = 0.35;
   int _foraDaRotaAmostras = 0;
   DateTime _ultimoRecalculoAutomatico = DateTime.fromMillisecondsSinceEpoch(0);
   bool _recalculandoAutomatico = false;
@@ -883,28 +888,39 @@ class _MapScreenState extends State<MapScreen> {
         .catchError((_) => false);
   }
 
-  /// Posiciona a camera conforme o modo escolhido, imitando o Google Maps:
+  /// Posiciona a camera conforme o modo escolhido.
   ///
-  /// - o veiculo fica um pouco a frente do centro (look-ahead);
-  /// - o zoom afasta conforme a velocidade (parado = mais perto);
-  /// - o rumo tem uma "zona morta": em reta a camera nao fica girando com o
-  ///   tremor do GPS, so acompanha quando a curva e de verdade;
-  /// - a inclinacao cresce com a velocidade (45 graus parado, 62 na estrada);
-  /// - ao trocar para o modo Norte a camera volta suave para o norte.
+  /// - modo livre: o usuario pode girar/inclinar o mapa a vontade (360 graus e
+  ///   ângulos sem limite); a camera nao volta ao caminhao sozinha.
+  /// - norte: camera volta para cima (bearing 0), inclinação livre.
+  /// - navegação: camera acompanha o rumo do GPS com look-ahead à frente.
+  /// - cabine: visão do caminhoneiro (câmera alta à frente do veículo).
+  ///
+  /// As sensibilidades (_cameraSensibilidade / _cameraTiltSensibilidade)
+  /// controlam a suavização do rumo e da inclinação.
   void _aplicarCameraNoVeiculo(LatLng pos, {bool instant = false}) {
+    if (_cameraLivre) {
+      // Câmera livre: não move nem rota sozinha. Só aplica se instant forçado.
+      return;
+    }
     final rumo = _heading;
     final velocidade = _speedKmh.clamp(0.0, 140.0);
     final andando = velocidade >= 3;
 
     switch (_cameraMode) {
       case CameraMode.norte:
-        _cameraBearing =
-            instant ? 0 : GeometriaRota.suavizarBearing(_cameraBearing, 0, 0.3);
+        _cameraBearing = instant
+            ? 0
+            : GeometriaRota.suavizarBearing(
+                _cameraBearing, 0, _cameraSensibilidade);
         final zoom = (17.0 - velocidade * 0.018).clamp(14.6, 17.0);
+        // Inclinação livre: não trava em ângulo máximo fixo.
+        final tilt = (45.0 + velocidade * 0.12).clamp(0.0, 75.0);
         _moverCamera(
           pos,
           zoom: zoom,
           bearing: _cameraBearing,
+          tilt: tilt,
           instant: instant,
         );
         break;
@@ -912,10 +928,10 @@ class _MapScreenState extends State<MapScreen> {
         _cameraBearing = instant
             ? rumo
             : GeometriaRota.suavizarBearing(
-                _cameraBearing, rumo, andando ? 0.28 : 0.06);
+                _cameraBearing, rumo, andando ? 0.28 : _cameraSensibilidade);
         final olhar = (25 + velocidade * 1.3).clamp(25.0, 165.0);
         final zoom = (17.8 - velocidade * 0.026).clamp(15.0, 17.8);
-        final tilt = (46 + velocidade * 0.14).clamp(46.0, 62.0);
+        final tilt = (46.0 + velocidade * 0.14).clamp(0.0, 75.0);
         _moverCamera(
           GeometriaRota.deslocar(pos, _cameraBearing, olhar),
           zoom: zoom,
@@ -928,10 +944,10 @@ class _MapScreenState extends State<MapScreen> {
         _cameraBearing = instant
             ? rumo
             : GeometriaRota.suavizarBearing(
-                _cameraBearing, rumo, andando ? 0.32 : 0.08);
+                _cameraBearing, rumo, andando ? 0.32 : _cameraSensibilidade);
         final olhar = (35 + velocidade * 1.5).clamp(35.0, 190.0);
         final zoom = (18.2 - velocidade * 0.02).clamp(15.6, 18.2);
-        final tilt = (52 + velocidade * 0.12).clamp(52.0, 66.0);
+        final tilt = (52.0 + velocidade * 0.12).clamp(0.0, 80.0);
         _moverCamera(
           GeometriaRota.deslocar(pos, _cameraBearing, olhar),
           zoom: zoom,
@@ -3470,6 +3486,7 @@ class _MapScreenState extends State<MapScreen> {
                   _botaoFlutuante(Icons.radio_outlined, 'Radio ao vivo', _abrirRadio),
                   _botaoFlutuante(Icons.add_location_alt,
                       'Emitir sinal no mapa', _emitirSinalNoMapa),
+                  _botaoTrocaMapa(),
                   _botaoClima(),
                   _botaoParar(),
                 ],
@@ -3490,6 +3507,21 @@ class _MapScreenState extends State<MapScreen> {
                       : Icons.center_focus_weak,
                   size: 18),
               child: _botaoCentralizar(),
+            ),
+          // Câmera livre: permite girar/inclinar o mapa a vontade (360 graus
+          // e ângulos sem limite), ao lado do botão de centralizar.
+          if (ui)
+            FloatingPanel(
+              id: 'camera_livre',
+              initial: Offset(16, size.height - 484),
+              width: 52,
+              height: 52,
+              dragWholeChild: true,
+              resizable: false,
+              minimizedChild: Icon(
+                  _cameraLivre ? Icons.screen_rotation : Icons.rotate_left,
+                  size: 18),
+              child: _botaoCameraLivre(),
             ),
           if (ui && !_routePanelClosed && totalParadas > 0)
             Builder(builder: (ctx) {
@@ -3594,6 +3626,10 @@ class _MapScreenState extends State<MapScreen> {
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: () {
+            if (_cameraLivre) {
+              _cameraLivre = false;
+              _showSnackBar('Camera livre desativada. Voltando ao caminhão.');
+            }
             if (ativo) {
               setState(() => _seguirVeiculo = false);
               _showSnackBar(
@@ -3609,6 +3645,58 @@ class _MapScreenState extends State<MapScreen> {
               ativo ? Icons.center_focus_strong : Icons.center_focus_weak,
               color: ativo ? Colors.white : accent,
               size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Alterna o modo câmera livre: permite girar e inclinar o mapa a vontade
+  /// (360 graus e ângulos sem limite). Quando ativo, a camera nao segue nem
+  /// rota sozinha; volta ao modo normal ao tocar de novo.
+  void _alternarCameraLivre() {
+    setState(() => _cameraLivre = !_cameraLivre);
+    if (_cameraLivre) {
+      _seguirVeiculo = false;
+      _showSnackBar(
+          'Camera livre: gire e incline o mapa livremente (360 graus).');
+    } else {
+      _recentralizarNoCaminhao();
+      _showSnackBar('Camera presa ao caminhao novamente.');
+    }
+  }
+
+  /// Botao de modo câmera livre: ativa/desativa a liberdade total de giro e
+  /// inclinação do mapa (360 graus e ângulos sem limite).
+  Widget _botaoCameraLivre() {
+    final ativo = _cameraLivre;
+    final cor =
+        ativo ? Colors.purple : (_settingsProvider?.overlayColor ?? kEmergencyRed);
+    return Tooltip(
+      message: ativo
+          ? 'Desativar câmera livre (voltar ao caminhão)'
+          : 'Câmera livre: gire/incline o mapa à vontade (360°)',
+      child: Material(
+        color: ativo ? cor.withValues(alpha: 0.15) : _superficie(context),
+        shape: CircleBorder(
+          side: BorderSide(
+            color: cor.withValues(alpha: 0.8),
+            width: 1.3,
+          ),
+        ),
+        elevation: 4,
+        shadowColor: Colors.black54,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _alternarCameraLivre,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              ativo ? Icons.screen_rotation : Icons.rotate_left,
+              color: ativo ? Colors.purple : cor,
+              size: 21,
             ),
           ),
         ),
@@ -3684,6 +3772,66 @@ class _MapScreenState extends State<MapScreen> {
               color: Colors.white,
               size: 21,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Troca a camada do mapa: Satelite -> Ruas -> 3D (detalhado) com um toque.
+  void _trocaCamadaMapa() {
+    final modos = MapLayerMode.values;
+    final proximo = modos[(_layerMode.index + 1) % modos.length];
+    setState(() => _layerMode = proximo);
+    final settings = context.read<SettingsProvider>();
+    settings.setLayer(proximo);
+    final nomes = {
+      MapLayerMode.satellite: 'Satelite',
+      MapLayerMode.streets: 'Ruas',
+      MapLayerMode.detailed: '3D',
+    };
+    _showSnackBar('Mapa: ${nomes[proximo]}');
+  }
+
+  /// Botao unico de troca de camada do mapa: mostra em qual modo esta e
+  /// alterna Satelite -> Ruas -> 3D com um toque.
+  Widget _botaoTrocaMapa() {
+    IconData icone;
+    String dica;
+    switch (_layerMode) {
+      case MapLayerMode.satellite:
+        icone = Icons.satellite;
+        dica = 'Satelite (toque para Ruas)';
+        break;
+      case MapLayerMode.streets:
+        icone = Icons.map;
+        dica = 'Ruas (toque para 3D)';
+        break;
+      case MapLayerMode.detailed:
+        icone = Icons.terrain;
+        dica = '3D (toque para Satelite)';
+        break;
+    }
+    final accent = _settingsProvider?.overlayColor ?? kEmergencyRed;
+    return Tooltip(
+      message: dica,
+      child: Material(
+        color: _superficie(context),
+        shape: CircleBorder(
+          side: BorderSide(
+            color: accent.withValues(alpha: 0.65),
+            width: 1.3,
+          ),
+        ),
+        elevation: 4,
+        shadowColor: Colors.black54,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _trocaCamadaMapa,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icone, color: accent, size: 20),
           ),
         ),
       ),
